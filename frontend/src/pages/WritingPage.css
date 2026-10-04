@@ -1,0 +1,417 @@
+/* =============================================================
+   WritingPage.css — 글쓰기 페이지 전용 스타일
+   (페이지 배경, 흰 카드, 버튼 공통 모양은 components/PageHero.css에 있음)
+   ============================================================= */
+
+/* ===================== 진행 단계 표시 ===================== */
+
+.writing-steps {
+  list-style: none;          /* 목록 번호 없애기 */
+  margin: 0 0 24px;
+  padding: 20px 28px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 4단계를 같은 너비로 */
+}
+
+.writing-step {
+  position: relative;        /* 화살표(absolute)의 위치 기준 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 15px;
+  color: #93a4b5;            /* 기본(아직 안 한 단계)은 흐린 회색 */
+}
+
+/* 동그란 번호/체크 */
+.writing-step-badge {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;       /* 숫자/아이콘 정가운데 */
+  font-size: 13px;
+  font-weight: 700;
+  background: #eef2f6;
+  color: #93a4b5;
+}
+
+/* 지난 단계: 연한 파랑 + 체크 */
+.writing-step.done {
+  color: #5d7f9f;
+}
+
+.writing-step.done .writing-step-badge {
+  background: #cfe4f6;
+  color: #3d8bc7;
+}
+
+/* 지금 단계: 진한 파랑으로 강조 */
+.writing-step.current {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.writing-step.current .writing-step-badge {
+  background: linear-gradient(135deg, #5aa5dc, #3d8bc7);
+  color: #fff;
+  box-shadow: 0 0 0 5px #e1effa; /* 바깥에 연한 링 */
+}
+
+/* 단계 사이 화살표: 칸 오른쪽 끝, 세로 가운데 */
+.writing-step-arrow {
+  position: absolute;
+  right: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #b9d1e6;
+}
+
+/* ===================== 글쓰기 카드 + 팁 배치 ===================== */
+
+.writing-layout {
+  display: grid;
+  /* 왼쪽 글쓰기 카드는 남는 공간 전부, 오른쪽 팁은 260px */
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* ===================== 글쓰기 카드 ===================== */
+
+.writing-card {
+  padding: 28px 30px;
+}
+
+.writing-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e8eff6;
+  font-size: 19px;
+  color: var(--navy);
+}
+
+.writing-card-title svg {
+  color: #3d8bc7;
+}
+
+/* "제목", "본문" 라벨 */
+.field-label {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+/* ----- 제목 입력칸 ----- */
+.title-input-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 0 16px;
+  border: 1.5px solid #dde8f2;
+  border-radius: 12px;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 입력 중일 때 테두리 강조 */
+.title-input-box:focus-within {
+  border-color: #8fbde3;
+  box-shadow: 0 0 0 4px #e8f3fc;
+}
+
+.title-input-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.title-input-box input::placeholder {
+  color: #a8b6c4;
+}
+
+/* 글자 수 (12/50) */
+.counter {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #9aabbd;
+}
+
+/* ----- 본문 에디터 ----- */
+.editor-box {
+  border: 1.5px solid #dde8f2;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;          /* 둥근 모서리 밖으로 툴바 배경이 안 삐져나오게 */
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.editor-box:focus-within {
+  border-color: #8fbde3;
+  box-shadow: 0 0 0 4px #e8f3fc;
+}
+
+/* 툴바 */
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;           /* 좁으면 다음 줄로 */
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e8eff6;
+  background: #f8fbfe;
+}
+
+.toolbar-item {
+  display: flex;
+  align-items: center;
+}
+
+/* 툴바 묶음 사이 세로 구분선 */
+.toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 8px;
+  background: #dbe5ef;
+}
+
+.toolbar-button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #5d7189;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.toolbar-button:hover {
+  background: #e8f2fb;
+  color: #3d8bc7;
+}
+
+/* 본문 입력칸 */
+.editor {
+  position: relative;        /* 안내 문구(::before) 위치 기준 */
+  min-height: 260px;
+  max-height: 520px;
+  overflow-y: auto;          /* 글이 길어지면 안에서 스크롤 */
+  padding: 18px 20px;
+  outline: none;             /* 기본 파란 테두리 없애기 (바깥 상자에서 표시) */
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+/* 본문이 비어 있을 때만 안내 문구 표시
+   attr(data-placeholder): JSX에서 넣은 data-placeholder 값을 글자로 꺼내 씀 */
+.editor.is-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  right: 20px;
+  color: #a8b6c4;
+  white-space: pre-line;     /* \n 줄바꿈 */
+  pointer-events: none;      /* 안내 문구를 눌러도 입력칸이 선택되게 */
+}
+
+/* 본문 안 목록, 링크 모양 */
+.editor ul,
+.editor ol {
+  margin: 4px 0;
+  padding-left: 24px;
+}
+
+.editor a {
+  color: #3d8bc7;
+}
+
+/* 본문 글자 수 */
+.editor-counter {
+  padding: 10px 16px;
+  border-top: 1px solid #f0f4f8;
+  font-size: 13px;
+  color: #9aabbd;
+  text-align: right;
+}
+
+/* 2000자 넘었을 때 빨간색 */
+.editor-counter.over {
+  color: #d9534f;
+  font-weight: 700;
+}
+
+/* 아래 버튼 줄 (양 끝 정렬) */
+.writing-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.writing-actions .btn-primary {
+  min-width: 180px;
+}
+
+/* ===================== 작성 팁 카드 ===================== */
+
+.tip-card {
+  padding: 26px 24px;
+  /* 위쪽에 연한 하늘색 → 아래로 흰색 */
+  background: linear-gradient(180deg, #f0f7fd 0%, rgba(255, 255, 255, 0.92) 60%);
+}
+
+.tip-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: 17px;
+  color: var(--navy);
+}
+
+.tip-title svg {
+  color: #e2a93b;            /* 전구만 노란빛 */
+}
+
+.tip-desc {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-sub);
+}
+
+/* 처음 적은 생각 상자 */
+.tip-idea {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px dashed #c4dbef;
+}
+
+.tip-idea span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a86bd;
+}
+
+.tip-idea p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+/* 체크리스트 */
+.tip-list {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tip-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.tip-list svg {
+  flex-shrink: 0;
+  color: #4a98d3;
+}
+
+/* 손글씨 응원 문구 */
+.tip-handwriting {
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px dashed #d6e4f1;
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 22px;
+  line-height: 1.3;
+  color: #5b8fbf;
+  transform: rotate(-3deg);  /* 살짝 기울여서 손으로 쓴 느낌 */
+}
+
+/* ===================== 반응형 ===================== */
+
+/* 태블릿 (900px 이하): 팁 카드를 글쓰기 카드 아래로 */
+@media (max-width: 900px) {
+  .writing-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 모바일 (640px 이하) */
+@media (max-width: 640px) {
+  /* 단계 표시를 2칸 x 2줄로 */
+  .writing-steps {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 8px;
+    padding: 18px 16px;
+  }
+
+  .writing-step {
+    justify-content: flex-start;
+    font-size: 14px;
+  }
+
+  /* 2줄로 접히면 화살표 방향이 안 맞으니 숨김 */
+  .writing-step-arrow {
+    display: none;
+  }
+
+  .writing-card {
+    padding: 22px 18px;
+  }
+
+  .editor {
+    min-height: 220px;
+  }
+
+  /* 툴바 버튼 8개가 모바일 한 줄에 다 들어가도록 조금 작게 */
+  .editor-toolbar {
+    padding: 6px 8px;
+  }
+
+  .toolbar-button {
+    width: 30px;
+    height: 30px;
+  }
+
+  .toolbar-divider {
+    margin: 0 4px;
+  }
+
+  /* 버튼 두 개를 꽉 차게 나란히 */
+  .writing-actions .btn-outline,
+  .writing-actions .btn-primary {
+    flex: 1;
+    min-width: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

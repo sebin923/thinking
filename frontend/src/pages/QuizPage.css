@@ -1,0 +1,452 @@
+/* =============================================================
+   QuizPage.css — 맞춤법 퀴즈 페이지 전용 스타일
+   (페이지 배경, 흰 카드, 버튼 공통 모양은 components/PageHero.css에 있음)
+   ============================================================= */
+
+/* 퀴즈 카드 */
+.quiz-card {
+  max-width: 860px;
+  margin: 0 auto;            /* 가운데 정렬 */
+  padding: 26px 34px 24px;
+}
+
+/* ===================== 카드 머리 (제목 + 진행률) ===================== */
+
+.quiz-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e8eff6;
+}
+
+.quiz-head-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 19px;
+  color: var(--navy);
+}
+
+.quiz-head-title svg {
+  color: #3d8bc7;
+}
+
+.quiz-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+/* 회색 바탕 막대 */
+.quiz-progress-bar {
+  width: 160px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e6eef6;
+  overflow: hidden;
+}
+
+/* 채워지는 파란 막대 */
+.quiz-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7cbbe8, #3d8bc7);
+  transition: width 0.3s ease; /* 다음 문제로 갈 때 부드럽게 늘어남 */
+}
+
+/* ===================== 문제 ===================== */
+
+.quiz-body {
+  padding: 0 4px;
+}
+
+/* "문제 1" 배지 */
+.quiz-badge {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #e4f0fb;
+  color: #3d7fb8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quiz-question {
+  margin: 16px 0 24px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+/* 빈칸: 밑줄 박스 */
+.quiz-blank {
+  display: inline-block;
+  min-width: 72px;
+  margin: 0 4px;
+  border-bottom: 2.5px solid #5aa5dc;
+  text-align: center;
+  vertical-align: baseline;
+}
+
+/* 정답 확인 후 빈칸에 정답이 채워지면 초록색 */
+.quiz-blank.filled {
+  color: #1f8a57;
+  border-color: #46b07e;
+}
+
+/* ===================== 보기 ===================== */
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 18px;
+  border: 1.5px solid #dde8f2;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.quiz-option:hover:not(:disabled) {
+  border-color: #a9cdea;
+  background: #f7fbff;
+}
+
+/* 확인 후 눌리지 않는 상태여도 손가락 대신 기본 커서 */
+.quiz-option:disabled {
+  cursor: default;
+}
+
+/* 동그란 라디오 표시 */
+.quiz-radio {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #b6cde2;
+  background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.quiz-option-text {
+  flex: 1;                   /* 체크/X 아이콘을 오른쪽 끝으로 밀어냄 */
+}
+
+/* 고른 보기 (확인 전) */
+.quiz-option.selected {
+  border-color: #5aa5dc;
+  background: #eef6fd;
+}
+
+/* 고른 보기의 라디오: 테두리 두껍게 = 안쪽이 채워진 것처럼 */
+.quiz-option.selected .quiz-radio {
+  border: 6px solid #3d8bc7;
+}
+
+/* 정답 보기 (확인 후) */
+.quiz-option.correct {
+  border-color: #46b07e;
+  background: #eefaf3;
+}
+
+.quiz-option.correct .quiz-radio {
+  border: 6px solid #2f9c69;
+}
+
+/* 내가 고른 오답 (확인 후) */
+.quiz-option.wrong {
+  border-color: #e38c88;
+  background: #fff3f2;
+}
+
+.quiz-option.wrong .quiz-radio {
+  border: 6px solid #d9534f;
+}
+
+/* 오른쪽 끝 체크/X 아이콘 색 */
+.quiz-option.correct .quiz-mark { color: #2f9c69; }
+.quiz-option.wrong .quiz-mark   { color: #d9534f; }
+
+/* ===================== 힌트 & 정답 설명 ===================== */
+
+.quiz-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fff8e8;
+  color: #8a6a1f;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.quiz-hint svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.quiz-feedback {
+  margin-top: 16px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.quiz-feedback strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.quiz-feedback p {
+  margin: 0;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.quiz-feedback.correct {
+  background: #eefaf3;
+}
+
+.quiz-feedback.correct strong {
+  color: #1f8a57;
+}
+
+.quiz-feedback.wrong {
+  background: #fff3f2;
+}
+
+.quiz-feedback.wrong strong {
+  color: #c9423e;
+}
+
+/* 아래 버튼 줄 (양 끝 정렬) */
+.quiz-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.quiz-actions .btn-primary {
+  min-width: 170px;
+}
+
+/* 비활성화된 테두리 버튼 */
+.quiz-actions .btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===================== 결과 화면 ===================== */
+
+.quiz-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 0 12px;
+  text-align: center;
+}
+
+.quiz-result-trophy {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fff4d6, #ffe7a8);
+  color: #d49a1c;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+}
+
+.quiz-result-label {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+.quiz-result-score {
+  margin: 4px 0 10px;
+  font-size: 52px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.quiz-result-score span {
+  margin-left: 4px;
+  font-size: 22px;
+}
+
+.quiz-result-message {
+  margin: 0 0 26px;
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* ===================== 카드 아래: 점수 + 진행 상황 ===================== */
+
+.quiz-status {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  margin-top: 28px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: #f3f8fd;
+}
+
+.quiz-score {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 28px;
+  border-right: 1px solid #dbe6f1; /* 진행 상황과의 구분선 */
+}
+
+.quiz-score-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #e1eefa;
+  color: #3d8bc7;
+  display: grid;
+  place-items: center;
+}
+
+.quiz-status-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.quiz-score strong {
+  font-size: 20px;
+  color: var(--navy);
+}
+
+.quiz-dots-wrap {
+  min-width: 0;
+}
+
+/* 번호 동그라미 10개 */
+.quiz-dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;           /* 좁으면 다음 줄로 */
+  gap: 8px;
+}
+
+.quiz-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  color: #93a4b5;
+  border: 1px solid #e0e8f0;
+}
+
+.quiz-dot.correct {
+  background: #dff3e8;
+  border-color: #b5e2c9;
+  color: #1f8a57;
+}
+
+.quiz-dot.wrong {
+  background: #fde6e5;
+  border-color: #f4c3c1;
+  color: #c9423e;
+}
+
+/* 지금 풀고 있는 문제 (맞음/틀림 색보다 나중에 적어서 우선 적용) */
+.quiz-dot.current {
+  background: linear-gradient(135deg, #5aa5dc, #3d8bc7);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* ===================== 반응형: 모바일 (640px 이하) ===================== */
+
+@media (max-width: 640px) {
+  .quiz-card {
+    padding: 22px 18px 18px;
+  }
+
+  /* 제목과 진행률을 위아래로 */
+  .quiz-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quiz-progress,
+  .quiz-progress-bar {
+    width: 100%;
+  }
+
+  .quiz-question {
+    font-size: 18px;
+  }
+
+  .quiz-option {
+    font-size: 15px;
+    padding: 13px 14px;
+  }
+
+  .quiz-actions .btn-outline,
+  .quiz-actions .btn-primary {
+    flex: 1;
+    min-width: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* 점수와 진행 상황을 위아래로 */
+  .quiz-status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .quiz-score {
+    padding-right: 0;
+    border-right: none;
+  }
+}
+
+/* 모바일에서 진행률 막대가 남는 너비를 채우도록 (위 미디어쿼리 보충) */
+@media (max-width: 640px) {
+  .quiz-progress-bar {
+    flex: 1;
+    width: auto;
+  }
+}
