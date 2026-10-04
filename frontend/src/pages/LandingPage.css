@@ -1,0 +1,435 @@
+/* =============================================================
+   LandingPage.css — 메인(랜딩) 페이지 전용 스타일
+   ============================================================= */
+
+/* ===================== 전체 배경 (하늘) ===================== */
+
+.landing {
+  position: relative;       /* 안의 구름(absolute)들의 위치 기준 */
+  overflow: hidden;         /* 구름이 화면 밖으로 삐져나가 스크롤 생기는 것 방지 */
+  min-height: 100vh;        /* 최소 화면 전체 높이 */
+  padding: 130px 24px 56px; /* 위쪽은 헤더 높이만큼 넉넉하게 */
+
+  /* 하늘색 그라데이션 (위는 조금 진하고 아래로 갈수록 밝아짐) */
+  background: linear-gradient(180deg, #d4e6f6 0%, #e3eef9 45%, #eef5fc 100%);
+}
+
+/* ----- 배경 구름 ----- */
+.sky-clouds {
+  position: absolute;
+  inset: 0;                 /* top/right/bottom/left 모두 0 → 부모 영역을 꽉 채움 */
+  pointer-events: none;     /* 장식이 클릭을 가로채지 않게 */
+}
+
+/* 구름 하나 = 흐릿하게 번진 흰 타원 */
+.sky-cloud {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  filter: blur(40px);       /* 가장자리를 크게 번지게 해서 구름처럼 */
+}
+
+/* 구름마다 위치와 크기를 다르게 */
+.cloud-1 { width: 520px; height: 180px; top: 70px;   left: -60px; }
+.cloud-2 { width: 420px; height: 150px; top: 40px;   right: 10%;  opacity: 0.7; }
+.cloud-3 { width: 600px; height: 200px; bottom: 40px; left: 20%;  opacity: 0.8; }
+.cloud-4 { width: 360px; height: 140px; top: 45%;    right: -80px; }
+
+/* 실제 내용 영역 */
+.landing-inner {
+  position: relative;
+  z-index: 1;               /* 구름보다 위에 그려지게 */
+  max-width: 1120px;        /* 너무 넓게 퍼지지 않게 */
+  margin: 0 auto;           /* 가로 가운데 정렬 */
+}
+
+/* ===================== 위쪽: 왼쪽 글 + 오른쪽 메모지 ===================== */
+
+.hero {
+  display: grid;
+  /* 2칸: 왼쪽이 조금 더 넓게 (1.1 : 0.9 비율) */
+  grid-template-columns: 1.1fr 0.9fr;
+  align-items: center;      /* 세로 가운데 정렬 */
+  gap: 40px;
+  padding: 0 24px;
+}
+
+/* 왼쪽 글 영역
+   min-width: 0 → 그리드 칸이 안의 내용 크기 때문에 화면보다 넓어지는 것 방지 (모바일 넘침 방지) */
+.hero-text {
+  min-width: 0;
+}
+
+/* ----- 손글씨 제목 ----- */
+.hero-title {
+  margin: 0 0 20px;
+  /* Nanum Pen Script: 손글씨 느낌 무료 폰트 (index.css에서 구글 폰트로 불러옴) */
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 52px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: #3a6a98;
+  word-break: keep-all;     /* 한글이 단어 중간에서 끊기지 않게 */
+}
+
+/* "생각한줄" 부분만 더 크고 진하게 */
+.hero-title strong {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 76px;
+  font-weight: 400;         /* 손글씨 폰트는 굵기가 하나뿐이라 색으로 강조 */
+  color: #224f7c;
+}
+
+.hero-desc {
+  margin: 0 0 32px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #5d7189;
+  word-break: keep-all;
+}
+
+/* ----- 입력창 + 버튼 ----- */
+.hero-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;  /* 왼쪽 정렬 */
+  gap: 18px;
+  max-width: 540px;
+}
+
+/* 입력창 + 화살표 버튼을 감싸는 흰 알약 상자 */
+.idea-input-box {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 7px 7px 26px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px solid transparent; /* 평소엔 안 보이는 테두리 (포커스 때 색만 바꿈) */
+  border-radius: 999px;          /* 양 끝이 완전히 둥근 알약 모양 */
+  box-shadow: 0 10px 30px rgba(43, 91, 136, 0.12);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* :focus-within → 안의 입력창에 글을 쓰는 중일 때 */
+.idea-input-box:focus-within {
+  border-color: #b9d8f1;
+  box-shadow: 0 10px 30px rgba(74, 152, 211, 0.22);
+}
+
+.idea-input {
+  flex: 1;                  /* 버튼을 뺀 나머지 공간 전부 */
+  min-width: 0;
+  border: none;
+  outline: none;            /* 브라우저 기본 테두리 제거 (위에서 따로 표시) */
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--text);
+  padding: 12px 0;
+}
+
+/* ::placeholder → 입력 전에 흐리게 보이는 예시 글자 */
+.idea-input::placeholder {
+  color: #a3b1bf;
+}
+
+/* 오른쪽 동그란 화살표 버튼 */
+.idea-submit {
+  flex-shrink: 0;           /* 좁아져도 크기 유지 */
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5aa5dc, #3d8bc7);
+  color: var(--white);
+  display: grid;
+  place-items: center;      /* 아이콘 정가운데 */
+  transition: transform 0.15s;
+}
+
+.idea-submit:hover {
+  transform: translateX(2px); /* 마우스 올리면 살짝 오른쪽으로 */
+}
+
+/* 빈 칸으로 시작했을 때 안내 문구 */
+.idea-error {
+  margin: -6px 0 0 20px;
+  font-size: 14px;
+  color: #d9534f;
+}
+
+/* "생각 정리 시작하기" 버튼 */
+.start-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 15px 40px;
+  background: linear-gradient(135deg, #5aa5dc, #3d8bc7);
+  color: var(--white);
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(61, 139, 199, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.start-button:hover {
+  transform: translateY(-2px); /* 살짝 떠오르는 느낌 */
+  box-shadow: 0 14px 28px rgba(61, 139, 199, 0.4);
+}
+
+/* ===================== 오른쪽: 메모지 일러스트 ===================== */
+
+.hero-visual {
+  position: relative;       /* 종이 조각들(absolute)의 위치 기준 */
+  height: 420px;
+  display: grid;
+  place-items: center;      /* 메모지를 가운데로 */
+}
+
+/* 큰 메모지 */
+.memo {
+  position: relative;
+  width: 280px;
+  height: 330px;
+  padding: 36px 30px;
+  border-radius: 6px;
+  transform: rotate(-4deg); /* 살짝 기울여서 손으로 놓은 느낌 */
+  box-shadow: 0 24px 50px rgba(43, 91, 136, 0.18);
+
+  /* 줄 노트 배경:
+     repeating-linear-gradient로 34px마다 얇은 하늘색 줄을 반복해서 그림 */
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 33px,
+      #e1ecf6 33px,
+      #e1ecf6 34px
+    ),
+    #fdfeff;
+  /* 줄 시작 위치를 글씨 시작 위치(안쪽 여백 36px + 글씨 위 여백 70px = 106px)에 맞춤
+     → 손글씨가 노트 줄 위에 딱 앉은 것처럼 보임 */
+  background-position: 0 106px;
+  animation: float 6s ease-in-out infinite; /* 둥실둥실 떠 있는 움직임 (아래 @keyframes) */
+}
+
+/* 메모지 위 구름 낙서 */
+.memo-cloud {
+  position: absolute;
+  top: 26px;
+  left: 26px;
+  color: #6aa6d8;
+}
+
+/* 메모지 손글씨 */
+.memo-text {
+  margin: 70px 0 0;
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 34px;
+  line-height: 34px;        /* 노트 줄 간격(34px)과 맞춰서 글자가 줄 위에 앉게 */
+  color: #2f5f8f;
+  text-align: center;
+}
+
+/* 메모지 웃는 얼굴 낙서 */
+.memo-smile {
+  position: absolute;
+  right: 34px;
+  bottom: 30px;
+  color: #6aa6d8;
+}
+
+/* 흩날리는 작은 종이 조각 공통 */
+.paper-scrap {
+  position: absolute;
+  width: 54px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 3px;
+  box-shadow: 0 8px 18px rgba(43, 91, 136, 0.12);
+  animation: float 7s ease-in-out infinite;
+}
+
+/* 조각마다 위치·기울기·움직임 시작 시간을 다르게 */
+.scrap-1 { top: 70px;  left: 6%;   transform: rotate(-18deg); animation-delay: -1s; }
+.scrap-2 { top: 230px; left: 2%;   transform: rotate(10deg);  width: 44px; height: 50px; animation-delay: -3s; }
+.scrap-3 { top: 40px;  right: 6%;  transform: rotate(14deg);  width: 46px; height: 58px; animation-delay: -2s; }
+.scrap-4 { bottom: 60px; right: 0; transform: rotate(-12deg); width: 60px; height: 44px; animation-delay: -4s; }
+
+/* float 애니메이션: 위아래로 8px 천천히 움직임
+   translate만 바꾸고 rotate는 각자 transform에 정해둔 값을 유지하려고 translate 속성을 따로 씀 */
+@keyframes float {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -8px; }
+}
+
+/* 사용자가 OS 설정에서 "애니메이션 줄이기"를 켰다면 움직임 끄기 (접근성) */
+@media (prefers-reduced-motion: reduce) {
+  .memo,
+  .paper-scrap {
+    animation: none;
+  }
+}
+
+/* ===================== 아래: 3단계 안내 카드 ===================== */
+
+.steps-card {
+  list-style: none;         /* 목록 번호 없애기 */
+  margin: 56px 0 0;
+  padding: 26px 32px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3칸 똑같이 */
+  gap: 24px;
+  background: rgba(255, 255, 255, 0.6); /* 반투명 흰색 → 뒤의 하늘이 살짝 비침 */
+  backdrop-filter: blur(12px);           /* 뒤 배경을 흐리게 (유리 느낌) */
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(43, 91, 136, 0.08);
+}
+
+.step {
+  position: relative;       /* 화살표(absolute)의 위치 기준 */
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-left: 12px;
+}
+
+/* 아이콘 동그라미 */
+.step-icon {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #e4f0fb;
+  color: #3d8bc7;
+  display: grid;
+  place-items: center;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-text strong {
+  font-size: 16px;
+  color: #224f7c;
+}
+
+.step-text span {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7d90;
+  white-space: pre-line;    /* 데이터의 \n을 실제 줄바꿈으로 보여줌 */
+}
+
+/* 단계 사이 화살표 (칸 오른쪽 끝, 세로 가운데) */
+.step-arrow {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%); /* 자기 높이의 절반만큼 올려서 정확히 가운데 */
+  color: #a9c6e2;
+}
+
+/* ===================== 반응형 ===================== */
+
+/* 태블릿 (960px 이하): 메모지를 글 아래로 내리고 가운데 정렬 */
+@media (max-width: 960px) {
+  .hero {
+    /* minmax(0, 1fr): 칸이 화면 너비보다 커지지 않게 최소 크기를 0으로 */
+    grid-template-columns: minmax(0, 1fr);
+    text-align: center;
+  }
+
+  .hero-form {
+    align-items: center;
+    margin: 0 auto;
+  }
+
+  .hero-visual {
+    height: 360px;
+  }
+}
+
+/* 모바일 (640px 이하) */
+@media (max-width: 640px) {
+  .landing {
+    padding: 100px 16px 40px;
+  }
+
+  .hero {
+    padding: 0;
+    gap: 16px;
+  }
+
+  .hero-title {
+    font-size: 40px;
+  }
+
+  .hero-title strong {
+    font-size: 58px;
+  }
+
+  .hero-desc {
+    font-size: 15px;
+  }
+
+  /* 설명 문구의 강제 줄바꿈을 없애서 자연스럽게 흐르게 */
+  .hero-desc br {
+    display: none;
+  }
+
+  .start-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-visual {
+    height: 300px;
+  }
+
+  .memo {
+    width: 220px;
+    height: 260px;
+    padding: 28px 22px;
+  }
+
+  .memo-text {
+    margin-top: 54px;
+    font-size: 28px;
+  }
+
+  /* 모바일 메모지도 글씨 위치(28 + 54 = 82px)에 줄 맞추기 */
+  .memo {
+    background-position: 0 82px;
+  }
+
+  /* 3단계 카드를 세로로 쌓기 */
+  .steps-card {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 22px;
+    margin-top: 24px;
+  }
+
+  .step {
+    padding-left: 0;
+  }
+
+  .step-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  /* 세로로 쌓이면 옆 화살표는 의미가 없으니 숨김 */
+  .step-arrow {
+    display: none;
+  }
+}

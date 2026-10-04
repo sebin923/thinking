@@ -1,0 +1,272 @@
+/* =============================================================
+   PageHero.css — 서브 페이지 공통 스타일
+   (페이지 배경 + 맨 위 제목 영역 + 흰 카드 공통 모양 + 버튼 공통 모양)
+   글쓰기 페이지, 퀴즈 페이지가 같이 쓰는 것들을 여기에 모아둠
+   ============================================================= */
+
+/* ===================== 서브 페이지 배경 ===================== */
+
+.sub-page {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  padding: 120px 24px 72px;  /* 위쪽은 헤더 높이만큼 */
+  /* 위는 연한 하늘색, 아래로 갈수록 더 밝게 */
+  background: linear-gradient(180deg, #e4eff9 0%, #eef5fc 40%, #f5f9fd 100%);
+}
+
+/* 페이지 바닥의 언덕 모양 장식 (흰 반투명 큰 타원 두 개) */
+.sub-page::before,
+.sub-page::after {
+  content: "";               /* ::before/::after는 content가 있어야 화면에 그려짐 */
+  position: absolute;
+  bottom: -140px;
+  width: 70%;
+  height: 260px;
+  border-radius: 50%;
+  background: rgba(214, 232, 247, 0.6);
+  pointer-events: none;      /* 클릭 방해하지 않게 */
+}
+
+.sub-page::before { left: -15%; }
+.sub-page::after  { right: -20%; bottom: -170px; }
+
+/* 내용 최대 너비 */
+.sub-page-inner {
+  position: relative;
+  z-index: 1;                /* 언덕 장식보다 위로 */
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ===================== 맨 위 제목 영역 ===================== */
+
+.page-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 0 8px;
+  margin-bottom: 28px;
+}
+
+.page-hero-eyebrow {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #4a86bd;
+}
+
+.page-hero-title {
+  margin: 0 0 16px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  color: var(--navy);
+  word-break: keep-all;      /* 한글이 단어 중간에서 끊기지 않게 */
+}
+
+.page-hero-desc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-sub);
+  white-space: pre-line;     /* \n을 줄바꿈으로 보여줌 */
+  word-break: keep-all;
+}
+
+/* ----- 오른쪽 메모지 일러스트 ----- */
+.page-hero-visual {
+  position: relative;        /* 안의 장식들(absolute) 위치 기준 */
+  flex-shrink: 0;            /* 좁아져도 일러스트 크기 유지 */
+  width: 280px;
+  height: 190px;
+}
+
+/* 뒤쪽 흐릿한 구름 */
+.hero-cloud {
+  position: absolute;
+  left: 10px;
+  bottom: 20px;
+  width: 170px;
+  height: 70px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  filter: blur(14px);
+}
+
+/* 메모지 공통 */
+.hero-memo {
+  position: absolute;
+  top: 14px;
+  left: 70px;
+  width: 140px;
+  height: 150px;
+  padding: 22px 16px;
+  background: #fdfeff;
+  border-radius: 4px;
+  transform: rotate(-8deg);  /* 살짝 기울이기 */
+  box-shadow: 0 14px 30px rgba(43, 91, 136, 0.15);
+}
+
+/* 메모지 손글씨 */
+.hero-memo p {
+  margin: 0;
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 24px;
+  line-height: 1.15;
+  color: #3a6a98;
+  white-space: pre-line;     /* \n 줄바꿈 */
+  text-align: center;
+}
+
+/* "note" 모양: 오른쪽 위 모서리가 접힌 쪽지 */
+.hero-memo-note::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 22px;
+  height: 22px;
+  /* 대각선 그라데이션으로 접힌 종이 뒷면처럼 보이게 */
+  background: linear-gradient(225deg, #e4eff9 50%, #f1f6fb 50%);
+  border-bottom-left-radius: 4px;
+}
+
+/* "notebook" 모양: 위쪽에 스프링 구멍이 있는 줄 노트 */
+.hero-memo-notebook {
+  padding-top: 30px;
+  background:
+    /* 위쪽 스프링 구멍: 작은 원을 가로로 반복 */
+    radial-gradient(circle, #c9dcee 3px, transparent 3.5px) 8px 8px / 16px 16px repeat-x,
+    /* 노트 줄: 22px마다 얇은 하늘색 줄 */
+    repeating-linear-gradient(180deg, transparent 0 21px, #e3edf7 21px 22px) 0 30px,
+    #fdfeff;
+}
+
+/* 메모지에 기댄 펜 */
+.hero-pen {
+  position: absolute;
+  right: 22px;
+  top: 60px;
+  color: #6aa6d8;
+  transform: rotate(10deg);
+}
+
+/* 풀잎 장식 */
+.hero-sprout {
+  position: absolute;
+  color: #9cc3e3;
+}
+
+.sprout-left  { left: 28px;  top: 34px; transform: rotate(-12deg); }
+.sprout-right { right: 0;    bottom: 20px; transform: rotate(10deg); }
+
+/* ===================== 흰 카드 공통 ===================== */
+
+.panel {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e3edf6;
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(43, 91, 136, 0.07);
+}
+
+/* ===================== 버튼 공통 ===================== */
+
+/* 파란 메인 버튼 */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5aa5dc, #3d8bc7);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(61, 139, 199, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(61, 139, 199, 0.35);
+}
+
+/* :disabled → 버튼이 비활성화(누를 수 없는) 상태일 때 */
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 테두리만 있는 보조 버튼 */
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 26px;
+  border: 1.5px solid #bcd7ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #3d7fb8;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-outline:hover {
+  background: #f1f7fd;
+  border-color: #8fbde3;
+}
+
+/* ===================== 반응형 ===================== */
+
+@media (max-width: 768px) {
+  .sub-page {
+    padding: 96px 16px 48px;
+  }
+
+  .page-hero {
+    padding: 0;
+  }
+
+  .page-hero-title {
+    font-size: 26px;
+  }
+
+  .page-hero-desc {
+    font-size: 14px;
+  }
+
+  /* 모바일에서는 일러스트 숨기고 글만 */
+  .page-hero-visual {
+    display: none;
+  }
+}
+
+/* ===================== 알림(토스트) 공통 ===================== */
+/* 화면 아래 가운데에 잠깐 떴다 사라지는 검은 말풍선 */
+.toast {
+  position: fixed;           /* 스크롤해도 화면의 같은 자리에 고정 */
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%); /* 자기 너비 절반만큼 왼쪽으로 → 정확히 가운데 */
+  z-index: 100;              /* 다른 모든 것보다 위 */
+  max-width: calc(100% - 32px); /* 모바일에서 화면 밖으로 안 나가게 */
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: rgba(34, 64, 96, 0.92);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+  animation: toast-in 0.25s ease-out; /* 나타날 때 아래에서 살짝 올라오는 효과 */
+}
+
+@keyframes toast-in {
+  from { opacity: 0; translate: 0 10px; }
+  to   { opacity: 1; translate: 0 0; }
+}
