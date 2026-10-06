@@ -1,5 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base  # database.py에서 설정한 Base를 임포트한다고 가정합니다.
 
@@ -58,3 +59,36 @@ class Ranking(Base):
 
     # 관계 설정
     user = relationship("User", back_populates="rankings")
+    
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_type = Column(String(50), nullable=False)
+    title = Column(String(200), nullable=False)
+    status = Column(String(20), default="작성중")
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Thought(Base):
+    __tablename__ = "thoughts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+
+    document = relationship("Document")
+
+
+class Draft(Base):
+    __tablename__ = "drafts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    content = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, server_default=func.now())
+
+    document = relationship("Document")

@@ -1,40 +1,26 @@
-// =============================================================
-// WritingPage.jsx — 글쓰기 페이지 (5단계 중 "③ 직접 문장화" 단계)
-// -------------------------------------------------------------
-// 구성 (위에서 아래로)
-//   1. 페이지 제목 영역 (PageHero)
-//   2. 진행 단계 표시 (생각 입력 ✓ → 구조화 ✓ → ③ 직접 문장화 → ④ 생각 반영 확인)
-//   3. 왼쪽: 글쓰기 카드 (제목 + 본문 에디터 + 임시저장/작성 완료 버튼)
-//      오른쪽: 작성 팁 카드
-// =============================================================
-
-// useState: 화면에서 바뀌는 값 저장
-// useRef: 화면에 있는 실제 HTML 요소(여기서는 본문 입력칸)를 직접 가리키는 "손잡이"
-// useEffect: 화면이 처음 뜰 때 등 특정 시점에 코드 실행
 import { useState, useRef, useEffect } from "react";
 
-// 아이콘들 (lucide-react)
 import {
-  PenLine, // 글쓰기 카드 제목 옆 펜
-  Check, // 완료된 단계 체크 / 팁 목록 체크
-  ArrowRight, // 단계 사이 화살표, 작성 완료 버튼
-  Bold, // 툴바: 굵게
-  Italic, // 툴바: 기울임
-  Underline, // 툴바: 밑줄
-  List, // 툴바: 점 목록
-  ListOrdered, // 툴바: 번호 목록
-  AlignLeft, // 툴바: 왼쪽 정렬
-  AlignCenter, // 툴바: 가운데 정렬
-  Link, // 툴바: 링크
-  FileText, // 임시저장 버튼
-  Lightbulb, // 작성 팁 전구
-  CheckCircle2, // 팁 목록 동그라미 체크
+  PenLine,
+  Check,
+  ArrowRight,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  Link,
+  FileText,
+  Lightbulb,
+  CheckCircle2,
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
 import "./WritingPage.css";
 
-// ===== 상수(바뀌지 않는 값)들 =====
+const API_BASE_URL = "http://localhost:8000";
 
 const TITLE_MAX = 50; // 제목 최대 글자 수
 const BODY_MAX = 2000; // 본문 최대 글자 수
@@ -106,6 +92,10 @@ function WritingPage({ idea = "" }) {
   // 임시저장본을 불러왔으면 처음부터 안내 문구를 띄운 상태로 시작
   const [toast, setToast] = useState(draft ? "임시저장된 글을 불러왔어요." : "");
 
+  const [documentId, setDocumentId] = useState(null);
+  const [apiMessage, setApiMessage] = useState("");
+  const [savedDrafts, setSavedDrafts] = useState([]);
+
   // editorRef: 본문 입력칸(div)을 가리키는 손잡이
   // editorRef.current 로 실제 HTML 요소에 접근할 수 있음
   const editorRef = useRef(null);
@@ -168,6 +158,190 @@ function WritingPage({ idea = "" }) {
     document.execCommand(command, false, value);
     editorRef.current.focus(); // 버튼 누른 뒤에도 계속 이어서 쓸 수 있게 본문에 커서 돌려놓기
     handleBodyInput();
+  };
+
+  const getBodyText = () => {
+    return editorRef.current?.innerText?.trim() || "";
+  };
+
+  const getBodyHtml = () => {
+    return editorRef.current?.innerHTML || "";
+  };
+
+  const createDocumentIfNeeded = async () => {
+    if (documentId) {
+      return documentId;
+    }
+
+    if (title.trim() === "") {
+      showToast("제목을 입력해 주세요.");
+      throw new Error("제목 없음");
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/documents`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          document_type: "자기소개서",
+          title: title.trim(),
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("문서 생성 실패");
+    }
+
+    const data = await response.json();
+
+    setDocumentId(data.id);
+
+    return data.id;
+  };
+
+  const saveThoughtFromIdea = async (targetDocumentId) => {
+    const thoughtText = idea || getBodyText();
+
+    if (!thoughtText.trim()) {
+      showToast("AI 초안을 만들 생각이나 본문이 필요해요.");
+      throw new Error("생각 없음");
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/api/thoughts`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          document_id: targetDocumentId,
+          content: thoughtText,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("생각 저장 실패");
+    }
+
+    await response.json();
+  };
+
+  const handleAiDraft = async () => {
+    try {
+      showToast("AI가 초안을 작성하고 있어요.");
+
+      const targetDocumentId = await createDocumentIfNeeded();
+
+      await saveThoughtFromIdea(targetDocumentId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-ai`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail || "AI 초안 작성 실패"
+        );
+      }
+
+      const data = await response.json();
+
+      if (editorRef.current) {
+        editorRef.current.innerText = data.content;
+        handleBodyInput();
+      }
+
+      setApiMessage("AI 초안이 작성되었습니다. 내용을 수정해보세요.");
+      showToast("AI 초안 작성 완료");
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "AI 초안 작성 실패");
+    }
+  };
+
+  const handleSaveVersion = async () => {
+    try {
+      const bodyText = getBodyText();
+
+      if (title.trim() === "") {
+        showToast("제목을 입력해 주세요.");
+        return;
+      }
+
+      if (!bodyText) {
+        showToast("본문을 작성해 주세요.");
+        return;
+      }
+
+      const targetDocumentId = await createDocumentIfNeeded();
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/drafts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            document_id: targetDocumentId,
+            content: bodyText,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        throw new Error(
+          errorData.detail || "초안 저장 실패"
+        );
+      }
+
+      const data = await response.json();
+
+      setApiMessage(`초안 버전 ${data.version}이 저장되었습니다.`);
+      showToast(`초안 버전 ${data.version} 저장 완료`);
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "초안 저장 실패");
+    }
+  };
+
+  const handleLoadDrafts = async () => {
+    try {
+      if (!documentId) {
+        showToast("먼저 버전을 저장해 주세요.");
+        return;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/documents/${documentId}/drafts`
+      );
+
+      if (!response.ok) {
+        throw new Error("저장된 버전 불러오기 실패");
+      }
+
+      const data = await response.json();
+
+      setSavedDrafts(data);
+      setApiMessage("저장된 버전을 불러왔습니다.");
+      showToast("저장된 버전 불러오기 완료");
+    } catch (error) {
+      console.error(error);
+      showToast(error.message || "저장된 버전 불러오기 실패");
+    }
   };
 
   // ----- 임시저장 버튼 -----
@@ -359,15 +533,74 @@ function WritingPage({ idea = "" }) {
 
             {/* 아래 버튼들 */}
             <div className="writing-actions">
-              <button type="button" className="btn-outline" onClick={handleSaveDraft}>
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={handleAiDraft}
+              >
                 <FileText size={18} />
-                임시저장
+                AI 초안 작성
               </button>
-              <button type="button" className="btn-primary" onClick={handleComplete}>
+
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={handleSaveVersion}
+              >
+                <FileText size={18} />
+                버전 저장
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleComplete}
+              >
                 작성 완료
                 <ArrowRight size={18} />
               </button>
             </div>
+
+            {apiMessage && (
+              <p style={{ marginTop: "12px" }}>
+                {apiMessage}
+              </p>
+            )}
+
+            {savedDrafts.length > 0 && (
+              <div style={{ marginTop: "20px" }}>
+                <h3>저장된 버전</h3>
+
+                {savedDrafts.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      border: "1px solid #ddd",
+                      borderRadius: "12px",
+                      padding: "14px",
+                      marginTop: "12px",
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    <strong>버전 {item.version}</strong>
+
+                    <p
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        marginTop: "10px",
+                      }}
+                    >
+                      {item.content}
+                    </p>
+
+                    <small>
+                      저장 시간: {item.created_at}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </section>
 
           {/* ----- 오른쪽: 작성 팁 ----- */}

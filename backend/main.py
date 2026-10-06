@@ -1,4 +1,5 @@
-from database import engine
+from database import engine, Base
+import models
 from sqlalchemy import text
 
 # FastAPI: 백엔드 서버를 만드는 프레임워크
@@ -9,10 +10,13 @@ from fastapi import FastAPI
 # 기본적으로 막아버림 → 여기서 "5173은 허용해" 하고 알려줘야 연결이 됨
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import quiz
+from routers.quiz import router as quiz_router
+from routers.writing import router as writing_router
 
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
+
+Base.metadata.create_all(bind=engine)
 
 # 서버에 CORS 규칙을 추가하는 부분
 app.add_middleware(
@@ -32,8 +36,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(quiz.router)
+for route in quiz_router.routes:
+    app.router.routes.append(route)
 
+for route in writing_router.routes:
+    app.router.routes.append(route)
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
 # 바로 아래 함수를 실행하라는 뜻 (서버가 살아있는지 확인하는 용도)
