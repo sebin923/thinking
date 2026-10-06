@@ -9,6 +9,8 @@ from fastapi import FastAPI
 # 기본적으로 막아버림 → 여기서 "5173은 허용해" 하고 알려줘야 연결이 됨
 from fastapi.middleware.cors import CORSMiddleware
 
+from routers import quiz
+
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
 
@@ -29,6 +31,8 @@ app.add_middleware(
     # allow_headers: 요청에 붙는 모든 헤더(추가 정보)를 허용
     allow_headers=["*"],
 )
+
+app.include_router(quiz.router)
 
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
