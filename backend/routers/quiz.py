@@ -69,12 +69,27 @@ def submit_ranking(request: schemas.RankingSubmitRequest, db: Session = Depends(
     }
 
 # 4. 맞춤법 랭킹 조회 (category 필터링 추가)
+# 도전 모드는 같은 사람이 여러 번 도전해서 기록이 여러 줄 쌓임
+#  → 예전처럼 "점수 높은 줄 10개"만 자르면 한 사람이 TOP 10을 다 차지할 수 있음
+#  → 그래서 "사람마다 최고 기록 1줄"만 남긴 뒤 위에서 10명을 자름
 @router.get("/rankings", response_model=List[schemas.RankingResponse])
 def get_rankings(category: str = "spelling", db: Session = Depends(get_db)):
-    rankings = db.query(models.Ranking).filter(
+    # 점수 높은 순, 점수가 같으면 먼저 달성한 기록(challenged_at이 빠른 것)이 위로
+    all_rows = db.query(models.Ranking).filter(
         models.Ranking.category == category
-    ).order_by(models.Ranking.score.desc()).limit(10).all()
-    
+    ).order_by(models.Ranking.score.desc(), models.Ranking.challenged_at.asc()).all()
+
+    rankings = []
+    seen_users = set()  # 이미 넣은 사람 번호 모음 (set: 중복 없는 묶음)
+    for r in all_rows:
+        # 위에서부터 보니까, 그 사람의 첫 줄 = 그 사람의 최고 기록
+        if r.user_id in seen_users:
+            continue
+        seen_users.add(r.user_id)
+        rankings.append(r)
+        if len(rankings) == 10:  # 10명 채우면 끝
+            break
+
     response_data = []
     for r in rankings:
         user = db.query(models.User).filter(models.User.user_id == r.user_id).first()

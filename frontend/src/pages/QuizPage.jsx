@@ -3,6 +3,9 @@
 // -------------------------------------------------------------
 // 맞춤법 / 문법 퀴즈를 같은 화면에서 탭으로 바꿔 가며 풀 수 있음
 // (category 값에 따라 백엔드에서 해당 종류의 문제만 가져옴)
+//
+// ※ 여기는 "연습용" 퀴즈라서 점수가 랭킹에 저장되지 않음
+//   랭킹은 맞춤법 도전 모드(ChallengePage.jsx)에서만 기록됨
 // =============================================================
 
 import { useState, useEffect } from "react";
@@ -14,7 +17,7 @@ import {
   CheckCircle2,
   XCircle,
   RotateCcw,
-  Medal, // "랭킹 보기" 버튼 아이콘
+  Flame, // "도전 모드" 버튼 아이콘
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
@@ -27,12 +30,10 @@ import "./QuizPage.css";
 const POINT_PER_QUESTION = 10;
 
 // props
-//  - user: 로그인한 사용자 정보 (App이 넘겨줌, 로그인 안 했으면 undefined)
-//    → 랭킹 점수를 저장할 때 이 사람의 user_id로 저장함
 //  - category: 퀴즈 종류 ("spelling" = 맞춤법, "grammar" = 문법), 기본값 맞춤법
 //  - onChangeCategory: 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
-//  - onGoRanking: "랭킹 보기" 버튼을 눌렀을 때 실행
-function QuizPage({ user, category = "spelling", onChangeCategory, onGoRanking }) {
+//  - onGoChallenge: "도전 모드" 버튼을 눌렀을 때 실행 (랭킹에 기록이 남는 맞춤법 도전 모드로 이동)
+function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
   // info: 지금 종류의 제목·설명·메모 문구 등 (data/quizCategories.js)
   const info = getQuizCategory(category);
 
@@ -111,26 +112,9 @@ function QuizPage({ user, category = "spelling", onChangeCategory, onGoRanking }
     setResults(next);
   };
 
-  // 랭킹 점수 백엔드 전송
-  const sendRankingToBackend = (finalScore) => {
-    // 로그인 안 했으면 누구 점수인지 모르니까 랭킹에 저장하지 않음
-    if (!user) return;
-
-    fetch("http://localhost:8000/api/quizzes/rankings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: user.user_id, // 로그인한 사람의 번호 (예전엔 1로 고정돼 있었음)
-        category, // 지금 푼 종류로 저장 (맞춤법 / 문법 랭킹이 따로 집계됨)
-        score: finalScore,
-      }),
-    }).catch((err) => console.error("랭킹 저장 실패:", err));
-  };
-
   const handleNext = () => {
     if (current === total - 1) {
-      setFinished(true);
-      sendRankingToBackend(score);
+      setFinished(true); // 연습용이라 랭킹 저장은 안 함 (랭킹은 도전 모드에서만)
       return;
     }
     setCurrent(current + 1);
@@ -216,21 +200,21 @@ function QuizPage({ user, category = "spelling", onChangeCategory, onGoRanking }
               </p>
               <p className="quiz-result-message">{getResultMessage()}</p>
 
-              {/* 로그인 안 했으면 랭킹에 안 남는다는 안내 */}
-              {!user && (
-                <p className="quiz-result-note">로그인하면 점수가 랭킹에 기록돼요.</p>
-              )}
+              {/* 연습 퀴즈 점수는 랭킹에 안 남는다는 안내 */}
+              <p className="quiz-result-note">
+                연습 퀴즈 점수는 랭킹에 남지 않아요. 랭킹은 맞춤법 도전 모드 기록으로 정해져요.
+              </p>
 
               <div className="quiz-result-actions">
                 <button type="button" className="btn-outline" onClick={handleRestart}>
                   <RotateCcw size={18} />
                   다시 풀기
                 </button>
-                {/* onGoRanking이 있을 때만 버튼 표시 */}
-                {onGoRanking && (
-                  <button type="button" className="btn-primary" onClick={onGoRanking}>
-                    <Medal size={18} />
-                    랭킹 보기
+                {/* onGoChallenge가 있을 때만 버튼 표시 */}
+                {onGoChallenge && (
+                  <button type="button" className="btn-primary" onClick={onGoChallenge}>
+                    <Flame size={18} />
+                    도전 모드
                   </button>
                 )}
               </div>

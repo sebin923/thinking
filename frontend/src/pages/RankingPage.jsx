@@ -1,31 +1,38 @@
 // =============================================================
-// RankingPage.jsx — 퀴즈 랭킹 페이지
+// RankingPage.jsx — 맞춤법 도전 랭킹 페이지
 // -------------------------------------------------------------
+// 랭킹은 "맞춤법 도전 모드"(ChallengePage) 기록으로만 매겨짐
+//  - 점수(score) = 틀리기 전까지 연속으로 맞힌 문제 수
+//  - 일반 퀴즈(QuizPage)는 연습용이라 랭킹에 안 들어감
+//  - 랭킹은 맞춤법만 있음 (문법 랭킹 없음)
+//
 // 구성 (위에서 아래로)
 //   1. 페이지 제목 영역 (PageHero)
-//   2. 맞춤법 | 문법 탭
-//   3. 내 기록 안내 (로그인했을 때)
-//   4. 1~3위 시상대
-//   5. 4~10위 목록
+//   2. 내 기록 안내 (로그인했을 때)
+//   3. 1~3위 시상대
+//   4. 4~10위 목록
 //
 // 데이터: 백엔드 GET /api/quizzes/rankings?category=spelling (routers/quiz.py)
 //  → [{ ranking_id, user_id, nickname, category, score, challenged_at }, ...]
+//  (백엔드가 이미 "한 사람당 최고 기록 1줄"로 10명까지 보내줌)
 // =============================================================
 
 import { useState, useEffect } from "react";
-import { Trophy, Medal, Crown, ArrowRight, UserRound, RefreshCw } from "lucide-react";
+import { Trophy, Medal, Crown, ArrowRight, UserRound, RefreshCw, Flame } from "lucide-react";
 
 import PageHero from "../components/PageHero";
-import CategoryTabs from "../components/CategoryTabs";
-import { getQuizCategory } from "../data/quizCategories";
 import "./RankingPage.css";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
+// 랭킹 종류는 맞춤법 하나뿐 → 도전 모드가 저장하는 값과 똑같이 "spelling"
+const CATEGORY = "spelling";
+
 // ----- 도우미 함수들 (컴포넌트 밖에 둔 일반 함수) -----
 
 // 같은 사람이 여러 번 도전하면 기록이 여러 줄 오니까, 사람마다 "최고 점수 한 줄"만 남김
+// (백엔드에서도 이미 한 번 걸러서 보내지만, 혹시 몰라 화면에서도 한 번 더 확인)
 function keepBestPerUser(rows) {
   // best: { user_id: 그 사람의 최고 기록 } 모양으로 모으는 객체
   const best = {};
@@ -68,12 +75,8 @@ function formatDate(value) {
 
 // props
 //  - user: 로그인한 사용자 (로그인 안 했으면 undefined) → 내 기록 강조용
-//  - category: 보여줄 랭킹 종류 ("spelling" | "grammar")
-//  - onChangeCategory: 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
-//  - onGoQuiz: "퀴즈 풀러 가기" 버튼을 눌렀을 때 실행 (지금 종류의 퀴즈로 이동)
-function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }) {
-  const info = getQuizCategory(category);
-
+//  - onGoChallenge: "도전하기" 버튼을 눌렀을 때 실행 (맞춤법 도전 모드로 이동)
+function RankingPage({ user, onGoChallenge }) {
   // rows: 등수까지 매긴 랭킹 목록 / loading: 불러오는 중 / error: 실패 문구
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +90,7 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
     // ignore: 응답이 오기 전에 화면을 떠나면 결과를 무시하려고 쓰는 깃발
     let ignore = false;
 
-    fetch(`${API_URL}/api/quizzes/rankings?category=${encodeURIComponent(category)}`)
+    fetch(`${API_URL}/api/quizzes/rankings?category=${CATEGORY}`)
       .then((res) => {
         if (!res.ok) throw new Error(`응답 실패: ${res.status}`);
         return res.json();
@@ -109,7 +112,7 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
     return () => {
       ignore = true;
     };
-  }, [category, reloadKey]);
+  }, [reloadKey]); // reloadKey가 바뀔 때마다(새로고침 버튼) 다시 불러옴
 
   // "다시 불러오기" 버튼
   const handleReload = () => {
@@ -149,11 +152,11 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
       <div className="ranking-message">
         <Trophy size={40} strokeWidth={1.5} className="ranking-empty-icon" />
         <p>
-          아직 {info.label} 랭킹 기록이 없어요.
+          아직 맞춤법 도전 기록이 없어요.
           <br />첫 번째 주인공이 되어보세요!
         </p>
-        <button type="button" className="btn-primary" onClick={onGoQuiz}>
-          {info.title} 풀러 가기 <ArrowRight size={18} />
+        <button type="button" className="btn-primary" onClick={onGoChallenge}>
+          <Flame size={18} /> 도전 모드 시작하기
         </button>
       </div>
     );
@@ -176,7 +179,8 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
                 {(row.nickname || "?").slice(0, 1)}
               </span>
               <strong className="podium-name">{row.nickname || "알 수 없음"}</strong>
-              <span className="podium-score">{row.score}점</span>
+              {/* 점수 = 연속 정답 수 */}
+              <span className="podium-score">{row.score}문제 연속</span>
               {/* 단상 (등수 숫자 + 메달) */}
               <div className="podium-stand">
                 <Medal size={18} className={`medal ${medalClass[row.rank] || ""}`} />
@@ -197,7 +201,7 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
                 <span className="ranking-rank">{row.rank}</span>
                 <span className="ranking-name">{row.nickname || "알 수 없음"}</span>
                 <span className="ranking-date">{formatDate(row.challenged_at)}</span>
-                <strong className="ranking-score">{row.score}점</strong>
+                <strong className="ranking-score">{row.score}연속</strong>
               </li>
             ))}
           </ol>
@@ -211,21 +215,17 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
       <div className="sub-page-inner">
         <PageHero
           eyebrow="함께 성장하는 글쓰기 연습"
-          title="퀴즈 랭킹"
-          description={"퀴즈를 풀고 다른 사람들과 실력을 겨뤄보세요.\n한 사람당 가장 높은 점수로 순위가 매겨져요."}
+          title="맞춤법 도전 랭킹"
+          description={"맞춤법 문제를 틀릴 때까지 풀어 연속 정답 기록을 겨뤄요.\n한 사람당 가장 높은 기록으로 순위가 매겨져요."}
           memoText={"오늘의\n1등은\n누구? :)"}
           memoVariant="note"
         />
-
-        <div className="ranking-tabs-row">
-          <CategoryTabs value={category} onChange={onChangeCategory} />
-        </div>
 
         <section className="panel ranking-card">
           <div className="ranking-head">
             <h2>
               <Trophy size={22} />
-              {info.label} TOP 10
+              맞춤법 TOP 10
             </h2>
             <button type="button" className="text-icon-button" onClick={handleReload} disabled={loading}>
               <RefreshCw size={15} /> 새로고침
@@ -240,15 +240,15 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
                 <span>로그인하면 내 순위를 확인하고 기록을 남길 수 있어요.</span>
               ) : myRow ? (
                 <span>
-                  <strong>{user.name}</strong>님은 지금 <strong>{myRow.rank}위</strong>예요! (최고 {myRow.score}점)
+                  <strong>{user.name}</strong>님은 지금 <strong>{myRow.rank}위</strong>예요! (최고 {myRow.score}문제 연속)
                 </span>
               ) : (
                 <span>
-                  <strong>{user.name}</strong>님은 아직 TOP 10에 없어요. 퀴즈에 도전해 보세요!
+                  <strong>{user.name}</strong>님은 아직 TOP 10에 없어요. 도전 모드로 순위에 올라 보세요!
                 </span>
               )}
-              {/* 퀴즈 바로가기 (오른쪽 끝) */}
-              <button type="button" className="my-ranking-link" onClick={onGoQuiz}>
+              {/* 도전 모드 바로가기 (오른쪽 끝) */}
+              <button type="button" className="my-ranking-link" onClick={onGoChallenge}>
                 도전하기 <ArrowRight size={14} />
               </button>
             </div>
@@ -256,6 +256,15 @@ function RankingPage({ user, category = "spelling", onChangeCategory, onGoQuiz }
 
           {content}
         </section>
+
+        {/* 랭킹 아래 큰 도전 버튼 (기록이 있을 때만 — 기록이 없으면 위 빈 화면에 이미 버튼이 있음) */}
+        {!loading && !error && rows.length > 0 && (
+          <div className="ranking-cta">
+            <button type="button" className="btn-primary" onClick={onGoChallenge}>
+              <Flame size={18} /> 나도 도전하기 <ArrowRight size={18} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,151 @@
+/* =============================================================
+   ChallengePage.css — 맞춤법 도전 모드 전용 스타일
+   (문제 카드, 보기 버튼, 결과 화면 모양은 QuizPage.css를 같이 씀)
+   ============================================================= */
+
+/* 불러오는 중 / 실패 문구 */
+.challenge-message {
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 15px;
+}
+
+/* ===================== 시작 전 안내 ===================== */
+
+.challenge-ready {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* 동그란 칼 아이콘 */
+.challenge-ready-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;           /* 가로·세로 가운데 */
+  color: #e07a3f;
+  background: linear-gradient(135deg, #fff1e4, #ffe0c7);
+  margin-bottom: 14px;
+}
+
+.challenge-ready h2 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  color: var(--navy);
+}
+
+/* 규칙 목록 */
+.challenge-rules {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.challenge-rules li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f4f9fe;
+  color: #3a5f84;
+  font-size: 15px;
+  word-break: keep-all;          /* 한글이 단어 중간에서 끊기지 않게 */
+}
+
+.challenge-rules li svg {
+  flex-shrink: 0;                /* 글이 길어도 아이콘은 안 줄어들게 */
+  color: #3d8bc7;
+}
+
+.challenge-rules strong {
+  color: var(--navy);
+}
+
+/* 로그인 안 했을 때 안내 */
+.challenge-login-note {
+  margin: 0 0 6px;
+  color: var(--text-sub);
+  font-size: 14px;
+  word-break: keep-all;
+}
+
+/* 글자처럼 생긴 버튼 ("로그인하기") */
+.challenge-text-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #3d8bc7;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* ===================== 문제 푸는 중 ===================== */
+
+/* 오른쪽 위 연속 정답 배지 (불꽃 + 숫자) */
+.challenge-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff1e4, #ffe0c7);
+  color: #d4692c;
+  font-size: 14px;
+  /* 숫자가 바뀔 때마다 한 번 통통 튀기 (JSX에서 key={streak}로 새로 그려서 다시 재생됨) */
+  animation: challenge-pop 0.35s ease;
+}
+
+.challenge-streak strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* @keyframes: 애니메이션 동작 정의 (0% → 50% → 100% 순서로 크기 변화) */
+@keyframes challenge-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 애니메이션 끄기 */
+@media (prefers-reduced-motion: reduce) {
+  .challenge-streak {
+    animation: none;
+  }
+}
+
+/* 채점 결과 한 줄 */
+.challenge-verdict {
+  min-height: 24px;              /* 글자가 없을 때도 높이를 잡아 둬서 화면이 들썩이지 않게 */
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.challenge-verdict.correct { color: #2f9c69; }
+.challenge-verdict.wrong   { color: #d9534f; }
+
+/* ===================== 게임 끝 ===================== */
+
+/* 틀린 문제 정답·해설 상자 */
+.challenge-missed {
+  width: 100%;
+  max-width: 520px;
+  margin: 4px auto 14px;
+  text-align: left;
+}
+
+.challenge-saved { color: #2f9c69; }
+.challenge-error { color: #d9534f; }
