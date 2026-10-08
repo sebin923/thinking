@@ -109,8 +109,27 @@
   color: var(--text-sub);
 }
 
-.login-button:hover {
+.login-button:hover,
+.login-button.active {
   color: var(--navy);
+}
+
+.login-button.active {
+  font-weight: 700;
+}
+
+/* 로그인한 사용자 이름 ("세빈님") */
+.header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.header-user svg {
+  color: var(--sky);
 }
 
 /* 회원가입: 하늘색 알약 모양 버튼 */

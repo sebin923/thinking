@@ -1,0 +1,56 @@
+/* =============================================================
+   CategoryTabs.css — 맞춤법 / 문법 탭 버튼
+   알약(pill) 모양 바탕 안에서 선택된 탭만 흰색으로 튀어나와 보이게
+   ============================================================= */
+
+.category-tabs {
+  display: inline-flex;          /* 내용 너비만큼만 차지 */
+  gap: 4px;
+  padding: 5px;
+  margin-bottom: 20px;
+  border-radius: 999px;          /* 양 끝이 완전히 둥근 모양 */
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid #dfeaf4;
+  box-shadow: 0 6px 16px rgba(43, 91, 136, 0.06);
+}
+
+.category-tab {
+  min-width: 96px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b7d90;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;           /* "맞춤법"이 두 줄로 꺾이지 않게 */
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+/* :not(.active) → 선택 안 된 탭에 마우스를 올렸을 때만 */
+.category-tab:not(.active):hover {
+  color: #2b5b88;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* 선택된 탭 */
+.category-tab.active {
+  background: #fff;
+  color: #2b5b88;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(43, 91, 136, 0.12);
+  cursor: default;
+}
+
+/* 모바일: 탭이 화면 너비를 반씩 나눠 쓰게 */
+@media (max-width: 640px) {
+  .category-tabs {
+    display: flex;
+    width: 100%;                 /* 모바일에서는 탭 묶음이 가로를 꽉 채우게 */
+  }
+
+  .category-tab {
+    flex: 1;
+    min-width: 0;
+  }
+}
