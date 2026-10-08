@@ -19,6 +19,7 @@ const FOOTER_LINKS = [
       { key: "write", label: "글쓰기 학습" },
       { key: "quiz", label: "퀴즈" },
       { key: "ranking", label: "랭킹" },
+      { key: "challenge", label: "도전 모드" },
       { key: "guide", label: "이용안내" },
     ],
   },

@@ -3,6 +3,7 @@
 // -------------------------------------------------------------
 // 위에 Header(메뉴바), 가운데에 선택된 메뉴의 화면, 맨 아래에 Footer(정보 영역)를 보여줌.
 // 지금 만든 화면: 홈(LandingPage), 글쓰기 학습(WritingPage), 퀴즈(QuizPage),
+//                랭킹(RankingPage), 맞춤법 도전 모드(ChallengePage),
 //                로그인(LoginPage), 회원가입(SignupPage)
 // 나머지 메뉴는 "준비 중" 화면이 나옴.
 // (나중에 react-router를 배우면 주소(URL)로 페이지를 이동하는 방식으로 바꿀 예정)
@@ -19,6 +20,7 @@ import QuizPage from "./pages/QuizPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import RankingPage from "./pages/RankingPage";
+import ChallengePage from "./pages/ChallengePage";
 
 // 공통 CSS (헤더, 푸터 등)
 import "./App.css";
@@ -42,6 +44,7 @@ function App() {
   // activeNav: 지금 보여줄 화면 이름
   //  - 헤더 메뉴: "home"(홈), "about"(서비스 소개), "write"(글쓰기 학습), "quiz"(퀴즈), "ranking"(랭킹), "guide"(이용안내)
   //  - 헤더 오른쪽 버튼: "login"(로그인), "signup"(회원가입)
+  //  - 랭킹 화면 안의 버튼: "challenge"(맞춤법 도전 모드)
   //  - 푸터에만 있는 메뉴: "notice", "terms", "privacy"
   // 처음 들어오면 "home"
   const [activeNav, setActiveNav] = useState("home");
@@ -53,8 +56,9 @@ function App() {
   // useState(loadAuth): 처음 한 번만 저장소에서 꺼내서 시작값으로 씀 → 새로고침해도 로그인 유지
   const [auth, setAuth] = useState(loadAuth);
 
-  // quizCategory: 퀴즈·랭킹 화면에서 지금 선택된 종류 ("spelling" = 맞춤법, "grammar" = 문법)
-  // App에 두는 이유: 퀴즈에서 "랭킹 보기"를 누르면 같은 종류의 랭킹이 바로 보이게 하려고
+  // quizCategory: 퀴즈 화면에서 지금 선택된 종류 ("spelling" = 맞춤법, "grammar" = 문법)
+  // App에 두는 이유: 다른 메뉴에 갔다 와도 마지막으로 보던 종류가 그대로 남게 하려고
+  // (랭킹은 맞춤법 도전 모드만 있어서 이 값과 상관없음)
   const [quizCategory, setQuizCategory] = useState("spelling");
 
   // loginNotice: 회원가입 직후 로그인 화면에 보여줄 안내 + 미리 채울 아이디
@@ -130,19 +134,24 @@ function App() {
             key={quizCategory}
             category={quizCategory}
             onChangeCategory={setQuizCategory}
-            // user: 로그인한 사람 정보 → 퀴즈 랭킹을 그 사람 번호로 저장 (로그인 안 했으면 저장 안 함)
-            user={auth?.user}
-            onGoRanking={() => setActiveNav("ranking")}
+            // 퀴즈는 연습용이라 랭킹 저장 없음 → 결과 화면에서 도전 모드로 안내
+            onGoChallenge={() => setActiveNav("challenge")}
           />
         );
       case "ranking":
         return (
           <RankingPage
-            key={quizCategory} // 종류가 바뀌면 랭킹을 새로 불러옴
-            category={quizCategory}
-            onChangeCategory={setQuizCategory}
+            user={auth?.user} // 내 순위 강조용
+            onGoChallenge={() => setActiveNav("challenge")}
+          />
+        );
+      case "challenge":
+        return (
+          <ChallengePage
+            // user: 로그인한 사람 → 도전 기록을 그 사람 번호로 랭킹에 저장 (로그인 안 했으면 저장 안 함)
             user={auth?.user}
-            onGoQuiz={() => setActiveNav("quiz")}
+            onGoRanking={() => setActiveNav("ranking")}
+            onGoLogin={() => handleNavigate("login")}
           />
         );
       case "login":
@@ -179,7 +188,8 @@ function App() {
         - onLogout: 로그아웃 버튼을 누르면 실행
       */}
       <Header
-        activeNav={activeNav}
+        // 도전 모드 화면은 헤더 메뉴에 따로 없으니까 "랭킹" 메뉴에 불이 들어오게 함
+        activeNav={activeNav === "challenge" ? "ranking" : activeNav}
         onNavClick={handleNavigate}
         user={auth?.user}
         onLogout={handleLogout}

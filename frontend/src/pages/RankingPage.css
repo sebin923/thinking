@@ -1,13 +1,7 @@
 /* =============================================================
-   RankingPage.css — 퀴즈 랭킹 페이지 전용 스타일
+   RankingPage.css — 맞춤법 도전 랭킹 페이지 전용 스타일
    (페이지 배경, 흰 카드(.panel), 버튼 공통 모양은 components/PageHero.css)
    ============================================================= */
-
-/* 탭 가운데 정렬 */
-.ranking-tabs-row {
-  display: flex;
-  justify-content: center;
-}
 
 /* 랭킹 카드 */
 .ranking-card {
@@ -261,9 +255,17 @@
 
 .ranking-score {
   min-width: 56px;
+  white-space: nowrap;           /* "12연속"이 두 줄로 꺾이지 않게 */
   text-align: right;
   font-size: 15px;
   color: var(--navy);
+}
+
+/* 카드 아래 "나도 도전하기" 버튼 가운데 정렬 */
+.ranking-cta {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
 }
 
 /* ===================== 불러오는 중 / 에러 / 빈 목록 ===================== */
