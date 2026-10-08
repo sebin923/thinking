@@ -450,3 +450,27 @@
     width: auto;
   }
 }
+/* =============================================================
+   추가: 맞춤법/문법 탭 줄 + 결과 화면 버튼 묶음
+   ============================================================= */
+
+/* 탭을 퀴즈 카드 위 가운데에 */
+.quiz-tabs-row {
+  display: flex;
+  justify-content: center;
+}
+
+/* 로그인 안내 문구 */
+.quiz-result-note {
+  margin: -14px 0 20px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+/* 다시 풀기 + 랭킹 보기 버튼을 나란히 */
+.quiz-result-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}

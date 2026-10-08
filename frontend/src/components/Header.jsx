@@ -1,7 +1,8 @@
 // =============================================================
 // Header.jsx — 맨 위 상단 메뉴바
 // -------------------------------------------------------------
-// 왼쪽: 로고 / 가운데: 홈(아이콘)·서비스 소개·글쓰기 학습·퀴즈·이용안내 / 오른쪽: 로그인·회원가입
+// 왼쪽: 로고 / 가운데: 홈(아이콘)·서비스 소개·글쓰기 학습·퀴즈·랭킹·이용안내
+// 오른쪽: 로그인 전 → 로그인·회원가입 / 로그인 후 → "OOO님" + 로그아웃
 // 여러 페이지에서 같이 쓸 거라서 컴포넌트로 따로 분리함
 // =============================================================
 
@@ -10,7 +11,8 @@
 import { useState } from "react";
 
 // 아이콘 (lucide-react): Menu = 햄버거(≡) 아이콘, X = 닫기 아이콘, Home = 집 모양 아이콘
-import { Menu, X, Home } from "lucide-react";
+// UserRound = 사람 아이콘 (로그인한 사용자 이름 옆)
+import { Menu, X, Home, UserRound } from "lucide-react";
 
 // 가운데 메뉴 목록
 // 배열로 만들어두면 아래에서 map으로 반복해서 메뉴를 그릴 수 있음
@@ -20,15 +22,18 @@ const NAV_ITEMS = [
   { key: "home", label: "홈", icon: Home },
   { key: "about", label: "서비스 소개" },
   { key: "write", label: "글쓰기 학습" }, // 글쓰기 페이지
-  { key: "quiz", label: "퀴즈" }, // 맞춤법 퀴즈 페이지
+  { key: "quiz", label: "퀴즈" }, // 맞춤법·문법 퀴즈 페이지
+  { key: "ranking", label: "랭킹" }, // 퀴즈 랭킹 페이지
   { key: "guide", label: "이용안내" },
 ];
 
 // Header 컴포넌트
 // props(부모가 넘겨주는 값)
 //  - activeNav: 지금 선택된 메뉴의 key (예: "home") → 선택된 메뉴만 진하게 표시
-//  - onNavClick: 메뉴를 눌렀을 때 실행할 함수
-function Header({ activeNav, onNavClick }) {
+//  - onNavClick: 메뉴를 눌렀을 때 실행할 함수 ("login", "signup"도 이 함수로 이동)
+//  - user: 로그인한 사용자 정보 (로그인 안 했으면 null)
+//  - onLogout: 로그아웃 버튼을 눌렀을 때 실행할 함수
+function Header({ activeNav, onNavClick, user, onLogout }) {
   // isMenuOpen: 모바일 화면에서 메뉴가 펼쳐져 있는지 (true / false)
   // 처음에는 닫혀 있으니까 false
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -38,6 +43,39 @@ function Header({ activeNav, onNavClick }) {
     onNavClick(key); // 부모(App)에게 어떤 메뉴를 눌렀는지 알려줌
     setIsMenuOpen(false); // 모바일에서는 메뉴를 고른 뒤 자동으로 닫아줌
   };
+
+  // 로그아웃 버튼: 부모에게 알리고 모바일 메뉴 닫기
+  const handleLogout = () => {
+    onLogout();
+    setIsMenuOpen(false);
+  };
+
+  // 로그인 상태에 따라 오른쪽에 보여줄 버튼 묶음
+  // (PC 오른쪽과 모바일 메뉴 안에서 똑같이 쓰려고 변수에 담아둠)
+  // user가 있으면(로그인 상태) 이름 + 로그아웃, 없으면 로그인 + 회원가입
+  const authButtons = user ? (
+    <>
+      <span className="header-user">
+        <UserRound size={18} />
+        {user.name}님
+      </span>
+      <button className="login-button" onClick={handleLogout}>
+        로그아웃
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        className={activeNav === "login" ? "login-button active" : "login-button"}
+        onClick={() => handleNavClick("login")}
+      >
+        로그인
+      </button>
+      <button className="signup-button" onClick={() => handleNavClick("signup")}>
+        회원가입
+      </button>
+    </>
+  );
 
   return (
     // <header>: 페이지의 머리 부분이라는 의미의 HTML 태그
@@ -85,17 +123,11 @@ function Header({ activeNav, onNavClick }) {
         })}
 
         {/* 모바일 메뉴 안에서만 보이는 로그인/회원가입 (PC에서는 CSS로 숨김) */}
-        <div className="header-nav-auth">
-          <button className="nav-link">로그인</button>
-          <button className="signup-button">회원가입</button>
-        </div>
+        <div className="header-nav-auth">{authButtons}</div>
       </nav>
 
-      {/* ===== 오른쪽: 로그인 / 회원가입 (PC 화면용) ===== */}
-      <div className="header-auth">
-        <button className="login-button">로그인</button>
-        <button className="signup-button">회원가입</button>
-      </div>
+      {/* ===== 오른쪽: 로그인 / 회원가입 또는 사용자 이름 / 로그아웃 (PC 화면용) ===== */}
+      <div className="header-auth">{authButtons}</div>
 
       {/*
         ===== 모바일 전용: 햄버거 버튼 =====

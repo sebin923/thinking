@@ -18,6 +18,7 @@ const FOOTER_LINKS = [
       { key: "about", label: "서비스 소개" },
       { key: "write", label: "글쓰기 학습" },
       { key: "quiz", label: "퀴즈" },
+      { key: "ranking", label: "랭킹" },
       { key: "guide", label: "이용안내" },
     ],
   },

@@ -56,7 +56,8 @@ def submit_ranking(request: schemas.RankingSubmitRequest, db: Session = Depends(
     db.refresh(db_ranking)
     
     user = db.query(models.User).filter(models.User.user_id == request.user_id).first()
-    nickname = user.nickname if user else "알 수 없음"
+    # 닉네임이 없으면(회원가입에서 안 받음) 이름으로 대신 표시
+    nickname = (user.nickname or user.name) if user else "알 수 없음"
 
     return {
         "ranking_id": db_ranking.ranking_id,
@@ -80,7 +81,8 @@ def get_rankings(category: str = "spelling", db: Session = Depends(get_db)):
         response_data.append({
             "ranking_id": r.ranking_id,
             "user_id": r.user_id,
-            "nickname": user.nickname if user else "알 수 없음",
+            # 닉네임이 없으면(회원가입에서 안 받음) 이름으로 대신 표시
+            "nickname": (user.nickname or user.name) if user else "알 수 없음",
             "category": r.category,
             "score": r.score,
             "challenged_at": r.challenged_at

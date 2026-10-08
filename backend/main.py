@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers.quiz import router as quiz_router
 from routers.writing import router as writing_router
+# 회원가입 / 로그인 / 이메일 인증 API (주소는 /api/auth/... 로 시작)
+from routers.auth import router as auth_router
 
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
@@ -41,6 +43,9 @@ for route in quiz_router.routes:
 
 for route in writing_router.routes:
     app.router.routes.append(route)
+
+# 회원가입 / 로그인 API를 서버에 붙이기
+app.include_router(auth_router)
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
 # 바로 아래 함수를 실행하라는 뜻 (서버가 살아있는지 확인하는 용도)
