@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 환경변수 파일 (API 주소 등) — Git에 올리지 않기
+.env
+.env.*
+!.env.example
