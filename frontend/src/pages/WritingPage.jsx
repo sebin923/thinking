@@ -29,8 +29,7 @@ const BODY_MAX = 2000; // 본문 최대 글자 수
 const DRAFT_KEY = "saenggak-hanjul-draft";
 
 // 위쪽 진행 단계 (지금 페이지는 3단계)
-const STEPS = ["생각 입력", "구조화", "직접 문장화", "생각 반영 확인"];
-const CURRENT_STEP = 3; // 1부터 셈
+const STEPS = ["글 작성", "피드백 및 수정", "최종 저장"];
 
 // 본문 툴바 버튼 목록
 // command: 브라우저에 내릴 서식 명령 이름 (document.execCommand에 넣는 값)
@@ -76,6 +75,7 @@ function countText(html) {
 // WritingPage 컴포넌트
 // props: idea → 메인 페이지에서 처음 입력한 생각 (없으면 빈 문자열)
 function WritingPage({ idea = "" }) {
+  const [currentStep, setCurrentStep] = useState(1);
   // draft: 페이지가 처음 뜰 때 딱 한 번 임시저장본을 꺼내서 기억해둠
   // useState(함수) 처럼 함수를 넣으면 "처음 한 번만" 그 함수를 실행해서 초기값으로 씀
   // (setDraft는 안 쓰니까 배열에서 첫 번째 값만 꺼냄)
@@ -95,6 +95,8 @@ function WritingPage({ idea = "" }) {
   const [documentId, setDocumentId] = useState(null);
   const [apiMessage, setApiMessage] = useState("");
   const [savedDrafts, setSavedDrafts] = useState([]);
+  const [feedback, setFeedback] = useState(null);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   // editorRef: 본문 입력칸(div)을 가리키는 손잡이
   // editorRef.current 로 실제 HTML 요소에 접근할 수 있음
@@ -138,8 +140,10 @@ function WritingPage({ idea = "" }) {
 
   // ----- 본문에 글자를 칠 때마다 실행 -----
   const handleBodyInput = () => {
-    // innerText: 서식 없이 글자만 꺼냄 → 글자 수 세기용
     setBodyLength(editorRef.current.innerText.trim().length);
+
+    // 본문이 수정되면 이전 피드백 표시 제거
+    setFeedback(null);
   };
 
   // ----- 툴바 버튼을 눌렀을 때 -----
@@ -262,8 +266,11 @@ function WritingPage({ idea = "" }) {
         handleBodyInput();
       }
 
-      setApiMessage("AI 초안이 작성되었습니다. 내용을 수정해보세요.");
-      showToast("AI 초안 작성 완료");
+      setFeedback(null);
+      setCurrentStep(2);
+
+      setApiMessage("AI 초안이 작성되었습니다. AI 피드백을 받아보세요.");
+      showToast("AI 초안 작성 완료! 피드백 단계로 이동했습니다.");
     } catch (error) {
       console.error(error);
       showToast(error.message || "AI 초안 작성 실패");
@@ -318,6 +325,65 @@ function WritingPage({ idea = "" }) {
     }
   };
 
+  const handleAiFeedback = async () => {
+    if (feedbackLoading) return;
+
+    const bodyText = getBodyText();
+
+    if (!title.trim() || !bodyText) {
+      showToast("제목과 본문을 먼저 작성해 주세요.");
+      return;
+    }
+
+    if (bodyText.length > BODY_MAX) {
+      showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
+      return;
+    }
+
+    setFeedbackLoading(true);
+    setFeedback(null);
+
+    try {
+      const targetDocumentId = await createDocumentIfNeeded();
+
+      const saveResponse = await fetch(`${API_BASE_URL}/api/drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_id: targetDocumentId,
+          content: bodyText,
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        throw new Error("글 저장에 실패했습니다.");
+      }
+
+      const savedDraft = await saveResponse.json();
+
+      const feedbackResponse = await fetch(
+        `${API_BASE_URL}/api/drafts/${savedDraft.id}/feedback-ai`,
+        { method: "POST" }
+      );
+
+      if (!feedbackResponse.ok) {
+        const errorData = await feedbackResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || "AI 피드백 요청에 실패했습니다.");
+      }
+
+      const result = await feedbackResponse.json();
+
+      setFeedback(result.feedback);
+      setApiMessage(`버전 ${savedDraft.version}의 AI 피드백이 완료되었습니다.`);
+      showToast("AI 피드백이 완료되었습니다.");
+    } catch (error) {
+      console.error("AI 피드백 오류:", error);
+      showToast(error.message || "AI 피드백 요청 실패");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
   const handleLoadDrafts = async () => {
     try {
       if (!documentId) {
@@ -363,38 +429,55 @@ function WritingPage({ idea = "" }) {
   };
 
   // ----- 작성 완료 버튼 -----
-  const handleComplete = () => {
-    // 빠진 게 있으면 알려주고 멈춤
-    if (title.trim() === "") {
-      showToast("제목을 입력해 주세요.");
+  const handleComplete = async () => {
+    const bodyText = getBodyText();
+
+    if (!title.trim() || !bodyText) {
+      showToast("제목과 본문을 입력해 주세요.");
       return;
     }
-    if (bodyLength === 0) {
-      showToast("본문을 작성해 주세요.");
-      editorRef.current.focus();
-      return;
-    }
-    if (bodyLength > BODY_MAX) {
+
+    if (bodyText.length > BODY_MAX) {
       showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
       return;
     }
 
-    // 개발 중 확인용 (F12 → Console)
-    console.log("작성 완료:", {
-      title: title.trim(),
-      html: editorRef.current.innerHTML,
-      text: editorRef.current.innerText,
-    });
-
-    // 다 썼으니 임시저장본은 지움
     try {
-      localStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // 지우기 실패해도 큰 문제 없으니 무시
-    }
+      const targetDocumentId = await createDocumentIfNeeded();
 
-    showToast("작성 완료! 다음은 ④ 생각 반영 확인 단계예요.");
-    // TODO: 백엔드에 글 저장 후 "④ 생각 반영 확인" 화면으로 이동
+      // 최종 내용을 새 버전으로 저장
+      const saveResponse = await fetch(`${API_BASE_URL}/api/drafts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_id: targetDocumentId,
+          content: bodyText,
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        throw new Error("최종 글 저장에 실패했습니다.");
+      }
+
+      // 문서 상태를 '완료'로 변경
+      const completeResponse = await fetch(
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/complete`,
+        { method: "PATCH" }
+      );
+
+      if (!completeResponse.ok) {
+        throw new Error("문서 완료 처리에 실패했습니다.");
+      }
+
+      setCurrentStep(3);
+      setApiMessage("최종 저장이 완료되었습니다.");
+
+      localStorage.removeItem(DRAFT_KEY);
+      showToast("최종 저장 완료!");
+    } catch (error) {
+      console.error("최종 저장 오류:", error);
+      showToast(error.message || "최종 저장 실패");
+    }
   };
 
   return (
@@ -405,8 +488,8 @@ function WritingPage({ idea = "" }) {
           eyebrow="당신의 생각이, 하나의 글이 되는 과정"
           title="내 생각을 글로 완성해보세요"
           description={
-            "구조화된 내용을 바탕으로, 이제는 직접 문장을 작성해보세요.\n" +
-            "처음 떠오른 생각이 글 속에 자연스럽게 반영되었는지 확인할 수 있어요."
+            "직접 글을 작성하거나 AI 초안을 생성해보세요.\n" +
+            "AI 피드백을 참고하여 글을 수정하고 최종 저장할 수 있습니다."
           }
           memoText={"당신의\n생각이\n글이 되는 곳"}
           memoVariant="note"
@@ -419,8 +502,8 @@ function WritingPage({ idea = "" }) {
             const stepNumber = index + 1; // 1, 2, 3, 4
             // 단계 상태: 지난 단계 = done, 지금 단계 = current, 남은 단계 = todo
             let status = "todo";
-            if (stepNumber < CURRENT_STEP) status = "done";
-            if (stepNumber === CURRENT_STEP) status = "current";
+            if (stepNumber < currentStep) status = "done";
+            if (stepNumber === currentStep) status = "current";
 
             return (
               <li key={step} className={`writing-step ${status}`}>
@@ -520,8 +603,7 @@ function WritingPage({ idea = "" }) {
                 // 비어 있을 때 보여줄 안내 문구 (CSS의 ::before가 이 값을 꺼내서 보여줌)
                 data-placeholder={
                   "여기에 글을 작성해보세요.\n" +
-                  "처음에 작성한 생각이 자연스럽게 녹아들 수 있도록\n" +
-                  "구조화된 내용을 참고하여 작성해보세요."
+                  "직접 글을 작성하거나 AI 초안을 활용할 수 있습니다."
                 }
               />
 
@@ -533,73 +615,100 @@ function WritingPage({ idea = "" }) {
 
             {/* 아래 버튼들 */}
             <div className="writing-actions">
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={handleAiDraft}
-              >
-                <FileText size={18} />
-                AI 초안 작성
-              </button>
 
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={handleSaveVersion}
-              >
-                <FileText size={18} />
-                버전 저장
-              </button>
+              {/* 1단계: 글 작성 */}
+              {currentStep === 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={handleAiDraft}
+                  >
+                    <FileText size={18} />
+                    AI 초안 작성
+                  </button>
 
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleComplete}
-              >
-                작성 완료
-                <ArrowRight size={18} />
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={handleSaveVersion}
+                  >
+                    <FileText size={18} />
+                    버전 저장
+                  </button>
 
-            {apiMessage && (
-              <p style={{ marginTop: "12px" }}>
-                {apiMessage}
-              </p>
-            )}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      if (!title.trim() || !getBodyText()) {
+                        showToast("제목과 본문을 먼저 작성해 주세요.");
+                        return;
+                      }
 
-            {savedDrafts.length > 0 && (
-              <div style={{ marginTop: "20px" }}>
-                <h3>저장된 버전</h3>
+                      if (getBodyText().length > BODY_MAX) {
+                        showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
+                        return;
+                      }
 
-                {savedDrafts.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      border: "1px solid #ddd",
-                      borderRadius: "12px",
-                      padding: "14px",
-                      marginTop: "12px",
-                      backgroundColor: "#fff",
+                      setCurrentStep(2);
+                      showToast("피드백 단계로 이동했습니다.");
                     }}
                   >
-                    <strong>버전 {item.version}</strong>
+                    피드백 단계로 이동
+                    <ArrowRight size={18} />
+                  </button>
+                </>
+              )}
 
-                    <p
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        marginTop: "10px",
-                      }}
-                    >
-                      {item.content}
-                    </p>
+              {/* 2단계: 피드백 및 수정 */}
+              {currentStep === 2 && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={handleSaveVersion}
+                    disabled={feedbackLoading}
+                  >
+                    <FileText size={18} />
+                    버전 저장
+                  </button>
 
-                    <small>
-                      저장 시간: {item.created_at}
-                    </small>
-                  </div>
-                ))}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={handleAiFeedback}
+                    disabled={feedbackLoading}
+                  >
+                    <Lightbulb size={18} />
+                    {feedbackLoading ? "AI 분석 중..." : "AI 피드백받기"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleComplete}
+                    disabled={feedbackLoading}
+                  >
+                    최종 저장
+                    <ArrowRight size={18} />
+                  </button>
+                </>
+              )}
+
+              {/* 3단계: 최종 저장 완료 */}
+              {currentStep === 3 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled
+                >
+                  <Check size={18} />
+                  저장 완료
+                </button>
+              )}
+
+            </div>
 
           </section>
 
@@ -640,6 +749,30 @@ function WritingPage({ idea = "" }) {
               <br />
               좋은 글이 될 수 있어요 :)
             </p>
+
+            {feedback && (
+              <div className="ai-feedback-panel">
+                <h3>AI 피드백 결과</h3>
+
+                <p className="ai-feedback-summary">
+                  {feedback.overall_feedback}
+                </p>
+
+                <h4>수정 권장 문장</h4>
+
+                {feedback.highlights?.length > 0 ? (
+                  feedback.highlights.map((item, index) => (
+                    <div className="ai-feedback-item" key={index}>
+                      <p><strong>원문:</strong> {item.original_text}</p>
+                      <p><strong>개선 이유:</strong> {item.reason}</p>
+                      <p><strong>수정 조언:</strong> {item.suggestion}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p>수정이 필요한 문장이 발견되지 않았습니다.</p>
+                )}
+              </div>
+            )}
           </aside>
         </div>
       </div>

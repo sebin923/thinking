@@ -8,12 +8,14 @@ __pycache__/
 node_modules/
 dist/
 
-# Environment variables
+# Environment
 .env
 .env.*
 !.env.example
 
-# Editor / OS
+# Local database
+*.db
+
+# Editor
 .vscode/
 .idea/
-.DS_Store
