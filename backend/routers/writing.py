@@ -4,7 +4,8 @@ from pydantic import BaseModel
 
 import models
 from database import get_db
-from clova import create_draft_with_ai
+import requests
+from clova import create_draft_with_ai, create_feedback_with_ai
 
 router = APIRouter(
     prefix="/api",
@@ -133,3 +134,130 @@ def get_drafts(document_id: int, db: Session = Depends(get_db)):
     return db.query(models.Draft).filter(
         models.Draft.document_id == document_id
     ).order_by(models.Draft.version.desc()).all()
+
+
+@router.post("/drafts/{draft_id}/feedback-ai")
+def create_ai_feedback(
+    draft_id: int,
+    db: Session = Depends(get_db)
+):
+    draft = db.query(models.Draft).filter(
+        models.Draft.id == draft_id
+    ).first()
+
+    if not draft:
+        raise HTTPException(
+            status_code=404,
+            detail="저장된 글을 찾을 수 없습니다."
+        )
+
+    document = db.query(models.Document).filter(
+        models.Document.id == draft.document_id
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="문서를 찾을 수 없습니다."
+        )
+
+    if not draft.content.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="피드백을 받을 글이 비어 있습니다."
+        )
+
+    try:
+        feedback_result = create_feedback_with_ai(
+            content=draft.content,
+            document_type=document.document_type
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except (requests.RequestException, KeyError, TypeError) as e:
+        raise HTTPException(
+            status_code=502,
+            detail="AI 피드백 서비스 호출에 실패했습니다."
+        ) from e
+
+    feedback = models.AIFeedback(
+        draft_id=draft.id,
+        feedback_data=feedback_result
+    )
+
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    return {
+        "message": "AI 피드백 생성 성공",
+        "feedback_id": feedback.id,
+        "draft_id": draft.id,
+        "version": draft.version,
+        "feedback": feedback.feedback_data
+    }
+
+
+@router.get("/drafts/{draft_id}/feedbacks")
+def get_ai_feedbacks(
+    draft_id: int,
+    db: Session = Depends(get_db)
+):
+    draft = db.query(models.Draft).filter(
+        models.Draft.id == draft_id
+    ).first()
+
+    if not draft:
+        raise HTTPException(
+            status_code=404,
+            detail="저장된 글을 찾을 수 없습니다."
+        )
+
+    return db.query(models.AIFeedback).filter(
+        models.AIFeedback.draft_id == draft_id
+    ).order_by(
+        models.AIFeedback.id.desc()
+    ).all()
+
+
+@router.patch("/documents/{document_id}/complete")
+def complete_document(
+    document_id: int,
+    db: Session = Depends(get_db)
+):
+    document = db.query(models.Document).filter(
+        models.Document.id == document_id
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="문서를 찾을 수 없습니다."
+        )
+
+    latest_draft = db.query(models.Draft).filter(
+        models.Draft.document_id == document_id
+    ).order_by(
+        models.Draft.version.desc()
+    ).first()
+
+    if not latest_draft:
+        raise HTTPException(
+            status_code=400,
+            detail="저장된 글이 없습니다."
+        )
+
+    document.status = "완료"
+    db.commit()
+    db.refresh(document)
+
+    return {
+        "message": "최종 저장 완료",
+        "document_id": document.id,
+        "status": document.status,
+        "final_draft_id": latest_draft.id,
+        "version": latest_draft.version
+    }

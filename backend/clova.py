@@ -239,6 +239,114 @@ def create_draft_with_ai(
     return data["result"]["message"]["content"]
 
 
+
+# --------------------------------------------------
+# 3. AI 글쓰기 피드백
+# --------------------------------------------------
+def create_feedback_with_ai(
+    content: str,
+    document_type: str = ""
+):
+    if not CLOVA_API_KEY:
+        raise ValueError("CLOVA_API_KEY가 없습니다.")
+
+    if not content.strip():
+        raise ValueError("피드백을 받을 글이 없습니다.")
+
+    headers = {
+        "Authorization": f"Bearer {CLOVA_API_KEY}",
+        "X-NCP-CLOVASTUDIO-REQUEST-ID": str(uuid.uuid4()),
+        "Content-Type": "application/json"
+    }
+
+    system_prompt = (
+        "당신은 글쓰기 학습을 돕는 AI 피드백 전문가입니다. "
+        "사용자가 직접 작성한 글을 분석하세요. "
+        "맞춤법, 문법, 표현, 글의 흐름을 검토하세요. "
+        "원문을 임의로 수정하지 마세요. "
+        "사용자가 작성하지 않은 경험이나 사실을 만들어내지 마세요. "
+        "수정이 필요한 문장만 highlights에 넣으세요. "
+        "original_text는 원문에서 정확히 복사한 문자열이어야 합니다. "
+        "오류가 없다면 highlights를 빈 배열로 반환하세요. "
+        "수정 제안은 한국어로 구체적으로 설명하세요."
+    )
+
+    body = {
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"글 종류: {document_type}\n\n"
+                    f"검토할 글:\n{content}"
+                )
+            }
+        ],
+        "topP": 0.8,
+        "topK": 0,
+        "maxCompletionTokens": 1800,
+        "temperature": 0.2,
+        "repetitionPenalty": 1.1,
+        "thinking": {"effort": "none"},
+        "responseFormat": {
+            "type": "json",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "overall_feedback": {
+                        "type": "string"
+                    },
+                    "highlights": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "original_text": {"type": "string"},
+                                "type": {"type": "string"},
+                                "reason": {"type": "string"},
+                                "suggestion": {"type": "string"}
+                            },
+                            "required": [
+                                "original_text",
+                                "type",
+                                "reason",
+                                "suggestion"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "overall_feedback",
+                    "highlights"
+                ]
+            }
+        }
+    }
+
+    response = requests.post(
+        CLOVA_URL,
+        headers=headers,
+        json=body,
+        timeout=45
+    )
+    response.raise_for_status()
+
+    data = response.json()
+    feedback = json.loads(data["result"]["message"]["content"])
+
+    # AI가 실제 원문에 없는 문장을 표시하지 못하도록 필터링
+    feedback["highlights"] = [
+        item
+        for item in feedback.get("highlights", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("original_text"), str)
+        and item["original_text"]
+        and item["original_text"] in content
+    ]
+
+    return feedback
+
+
 # --------------------------------------------------
 # 직접 테스트할 때만 실행
 # --------------------------------------------------
