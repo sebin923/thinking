@@ -132,3 +132,27 @@ class EmailVerification(Base):
     # 인증에 성공한 시각 (아직이면 None)
     verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+<<<<<<< HEAD
+=======
+
+
+class AIFeedback(Base):
+    __tablename__ = "ai_feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    draft_id = Column(
+        Integer,
+        ForeignKey("drafts.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    feedback_data = Column(JSON, nullable=False)
+
+    created_at = Column(
+        DateTime,
+        server_default=func.now()
+    )
+
+    draft = relationship("Draft")
+>>>>>>> 86468fd4953058d3ea1e8bde7789a8a4d34cfb24
