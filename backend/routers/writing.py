@@ -4,12 +4,8 @@ from pydantic import BaseModel
 
 import models
 from database import get_db
-<<<<<<< HEAD
-from clova import create_draft_with_ai
-=======
 import requests
 from clova import create_draft_with_ai, create_feedback_with_ai
->>>>>>> 86468fd4953058d3ea1e8bde7789a8a4d34cfb24
 
 router = APIRouter(
     prefix="/api",
@@ -137,9 +133,6 @@ def save_draft(request: DraftCreate, db: Session = Depends(get_db)):
 def get_drafts(document_id: int, db: Session = Depends(get_db)):
     return db.query(models.Draft).filter(
         models.Draft.document_id == document_id
-<<<<<<< HEAD
-    ).order_by(models.Draft.version.desc()).all()
-=======
     ).order_by(models.Draft.version.desc()).all()
 
 
@@ -268,4 +261,3 @@ def complete_document(
         "final_draft_id": latest_draft.id,
         "version": latest_draft.version
     }
->>>>>>> 86468fd4953058d3ea1e8bde7789a8a4d34cfb24

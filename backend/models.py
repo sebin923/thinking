@@ -132,8 +132,6 @@ class EmailVerification(Base):
     # 인증에 성공한 시각 (아직이면 None)
     verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
-<<<<<<< HEAD
-=======
 
 
 class AIFeedback(Base):
@@ -155,4 +153,3 @@ class AIFeedback(Base):
     )
 
     draft = relationship("Draft")
->>>>>>> 86468fd4953058d3ea1e8bde7789a8a4d34cfb24
