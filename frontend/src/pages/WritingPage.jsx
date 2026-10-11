@@ -310,7 +310,7 @@ function WritingPage({ idea = "" }) {
       setFeedbackCount((count) => count + 1);
       // 피드백을 여러 번 받아도 최종 저장 전까지는 2단계를 유지합니다.
       setCurrentStep(2);
-      setApiMessage(`버전 ${savedDraft.version}의 AI 피드백이 완료되었습니다. 글을 수정한 뒤 다시 피드백받을 수 있습니다.`);
+      setApiMessage("");
       showToast("AI 피드백이 완료되었습니다.");
     } catch (error) {
       console.error("AI 피드백 오류:", error);
@@ -599,13 +599,6 @@ function WritingPage({ idea = "" }) {
                   </button>
                 </>
               )}
-              {currentStep === 2 && (
-                <p className="writing-feedback-guide" role="status">
-                  {feedbackCount > 0
-                    ? `AI 피드백 ${feedbackCount}회 완료 · 글을 수정하고 다시 피드백받을 수 있습니다. 최종 저장을 누르기 전까지 2단계가 유지됩니다.`
-                    : "2단계에서는 AI 피드백과 글 수정을 횟수 제한 없이 반복할 수 있습니다. 최종 저장을 눌러야 3단계로 이동합니다."}
-                </p>
-              )}
               {/* 3단계: 최종 저장 완료 */}
               {currentStep === 3 && (
                 <button
@@ -675,7 +668,7 @@ function WritingPage({ idea = "" }) {
                   <p>수정이 필요한 문장이 발견되지 않았습니다.</p>
                 )}
               </div>
-            ) : (
+            ) : currentStep === 1 ? (
               <>
                 <h2 className="tip-title">
                   <Lightbulb size={22} />
@@ -708,6 +701,13 @@ function WritingPage({ idea = "" }) {
                   좋은 글이 될 수 있어요 :)
                 </p>
               </>
+            ) : (
+              <div className="ai-feedback-panel">
+                <h2 className="tip-title">AI 피드백</h2>
+                <p className="tip-desc">
+                  글을 수정한 뒤 AI 피드백받기를 누르면 이곳에 결과가 표시됩니다.
+                </p>
+              </div>
             )}
           </aside>
         </div>
