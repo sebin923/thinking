@@ -32,7 +32,7 @@ class QuizCreate(QuizBase):
 
 class QuizResponse(QuizBase):
     quiz_id: int
-    created_at: Optional[datetime] = None  # 이 부분 수정
+    created_at: Optional[datetime] = None 
 
     class Config:
         from_attributes = True
@@ -71,6 +71,7 @@ class RankingSubmitRequest(BaseModel):
     user_id: int
     category: str = "spelling" # 기본값 spelling (맞춤법 랭킹 도전용)
     score: int
+    elapsed_time: float = 0.0
 
 class RankingResponse(BaseModel):
     ranking_id: int
@@ -78,6 +79,7 @@ class RankingResponse(BaseModel):
     nickname: Optional[str] = None
     category: str
     score: int
+    elapsed_time: float
     challenged_at: datetime
 
     class Config:

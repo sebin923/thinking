@@ -29,6 +29,16 @@ import "./QuizPage.css";
 
 const POINT_PER_QUESTION = 10;
 
+// ----- ★ [추가] 배열을 무작위로 섞어주는 도우미 함수 -----
+function shuffle(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 // props
 //  - category: 퀴즈 종류 ("spelling" = 맞춤법, "grammar" = 문법), 기본값 맞춤법
 //  - onChangeCategory: 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
@@ -53,8 +63,14 @@ function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
     fetch(`http://localhost:8000/api/quizzes/?category=${encodeURIComponent(category)}`)
       .then((res) => res.json())
       .then((data) => {
-        setQuizQuestions(data);
-        setResults(Array(data.length).fill(null));
+        // ★ [수정] 가져온 퀴즈 목록과 보기들을 매번 랜덤하게 섞어서 세팅
+        const randomized = shuffle(data).map((q) => ({
+          ...q,
+          options: shuffle(q.options), // 보기 순서도 랜덤으로 섞음
+        }));
+
+        setQuizQuestions(randomized);
+        setResults(Array(randomized.length).fill(null));
         setLoading(false);
       })
       .catch((err) => {
@@ -124,6 +140,12 @@ function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
   };
 
   const handleRestart = () => {
+    // ★ [수정] 다시 풀기를 누를 때도 문제를 다시 무작위로 섞어줌
+    const randomized = shuffle(quizQuestions).map((q) => ({
+      ...q,
+      options: shuffle(q.options),
+    }));
+    setQuizQuestions(randomized);
     setCurrent(0);
     setSelected(null);
     setChecked(false);
