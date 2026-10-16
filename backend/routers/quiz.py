@@ -129,3 +129,70 @@ def get_incorrect_quizzes(user_id: int, db: Session = Depends(get_db)):
             })
 
     return response_data
+
+
+# 서바이벌 랭킹 점수 및 소요 시간 제출
+@router.post("/rankings/survival", response_model=schemas.RankingResponse)
+def submit_survival_ranking(request: schemas.RankingSubmitRequest, db: Session = Depends(get_db)):
+    db_ranking = models.Ranking(
+        user_id=request.user_id,
+        category=request.category,
+        score=request.score,
+        elapsed_time=request.elapsed_time  # 타임어택 소요 시간 저장
+    )
+    db.add(db_ranking)
+    db.commit()
+    db.refresh(db_ranking)
+    
+    user = db.query(models.User).filter(models.User.user_id == request.user_id).first()
+    nickname = (user.nickname or user.name) if user else "알 수 없음"
+
+    return {
+        "ranking_id": db_ranking.ranking_id,
+        "user_id": db_ranking.user_id,
+        "nickname": nickname,
+        "category": db_ranking.category,
+        "score": db_ranking.score,
+        "elapsed_time": db_ranking.elapsed_time,
+        "challenged_at": db_ranking.challenged_at
+    }
+
+# 2. 서바이벌 랭킹 조회 (점수 높은 순 내림차순, 동점일 경우 소요 시간 짧은 순 오름차순 정렬)
+@router.get("/rankings/survival", response_model=List[schemas.RankingResponse])
+def get_survival_rankings(category: str = "spelling", db: Session = Depends(get_db)):
+    # 정렬 조건: 
+    # 1. score.desc() -> 점수가 높은 사람이 위로
+    # 2. elapsed_time.asc() -> 점수가 같다면 시간이 짧은 사람이 위로
+    # 3. challenged_at.asc() -> 점수와 시간까지 같다면 먼저 도전한 사람이 위로
+    all_rows = db.query(models.Ranking).filter(
+        models.Ranking.category == category
+    ).order_by(
+        models.Ranking.score.desc(),
+        models.Ranking.elapsed_time.asc(),
+        models.Ranking.challenged_at.asc()
+    ).all()
+
+    rankings = []
+    seen_users = set()  # 유저당 최고 기록 1개만 남기기 위한 세트
+    for r in all_rows:
+        if r.user_id in seen_users:
+            continue
+        seen_users.add(r.user_id)
+        rankings.append(r)
+        if len(rankings) == 10:  # 상위 10명 제한
+            break
+
+    response_data = []
+    for r in rankings:
+        user = db.query(models.User).filter(models.User.user_id == r.user_id).first()
+        response_data.append({
+            "ranking_id": r.ranking_id,
+            "user_id": r.user_id,
+            "nickname": (user.nickname or user.name) if user else "알 수 없음",
+            "category": r.category,
+            "score": r.score,
+            "elapsed_time": getattr(r, 'elapsed_time', 0.0) or 0.0,
+            "challenged_at": r.challenged_at
+        })
+        
+    return response_data

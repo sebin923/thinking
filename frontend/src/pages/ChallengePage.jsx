@@ -25,6 +25,7 @@ import {
   Heart,
   Zap,
   ListChecks,
+  Clock,
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
@@ -40,6 +41,9 @@ const CATEGORY = "spelling";
 
 // 정답을 맞힌 뒤 다음 문제로 자동으로 넘어가기까지 기다리는 시간 (밀리초, 1000 = 1초)
 const NEXT_DELAY = 900;
+
+// ★ [추가] 문항별 제한 시간 (초 단위, 예: 5초)
+const QUESTION_TIME_LIMIT = 5;
 
 // ----- 도우미 함수 -----
 
@@ -89,12 +93,20 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
   const [selected, setSelected] = useState(null); // 고른 보기 글자 (아직 안 골랐으면 null)
   const [cleared, setCleared] = useState(false); // 모든 문제를 다 맞혔는지
 
+  // ★ [추가] 문항별 남은 제한 시간 (초)
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
+
   // 랭킹 저장 상태: "idle"(아무것도 안 함) | "saving" | "saved" | "skipped"(0점이라 저장 안 함) | "error"
   const [saveState, setSaveState] = useState("idle");
 
   // timerRef: 다음 문제로 넘어가는 예약(setTimeout)을 기억해 두는 곳
-  // useRef 값은 바뀌어도 화면을 다시 그리지 않음 → 타이머 번호 보관에 딱 맞음
   const timerRef = useRef(null);
+  
+  // ★ [추가] 초읽기 타이머(setInterval)를 담아둘 ref
+  const questionTimerRef = useRef(null);
+
+  // 총 소요 시간 측정용 ref
+  const startTimeRef = useRef(null);
 
   // ----- 맞춤법 문제 불러오기 (화면이 처음 열릴 때 한 번) -----
   useEffect(() => {
@@ -121,10 +133,11 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
     return () => {
       ignore = true;
       clearTimeout(timerRef.current);
+      clearInterval(questionTimerRef.current);
     };
   }, []);
 
-  // ----- 랭킹 저장 -----
+  // ----- 랭킹 저장 (총 소요 시간 elapsed_time 함께 전송) -----
   const saveRecord = (finalStreak) => {
     if (!user) return; // 로그인 안 했으면 누구 기록인지 몰라서 저장 안 함
     if (finalStreak === 0) {
@@ -132,11 +145,20 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
       return;
     }
 
+    const elapsedSeconds = startTimeRef.current 
+      ? Number(((Date.now() - startTimeRef.current) / 1000).toFixed(2)) 
+      : 0.0;
+
     setSaveState("saving");
-    fetch(`${API_URL}/api/quizzes/rankings`, {
+    fetch(`${API_URL}/api/quizzes/rankings/survival`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.user_id, category: CATEGORY, score: finalStreak }),
+      body: JSON.stringify({ 
+        user_id: user.user_id, 
+        category: CATEGORY, 
+        score: finalStreak,
+        elapsed_time: elapsedSeconds 
+      }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(`응답 실패: ${res.status}`);
@@ -148,10 +170,45 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
       });
   };
 
+  // ----- 게임 끝내기 -----
+  const finishGame = (finalStreak, isCleared) => {
+    clearInterval(questionTimerRef.current); // 타이머 정지
+    setCleared(isCleared);
+    setPhase("gameover");
+    saveRecord(finalStreak);
+  };
+
+  // ----- ★ [추가] 문제별 초읽기 타이머 실행 함수 -----
+  useEffect(() => {
+    if (phase !== "playing") return;
+
+    // 새 문제가 나올 때마다 남은 시간 초기화
+    setTimeLeft(QUESTION_TIME_LIMIT);
+    clearInterval(questionTimerRef.current);
+
+    questionTimerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          // 시간이 다 되면(=0초) 자동으로 오답 처리 후 게임 종료
+          clearInterval(questionTimerRef.current);
+          if (selected === null) {
+            setSelected("시간초과"); // 시간 초과 표시용
+            timerRef.current = setTimeout(() => finishGame(streak, false), NEXT_DELAY);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(questionTimerRef.current);
+  }, [index, phase]);
+
   // ----- 도전 시작 (처음 시작 + 다시 도전 둘 다) -----
   const handleStart = () => {
     clearTimeout(timerRef.current);
-    // 문제 순서를 섞고, 문제마다 보기 순서도 섞음 → 매판 다르게 나옴
+    clearInterval(questionTimerRef.current);
+    
     const shuffled = shuffle(allQuestions).map((q) => ({ ...q, options: shuffle(q.options) }));
     setDeck(shuffled);
     setIndex(0);
@@ -159,26 +216,21 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
     setSelected(null);
     setCleared(false);
     setSaveState("idle");
+    
+    startTimeRef.current = Date.now();
     setPhase("playing");
-  };
-
-  // ----- 게임 끝내기 -----
-  const finishGame = (finalStreak, isCleared) => {
-    setCleared(isCleared);
-    setPhase("gameover");
-    saveRecord(finalStreak);
   };
 
   // ----- 보기 고르기 (고르는 순간 바로 채점) -----
   const handleSelect = (option) => {
     if (selected !== null) return; // 이미 골랐으면 무시 (두 번 누르기 방지)
+    clearInterval(questionTimerRef.current); // 답을 고르면 타이머 멈춤
     setSelected(option);
 
     const question = deck[index];
 
     if (option !== question.answer) {
       // ✗ 틀림 → 지금까지의 연속 정답 수로 바로 게임 끝
-      // (잠깐 정답/오답 색을 보여준 뒤 결과 화면으로)
       timerRef.current = setTimeout(() => finishGame(streak, false), NEXT_DELAY);
       return;
     }
@@ -232,7 +284,6 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
             {loading && <p>문제를 불러오는 중이에요...</p>}
             {loadError && <p>{loadError}</p>}
             {!loading && !loadError && (
-              // 백엔드 폴더에서 python insert_quiz_data.py 를 실행하면 문제가 들어감
               <p>등록된 맞춤법 문제가 없어요.</p>
             )}
           </section>
@@ -266,9 +317,9 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
                 <span>보기를 누르는 순간 바로 채점돼요. 신중하게 골라 주세요.</span>
               </li>
               <li>
-                <ListChecks size={18} />
+                <Clock size={18} />
                 <span>
-                  문제는 매번 섞여서 나와요. (총 <strong>{allQuestions.length}</strong>문제)
+                  문제당 <strong>{QUESTION_TIME_LIMIT}초</strong>의 제한 시간이 있어요!
                 </span>
               </li>
             </ul>
@@ -305,7 +356,6 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
 
   // ----- 3. 게임 끝 -----
   if (phase === "gameover") {
-    // 틀린 문제 (모두 맞힌 경우에는 없음) → 정답과 해설을 보여줌
     const missed = cleared ? null : deck[index];
 
     return (
@@ -328,7 +378,7 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
               {missed && (
                 <div className="quiz-feedback wrong challenge-missed">
                   <strong>
-                    <XCircle size={18} /> 정답은 ‘{missed.answer}’ (내가 고른 답: ‘{selected}’)
+                    <XCircle size={18} /> 정답은 ‘{missed.answer}’ (내가 고른 답: ‘{selected === "시간초과" ? "시간 초과" : selected}’)
                   </strong>
                   <p>{missed.explanation}</p>
                 </div>
@@ -379,17 +429,38 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
       <div className="sub-page-inner">
         {hero}
         <section className="panel quiz-card">
-          {/* 머리: 왼쪽 문제 번호 / 오른쪽 연속 정답 수 */}
-          <div className="quiz-head">
+          {/* 머리: 왼쪽 문제 번호 / 오른쪽 초읽기 타이머 및 연속 정답 수 */}
+          <div className="quiz-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 className="quiz-head-title">
               <Swords size={24} />
               {index + 1}번째 문제
             </h2>
-            {/* key={streak}: 숫자가 바뀔 때마다 새로 그려져서 통통 튀는 애니메이션이 다시 나옴 */}
-            <div className="challenge-streak" key={streak}>
-              <Flame size={20} />
-              <strong>{streak}</strong>
-              <span>연속</span>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* ★ [추가] 남은 제한 시간 표시 (3초 이하일 때 빨간색 강조) */}
+              <div 
+                style={{ 
+                  display: "flex", 
+                  alignItem: "center", 
+                  gap: "4px", 
+                  fontWeight: "700", 
+                  color: timeLeft <= 2 ? "#e74c3c" : "var(--navy)",
+                  background: timeLeft <= 2 ? "#fde8e8" : "#f0f5fa",
+                  padding: "4px 10px",
+                  borderRadius: "20px",
+                  fontSize: "14px",
+                  transition: "all 0.2s"
+                }}
+              >
+                <Clock size={16} />
+                <span>{timeLeft}초</span>
+              </div>
+
+              <div className="challenge-streak" key={streak}>
+                <Flame size={20} />
+                <strong>{streak}</strong>
+                <span>연속</span>
+              </div>
             </div>
           </div>
 
@@ -407,7 +478,6 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
             <div className="quiz-options" role="radiogroup" aria-label="보기">
               {question.options.map((option) => (
                 <button
-                  // key에 문제 번호를 넣어서, 다음 문제로 넘어가면 버튼을 새로 만듦
                   key={`${index}-${option}`}
                   type="button"
                   role="radio"
@@ -428,7 +498,7 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
               ))}
             </div>
 
-            {/* 채점 결과 한 줄 (aria-live: 화면 읽기 프로그램이 바로 읽어 줌) */}
+            {/* 채점 결과 한 줄 */}
             <p
               className={`challenge-verdict ${answered ? (isCorrect ? "correct" : "wrong") : ""}`}
               aria-live="polite"

@@ -13,7 +13,7 @@
 //   4. 4~10위 목록
 //
 // 데이터: 백엔드 GET /api/quizzes/rankings?category=spelling (routers/quiz.py)
-//  → [{ ranking_id, user_id, nickname, category, score, challenged_at }, ...]
+//  → [{ ranking_id, user_id, nickname, category, score, elapsed_time, challenged_at }, ...]
 //  (백엔드가 이미 "한 사람당 최고 기록 1줄"로 10명까지 보내줌)
 // =============================================================
 
@@ -38,26 +38,38 @@ function keepBestPerUser(rows) {
   const best = {};
   rows.forEach((row) => {
     const prev = best[row.user_id];
-    // 처음 보는 사람이거나, 점수가 더 높으면 교체
-    if (!prev || row.score > prev.score) best[row.user_id] = row;
+    // 처음 보는 사람이거나, 점수가 더 높거나, 점수가 같지만 소요 시간이 더 짧으면 교체
+    if (
+      !prev || 
+      row.score > prev.score || 
+      (row.score === prev.score && (row.elapsed_time || 0) < (prev.elapsed_time || 0))
+    ) {
+      best[row.user_id] = row;
+    }
   });
 
   // Object.values: 객체의 값들만 배열로 → 점수 높은 순 정렬
-  // 점수가 같으면 먼저 달성한 사람(날짜가 빠른 사람)이 위로
+  // 점수가 같으면 소요 시간이 짧은 순, 그것도 같으면 먼저 달성한 사람(날짜가 빠른 사람)이 위로
   return Object.values(best).sort(
-    (a, b) => b.score - a.score || new Date(a.challenged_at) - new Date(b.challenged_at)
+    (a, b) => 
+      b.score - a.score || 
+      (a.elapsed_time || 0) - (b.elapsed_time || 0) || 
+      new Date(a.challenged_at) - new Date(b.challenged_at)
   );
 }
 
-// 등수 매기기: 점수가 같으면 같은 등수 (예: 100, 90, 90, 80 → 1, 2, 2, 4)
+// 등수 매기기: 점수와 소요 시간이 같으면 같은 등수
 function addRanks(rows) {
   let prevScore = null; // 바로 앞사람 점수
-  let prevRank = 0; // 바로 앞사람 등수
+  let prevTime = null;  // 바로 앞사람 소요 시간
+  let prevRank = 0;     // 바로 앞사람 등수
 
   return rows.map((row, index) => {
-    // 앞사람과 점수가 같으면 같은 등수, 다르면 (순서 + 1)등
-    const rank = row.score === prevScore ? prevRank : index + 1;
+    const currTime = row.elapsed_time || 0;
+    // 앞사람과 점수 및 소요 시간이 같으면 같은 등수, 다르면 (순서 + 1)등
+    const rank = (row.score === prevScore && currTime === prevTime) ? prevRank : index + 1;
     prevScore = row.score;
+    prevTime = currTime;
     prevRank = rank;
     // { ...row, rank }: 원래 칸들은 그대로 두고 rank 칸만 추가한 새 객체
     return { ...row, rank };
@@ -90,7 +102,7 @@ function RankingPage({ user, onGoChallenge }) {
     // ignore: 응답이 오기 전에 화면을 떠나면 결과를 무시하려고 쓰는 깃발
     let ignore = false;
 
-    fetch(`${API_URL}/api/quizzes/rankings?category=${CATEGORY}`)
+    fetch(`${API_URL}/api/quizzes/rankings/survival?category=${CATEGORY}`)
       .then((res) => {
         if (!res.ok) throw new Error(`응답 실패: ${res.status}`);
         return res.json();
@@ -179,8 +191,10 @@ function RankingPage({ user, onGoChallenge }) {
                 {(row.nickname || "?").slice(0, 1)}
               </span>
               <strong className="podium-name">{row.nickname || "알 수 없음"}</strong>
-              {/* 점수 = 연속 정답 수 */}
-              <span className="podium-score">{row.score}문제 연속</span>
+              {/* 점수 = 연속 정답 수 및 소요 시간 표시 */}
+              <span className="podium-score">
+                {row.score}문제 연속 ({Number(row.elapsed_time || 0).toFixed(1)}초)
+              </span>
               {/* 단상 (등수 숫자 + 메달) */}
               <div className="podium-stand">
                 <Medal size={18} className={`medal ${medalClass[row.rank] || ""}`} />
@@ -201,7 +215,9 @@ function RankingPage({ user, onGoChallenge }) {
                 <span className="ranking-rank">{row.rank}</span>
                 <span className="ranking-name">{row.nickname || "알 수 없음"}</span>
                 <span className="ranking-date">{formatDate(row.challenged_at)}</span>
-                <strong className="ranking-score">{row.score}연속</strong>
+                <strong className="ranking-score">
+                  {row.score}연속 ({Number(row.elapsed_time || 0).toFixed(1)}초)
+                </strong>
               </li>
             ))}
           </ol>
@@ -240,7 +256,7 @@ function RankingPage({ user, onGoChallenge }) {
                 <span>로그인하면 내 순위를 확인하고 기록을 남길 수 있어요.</span>
               ) : myRow ? (
                 <span>
-                  <strong>{user.name}</strong>님은 지금 <strong>{myRow.rank}위</strong>예요! (최고 {myRow.score}문제 연속)
+                  <strong>{user.name}</strong>님은 지금 <strong>{myRow.rank}위</strong>예요! (최고 {myRow.score}문제 연속, {Number(myRow.elapsed_time || 0).toFixed(1)}초)
                 </span>
               ) : (
                 <span>
