@@ -79,15 +79,29 @@ class Ranking(Base):
     # 관계 설정
     user = relationship("User", back_populates="rankings")
     
+
 class Document(Base):
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # 문서 작성자
+    user_id = Column(
+        Integer,
+        ForeignKey("users.user_id"),
+        nullable=True,
+        index=True
+    )
+
     document_type = Column(String(50), nullable=False)
     title = Column(String(200), nullable=False)
     status = Column(String(20), default="작성중")
     created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now()
+    )
 
 
 class Thought(Base):
@@ -153,3 +167,47 @@ class AIFeedback(Base):
     )
 
     draft = relationship("Draft")
+
+
+class UserWritingPreference(Base):
+    __tablename__ = "user_writing_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    preferred_tone = Column(
+        String(30),
+        nullable=False,
+        default="natural"
+    )
+
+    sentence_length = Column(
+        String(20),
+        nullable=False,
+        default="normal"
+    )
+
+    feedback_style = Column(
+        String(20),
+        nullable=False,
+        default="detailed"
+    )
+
+    ai_assistance = Column(
+        String(20),
+        nullable=False,
+        default="balanced"
+    )
+
+    updated_at = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now()
+    )

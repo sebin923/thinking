@@ -21,6 +21,7 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import RankingPage from "./pages/RankingPage";
 import ChallengePage from "./pages/ChallengePage";
+import WritingSettingPage from "./pages/WritingSettingPage";
 
 // 공통 CSS (헤더, 푸터 등)
 import "./App.css";
@@ -126,7 +127,21 @@ function App() {
       case "home":
         return <LandingPage onStart={handleStart} />;
       case "write":
-        return <WritingPage idea={idea} />;
+        return (
+          <WritingPage
+            idea={idea}
+            auth={auth}
+            onOpenSettings={() => setActiveNav("writing-settings")}
+          />
+        );
+
+      case "writing-settings":
+        return (
+          <WritingSettingPage
+            auth={auth}
+            onBack={() => setActiveNav("write")}
+          />
+        );
       case "quiz":
         return (
           <QuizPage
