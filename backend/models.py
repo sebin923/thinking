@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Float
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base  # database.py에서 설정한 Base를 임포트한다고 가정합니다.
@@ -74,6 +74,9 @@ class Ranking(Base):
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     category = Column(String(50), default="spelling", nullable=False) # 맞춤법 랭킹 분리를 위한 카테고리
     score = Column(Integer, nullable=False)        # 랭킹 점수
+
+    elapsed_time = Column(Float, nullable=True, default=0.0)
+
     challenged_at = Column(DateTime, default=datetime.utcnow)
 
     # 관계 설정
