@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import {
   PenLine,
   Check,
-  ArrowRight,
   Bold,
   Italic,
   Underline,
@@ -14,16 +13,26 @@ import {
   FileText,
   Lightbulb,
   CheckCircle2,
+  Settings2,
+  Sparkles,
+  GraduationCap,
 } from "lucide-react";
 import PageHero from "../components/PageHero";
 import "./WritingPage.css";
+import "./WritingPageCustom.css";
 const API_BASE_URL = "http://localhost:8000";
 const TITLE_MAX = 50; // 제목 최대 글자 수
 const BODY_MAX = 2000; // 본문 최대 글자 수
 // 임시저장할 때 브라우저 저장소(localStorage)에 쓸 이름표
-const DRAFT_KEY = "saenggak-hanjul-draft";
-// 위쪽 진행 단계 (지금 페이지는 3단계)
-const STEPS = ["글 작성", "피드백 및 수정", "최종 저장"];
+const DRAFT_KEY_PREFIX = "saenggak-hanjul-draft";
+const getDraftKey = (userId) => `${DRAFT_KEY_PREFIX}-${userId ?? "guest"}`;
+const WRITING_TYPES = [
+  { value: "자유 글쓰기", label: "자유 글쓰기", detail: "주제와 형식에 제한 없이" },
+  { value: "자기소개서", label: "자기소개서", detail: "경험과 역량을 중심으로" },
+  { value: "보고서", label: "보고서", detail: "주제와 근거를 체계적으로" },
+  { value: "발표문", label: "발표문", detail: "듣는 사람을 고려하여" },
+  { value: "기타", label: "기타", detail: "원하는 글 유형 직접 입력" },
+];
 // 본문 툴바 버튼 목록
 // command: 브라우저에 내릴 서식 명령 이름 (document.execCommand에 넣는 값)
 // group: 같은 group끼리 묶고, group이 바뀌는 곳에 구분선을 그림
@@ -41,12 +50,12 @@ const TOOLBAR = [
 const TIPS = ["제목은 구체적으로", "핵심 내용을 중심으로", "문장은 간결하게"];
 // ----- 임시저장된 글 꺼내기 (컴포넌트 밖에 만든 일반 함수) -----
 // 저장된 글이 있으면 { title, html } 객체를, 없으면 null을 돌려줌
-function loadDraft() {
+function loadDraft(userId) {
   // try { } catch { }: 안에서 에러가 나도 화면이 멈추지 않게 감싸는 문법
   // (브라우저 설정에 따라 localStorage 사용이 막혀 있을 수 있음)
   try {
     // localStorage.getItem: 브라우저에 저장해둔 값을 꺼냄 (없으면 null)
-    const saved = localStorage.getItem(DRAFT_KEY);
+    const saved = localStorage.getItem(getDraftKey(userId));
     // 저장할 때 글자로 바꿔서 저장했으니, JSON.parse로 다시 객체로 되돌림
     return saved ? JSON.parse(saved) : null;
   } catch (error) {
@@ -63,12 +72,22 @@ function countText(html) {
 }
 // WritingPage 컴포넌트
 // props: idea → 메인 페이지에서 처음 입력한 생각 (없으면 빈 문자열)
-function WritingPage({ idea = "" }) {
-  const [currentStep, setCurrentStep] = useState(1);
+function WritingPage({
+  idea = "",
+  auth = null,
+  onOpenSettings
+}) {
+  const [isComplete, setIsComplete] = useState(false);
+  const [pendingAiDraft, setPendingAiDraft] = useState(null);
+  const [draftLoading, setDraftLoading] = useState(false);
   // draft: 페이지가 처음 뜰 때 딱 한 번 임시저장본을 꺼내서 기억해둠
   // useState(함수) 처럼 함수를 넣으면 "처음 한 번만" 그 함수를 실행해서 초기값으로 씀
   // (setDraft는 안 쓰니까 배열에서 첫 번째 값만 꺼냄)
-  const [draft] = useState(loadDraft);
+  // 초기 글 유형/작성 방식도 임시저장에 함께 기록합니다.
+  const [draft] = useState(() => loadDraft(auth?.user?.user_id));
+  const [writingType, setWritingType] = useState(draft?.writingType || "자유 글쓰기");
+  const [customType, setCustomType] = useState(draft?.customType || "");
+  const selectedDocumentType = writingType === "기타" ? customType.trim() : writingType;
   // title: 제목 입력칸 글자 (임시저장본이 있으면 그 제목으로 시작)
   // ?. (옵셔널 체이닝): draft가 null이면 에러 없이 undefined를 돌려줌
   const [title, setTitle] = useState(draft?.title || "");
@@ -82,7 +101,6 @@ function WritingPage({ idea = "" }) {
   const [savedDrafts, setSavedDrafts] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [feedbackCount, setFeedbackCount] = useState(0);
   // editorRef: 본문 입력칸(div)을 가리키는 손잡이
   // editorRef.current 로 실제 HTML 요소에 접근할 수 있음
   const editorRef = useRef(null);
@@ -146,6 +164,27 @@ function WritingPage({ idea = "" }) {
   const getBodyHtml = () => {
     return editorRef.current?.innerHTML || "";
   };
+  const saveBrowserDraft = () => {
+    try {
+      localStorage.setItem(getDraftKey(auth?.user?.user_id), JSON.stringify({
+        title,
+        html: editorRef.current?.innerHTML || "",
+        writingType,
+        customType,
+        savedAt: new Date().toISOString(),
+      }));
+      return true;
+    } catch (error) {
+      console.error("임시저장 실패:", error);
+      return false;
+    }
+  };
+
+  const handleOpenSettings = () => {
+    saveBrowserDraft();
+    onOpenSettings?.();
+  };
+
   const createDocumentIfNeeded = async () => {
     if (documentId) {
       return documentId;
@@ -154,15 +193,17 @@ function WritingPage({ idea = "" }) {
       showToast("제목을 입력해 주세요.");
       throw new Error("제목 없음");
     }
+    if (!selectedDocumentType) {
+      showToast("글 유형을 입력해 주세요.");
+      throw new Error("글 유형 없음");
+    }
     const response = await fetch(
       `${API_BASE_URL}/api/documents`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
-          document_type: "자기소개서",
+          document_type: selectedDocumentType,
           title: title.trim(),
         }),
       }
@@ -184,9 +225,7 @@ function WritingPage({ idea = "" }) {
       `${API_BASE_URL}/api/thoughts`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           document_id: targetDocumentId,
           content: thoughtText,
@@ -199,6 +238,8 @@ function WritingPage({ idea = "" }) {
     await response.json();
   };
   const handleAiDraft = async () => {
+    if (draftLoading || isComplete) return;
+    setDraftLoading(true);
     try {
       showToast("AI가 초안을 작성하고 있어요.");
       const targetDocumentId = await createDocumentIfNeeded();
@@ -207,6 +248,7 @@ function WritingPage({ idea = "" }) {
         `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-ai`,
         {
           method: "POST",
+          headers: getAuthHeaders()
         }
       );
       if (!response.ok) {
@@ -216,19 +258,15 @@ function WritingPage({ idea = "" }) {
         );
       }
       const data = await response.json();
-      if (editorRef.current) {
-        editorRef.current.innerText = data.content;
-        handleBodyInput();
-      }
-      setApiMessage("AI 초안이 작성되었습니다. 내용을 수정해보세요.");
+      // 원문을 자동 덮어쓰지 않고 사용자가 초안을 확인한 후 적용합니다.
+      setPendingAiDraft(data.content || "");
+      setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
       showToast("AI 초안 작성 완료");
-      setFeedback(null);
-      setCurrentStep(2);
-      setApiMessage("AI 초안이 작성되었습니다. AI 피드백을 받아보세요.");
-      showToast("AI 초안 작성 완료! 피드백 단계로 이동했습니다.");
     } catch (error) {
       console.error(error);
       showToast(error.message || "AI 초안 작성 실패");
+    } finally {
+      setDraftLoading(false);
     }
   };
   const handleSaveVersion = async () => {
@@ -247,9 +285,7 @@ function WritingPage({ idea = "" }) {
         `${API_BASE_URL}/api/drafts`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             document_id: targetDocumentId,
             content: bodyText,
@@ -287,7 +323,7 @@ function WritingPage({ idea = "" }) {
       const targetDocumentId = await createDocumentIfNeeded();
       const saveResponse = await fetch(`${API_BASE_URL}/api/drafts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           document_id: targetDocumentId,
           content: bodyText,
@@ -299,7 +335,10 @@ function WritingPage({ idea = "" }) {
       const savedDraft = await saveResponse.json();
       const feedbackResponse = await fetch(
         `${API_BASE_URL}/api/drafts/${savedDraft.id}/feedback-ai`,
-        { method: "POST" }
+        {
+          method: "POST",
+          headers: getAuthHeaders()
+        }
       );
       if (!feedbackResponse.ok) {
         const errorData = await feedbackResponse.json().catch(() => ({}));
@@ -307,9 +346,6 @@ function WritingPage({ idea = "" }) {
       }
       const result = await feedbackResponse.json();
       setFeedback(result.feedback);
-      setFeedbackCount((count) => count + 1);
-      // 피드백을 여러 번 받아도 최종 저장 전까지는 2단계를 유지합니다.
-      setCurrentStep(2);
       setApiMessage("");
       showToast("AI 피드백이 완료되었습니다.");
     } catch (error) {
@@ -326,7 +362,8 @@ function WritingPage({ idea = "" }) {
         return;
       }
       const response = await fetch(
-        `${API_BASE_URL}/api/documents/${documentId}/drafts`
+        `${API_BASE_URL}/api/documents/${documentId}/drafts`,
+        { headers: getAuthHeaders() }
       );
       if (!response.ok) {
         throw new Error("저장된 버전 불러오기 실패");
@@ -340,22 +377,20 @@ function WritingPage({ idea = "" }) {
       showToast(error.message || "저장된 버전 불러오기 실패");
     }
   };
+  const getAuthHeaders = () => {
+    const headers = {
+      "Content-Type": "application/json"
+    };
+
+    if (auth?.token) {
+      headers.Authorization = `Bearer ${auth.token}`;
+    }
+
+    return headers;
+  };
   // ----- 임시저장 버튼 -----
   const handleSaveDraft = () => {
-    try {
-      const draft = {
-        title,
-        html: editorRef.current.innerHTML,
-        savedAt: new Date().toISOString(), // 저장한 시각
-      };
-      // localStorage는 글자만 저장할 수 있어서 JSON.stringify로 객체를 글자로 바꿈
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      showToast("임시저장했어요.");
-    } catch (error) {
-      console.error("임시저장 실패:", error);
-      showToast("임시저장에 실패했어요.");
-    }
-    // TODO: 백엔드가 완성되면 localStorage 대신 API(DRAFT_VERSIONS 테이블)로 저장
+    showToast(saveBrowserDraft() ? "임시저장했어요." : "임시저장에 실패했어요.");
   };
   // ----- 작성 완료 버튼 -----
   const handleComplete = async () => {
@@ -373,7 +408,7 @@ function WritingPage({ idea = "" }) {
       // 최종 내용을 새 버전으로 저장
       const saveResponse = await fetch(`${API_BASE_URL}/api/drafts`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           document_id: targetDocumentId,
           content: bodyText,
@@ -385,14 +420,15 @@ function WritingPage({ idea = "" }) {
       // 문서 상태를 '완료'로 변경
       const completeResponse = await fetch(
         `${API_BASE_URL}/api/documents/${targetDocumentId}/complete`,
-        { method: "PATCH" }
+        { method: "PATCH", headers: getAuthHeaders() }
       );
       if (!completeResponse.ok) {
         throw new Error("문서 완료 처리에 실패했습니다.");
       }
-      setCurrentStep(3);
+      setIsComplete(true);
+      setPendingAiDraft(null);
       setApiMessage("최종 저장이 완료되었습니다.");
-      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(getDraftKey(auth?.user?.user_id));
       showToast("최종 저장 완료!");
     } catch (error) {
       console.error("최종 저장 오류:", error);
@@ -407,44 +443,54 @@ function WritingPage({ idea = "" }) {
           eyebrow="당신의 생각이, 하나의 글이 되는 과정"
           title="내 생각을 글로 완성해보세요"
           description={
-            "직접 글을 작성하거나 AI 초안을 생성해보세요.\n" +
-            "AI 피드백을 참고하여 글을 수정하고 최종 저장할 수 있습니다."
+            "필요한 AI 기능을 자유롭게 선택해 글을 완성해보세요.\n" +
+            "AI를 사용하지 않고 바로 저장할 수도 있습니다."
           }
           memoText={"당신의\n생각이\n글이 되는 곳"}
           memoVariant="note"
         />
-        {/* ===== 2. 진행 단계 표시 ===== */}
-        {/* ol: 순서 있는 목록 */}
-        <ol className="panel writing-steps">
-          {STEPS.map((step, index) => {
-            const stepNumber = index + 1; // 1, 2, 3, 4
-            // 단계 상태: 지난 단계 = done, 지금 단계 = current, 남은 단계 = todo
-            let status = "todo";
-            if (stepNumber < currentStep) status = "done";
-            if (stepNumber === currentStep) status = "current";
-            return (
-              <li key={step} className={`writing-step ${status}`}>
-                <span className="writing-step-badge">
-                  {/* 지난 단계는 체크 아이콘, 나머지는 번호 */}
-                  {status === "done" ? <Check size={16} strokeWidth={3} /> : stepNumber}
-                </span>
-                <span className="writing-step-label">{step}</span>
-                {/* 마지막 단계가 아니면 오른쪽에 화살표 */}
-                {stepNumber < STEPS.length && (
-                  <ArrowRight className="writing-step-arrow" size={18} aria-hidden="true" />
-                )}
-              </li>
-            );
-          })}
-        </ol>
         {/* ===== 3. 글쓰기 카드 + 작성 팁 ===== */}
         <div className="writing-layout">
           {/* ----- 왼쪽: 글쓰기 카드 ----- */}
           <section className="panel writing-card">
-            <h2 className="writing-card-title">
-              <PenLine size={22} />
-              글쓰기
-            </h2>
+            <div className="writing-card-heading">
+              <h2 className="writing-card-title"><PenLine size={22} /> 글쓰기</h2>
+              <button type="button" className="writing-settings-button" onClick={handleOpenSettings}>
+                <Settings2 size={16} /> 개인 맞춤 설정
+              </button>
+            </div>
+            <div className="writing-setup">
+              <div className="writing-setup-header">
+                <span className="field-label">어떤 글을 작성할까요?</span>
+              </div>
+              <div className="writing-type-options" role="group" aria-label="글 유형 선택">
+                {WRITING_TYPES.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={`writing-type-option ${writingType === item.value ? "selected" : ""}`}
+                    aria-pressed={writingType === item.value}
+                    disabled={documentId !== null}
+                    title={item.detail}
+                    onClick={() => setWritingType(item.value)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              {writingType === "기타" && (
+                <input
+                  className="writing-custom-type"
+                  value={customType}
+                  maxLength={50}
+                  disabled={documentId !== null}
+                  onChange={(event) => setCustomType(event.target.value)}
+                  placeholder="예: 독후감, 에세이, 기획서"
+                  aria-label="직접 입력할 글 유형"
+                />
+              )}
+              {documentId !== null && <p className="writing-hint">문서가 생성된 뒤에는 글 유형을 변경할 수 없습니다.</p>}
+            </div>
             {/* 제목 입력 */}
             {/* htmlFor: 이 라벨이 어떤 입력칸 것인지 id로 연결 (라벨을 눌러도 입력칸에 커서가 감) */}
             <label className="field-label" htmlFor="writing-title">
@@ -458,6 +504,7 @@ function WritingPage({ idea = "" }) {
                 value={title}
                 // 글자를 칠 때마다 title에 저장
                 onChange={(event) => setTitle(event.target.value)}
+                disabled={isComplete}
                 maxLength={TITLE_MAX}
               />
               {/* 글자 수 표시 (예: 12/50) */}
@@ -504,7 +551,7 @@ function WritingPage({ idea = "" }) {
               <div
                 ref={editorRef}
                 className={bodyLength === 0 ? "editor is-empty" : "editor"}
-                contentEditable
+                contentEditable={!isComplete}
                 // React가 "contentEditable 안의 내용은 React가 관리 안 한다"는 경고를 안 띄우게
                 suppressContentEditableWarning
                 onInput={handleBodyInput}
@@ -521,98 +568,54 @@ function WritingPage({ idea = "" }) {
                 {bodyLength.toLocaleString()} / {BODY_MAX.toLocaleString()}
               </div>
             </div>
-            {/* 아래 버튼들 */}
-            <div className="writing-actions">
-              {/* 1단계: 글 작성 */}
-              {currentStep === 1 && (
-                <>
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={handleAiDraft}
-                  >
-                    <FileText size={18} />
-                    AI 초안 작성
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={handleSaveVersion}
-                  >
-                    <FileText size={18} />
-                    버전 저장
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => {
-                      if (!title.trim() || !getBodyText()) {
-                        showToast("제목과 본문을 먼저 작성해 주세요.");
-                        return;
-                      }
-                      if (getBodyText().length > BODY_MAX) {
-                        showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
-                        return;
-                      }
-                      setCurrentStep(2);
-                      showToast("피드백 단계로 이동했습니다.");
-                    }}
-                  >
-                    피드백 단계로 이동
-                    <ArrowRight size={18} />
-                  </button>
-                </>
-              )}
-              {/* 2단계: 피드백 및 수정 */}
-              {currentStep === 2 && (
-                <>
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={handleSaveVersion}
-                    disabled={feedbackLoading}
-                  >
-                    <FileText size={18} />
-                    버전 저장
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    onClick={handleAiFeedback}
-                    disabled={feedbackLoading}
-                  >
-                    <Lightbulb size={18} />
-                    {feedbackLoading
-                      ? "AI 분석 중..."
-                      : feedbackCount > 0
-                        ? "수정 후 다시 AI 피드백받기"
-                        : "AI 피드백받기"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={handleComplete}
-                    disabled={feedbackLoading}
-                  >
-                    최종 저장
-                    <ArrowRight size={18} />
-                  </button>
-                </>
-              )}
-              {/* 3단계: 최종 저장 완료 */}
-              {currentStep === 3 && (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled
-                >
-                  <Check size={18} />
-                  저장 완료
+
+            {/* 원하는 AI 기능을 순서 없이 사용할 수 있습니다. */}
+            <div className="writing-ai-tools">
+              <h3 className="writing-ai-tools-title">AI 글쓰기 도구</h3>
+              <p className="writing-ai-tools-subtitle">필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다.</p>
+              <div className="writing-ai-tool-buttons">
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={draftLoading || feedbackLoading || isComplete}>
+                  <FileText size={19} />
+                  <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
                 </button>
-              )}
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={draftLoading || feedbackLoading || isComplete}>
+                  <Lightbulb size={19} />
+                  <span><strong>{feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}</strong><small>문제점 분석과 개선 방향 확인</small></span>
+                </button>
+                <button type="button" className="writing-ai-tool-button" disabled title="코칭 API 연결 후 이용할 수 있습니다.">
+                  <GraduationCap size={19} />
+                  <span><strong>AI 글쓰기 코칭</strong><small>맞춤형 질문과 힌트 (준비 중)</small></span>
+                </button>
+              </div>
+            </div>
+            {pendingAiDraft !== null && (
+              <section className="writing-ai-draft-preview" aria-label="AI 초안 미리보기">
+                <h3>AI 초안 미리보기</h3>
+                <p>작성 중인 글은 아직 변경되지 않았습니다.</p>
+                <div className="writing-ai-preview-text">{pendingAiDraft}</div>
+                <div className="writing-ai-preview-actions">
+                  <button type="button" className="btn-outline" onClick={() => setPendingAiDraft(null)}>취소</button>
+                  <button type="button" className="btn-primary" onClick={() => {
+                    if (editorRef.current) {
+                      editorRef.current.innerText = pendingAiDraft;
+                      handleBodyInput();
+                    }
+                    setPendingAiDraft(null);
+                    showToast("AI 초안이 본문에 적용되었습니다.");
+                  }}>본문에 적용하기</button>
+                </div>
+              </section>
+            )}
+            <div className="writing-actions writing-save-actions">
+              <button type="button" className="btn-outline" onClick={handleSaveVersion} disabled={feedbackLoading || draftLoading || isComplete}>
+                <FileText size={18} /> 버전 저장
+              </button>
+              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || isComplete}>
+                <Check size={18} /> {isComplete ? "저장 완료" : "최종 저장"}
+              </button>
             </div>
             {apiMessage && (
-              <p style={{ marginTop: "12px" }}>
+              <p className="writing-api-message">
                 {apiMessage}
               </p>
             )}
@@ -668,7 +671,7 @@ function WritingPage({ idea = "" }) {
                   <p>수정이 필요한 문장이 발견되지 않았습니다.</p>
                 )}
               </div>
-            ) : currentStep === 1 ? (
+            ) : (
               <>
                 <h2 className="tip-title">
                   <Lightbulb size={22} />
@@ -701,13 +704,6 @@ function WritingPage({ idea = "" }) {
                   좋은 글이 될 수 있어요 :)
                 </p>
               </>
-            ) : (
-              <div className="ai-feedback-panel">
-                <h2 className="tip-title">AI 피드백</h2>
-                <p className="tip-desc">
-                  글을 수정한 뒤 AI 피드백받기를 누르면 이곳에 결과가 표시됩니다.
-                </p>
-              </div>
             )}
           </aside>
         </div>

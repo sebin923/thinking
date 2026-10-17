@@ -14,7 +14,7 @@ from routers.quiz import router as quiz_router
 from routers.writing import router as writing_router
 # 회원가입 / 로그인 / 이메일 인증 API (주소는 /api/auth/... 로 시작)
 from routers.auth import router as auth_router
-
+from routers.writing_preferences import router as writing_preferences_router
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
 
@@ -43,6 +43,9 @@ for route in quiz_router.routes:
 
 for route in writing_router.routes:
     app.router.routes.append(route)
+
+# 개인화 API 등록
+app.include_router(writing_preferences_router)
 
 # 회원가입 / 로그인 API를 서버에 붙이기
 app.include_router(auth_router)
