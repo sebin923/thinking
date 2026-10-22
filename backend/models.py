@@ -3,6 +3,9 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Foreign
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from database import Base  # database.py에서 설정한 Base를 임포트한다고 가정합니다.
+from sqlalchemy import Column, Integer, String, Text, DateTime
+from datetime import datetime
+from database import Base
 
 def utc_now():
     """지금 시각(UTC 기준)을 돌려주는 함수. 생성 시각 기본값으로 씀"""
@@ -214,3 +217,12 @@ class UserWritingPreference(Base):
         server_default=func.now(),
         onupdate=func.now()
     )
+
+class Post(Base):
+    __tablename__ = "posts"  # 실제 데이터베이스의 테이블 이름에 맞춰주세요
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)  # 유저 고유 ID (FK 등 프로젝트 설정에 맞게 조절)
+    title = Column(String(200), nullable=True)
+    content = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
