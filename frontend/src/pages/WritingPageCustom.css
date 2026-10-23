@@ -16,7 +16,21 @@
   margin: 0;
   padding: 0;
   border-bottom: none;
+  flex-wrap: wrap;          /* 좁으면 단계 배지가 다음 줄로 */
 }
+/* 글쓰기 제목 옆 단계 배지 (마이페이지 배지와 같은 색: 초안 파랑 / 수정 주황 / 완료 초록) */
+.writing-stage-badge {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.writing-stage-badge small { margin-left: 5px; font-size: 12px; font-weight: 500; opacity: .8; }
+.writing-stage-badge.draft  { background: #eef5fc; color: #3d78ad; }
+.writing-stage-badge.revise { background: #fff5e6; color: #c47a12; }
+.writing-stage-badge.done   { background: #e9f7f0; color: #23885a; }
 .writing-settings-button {
   display: inline-flex;
   align-items: center;
@@ -34,6 +48,28 @@
   transition: background-color .15s, border-color .15s;
 }
 .writing-settings-button:hover { background-color: #dcefff; border-color: #69a9d6; }
+
+/* 글쓰기 카드 오른쪽 위 버튼 묶음: 새 글 쓰기 + 개인 맞춤 설정 (가로로 나란히) */
+.writing-heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* 새 글 쓰기: 개인 맞춤 설정과 같은 모양, 흰 바탕으로 구분 */
+.writing-new-button { background-color: #ffffff; }
+.writing-new-button:hover { background-color: #f0f8ff; }
+.writing-new-button:focus-visible { outline: 3px solid #8ecaf2; outline-offset: 3px; }
+
+/* 글 유형 버튼 줄: 유형 버튼들(왼쪽) + 버전 저장(같은 줄 오른쪽 끝) */
+.writing-type-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 양 끝으로 벌림 → 버전 저장이 오른쪽 끝에 붙음 */
+  flex-wrap: wrap;                /* 화면이 좁으면 버전 저장이 다음 줄로 */
+  gap: 9px;
+}
+.writing-version-button { flex-shrink: 0; } /* 좁아져도 버튼 글자가 찌그러지지 않게 */
+/* 버전 저장: 개인 맞춤 설정과 같은 모양, 색만 흰 바탕으로 살짝 구분 */
+.writing-version-button { background-color: #ffffff; }
+.writing-version-button:hover:not(:disabled) { background-color: #f0f8ff; }
+.writing-version-button:disabled { opacity: .5; cursor: not-allowed; }
+.writing-version-button:focus-visible { outline: 3px solid #8ecaf2; outline-offset: 3px; }
 
 /* 유형 선택 영역: 새로운 카드 없이 구분선으로 분리 */
 .writing-setup { margin: 0 0 26px; padding-bottom: 22px; border-bottom: 1px solid #e8eff6; }
@@ -108,6 +144,10 @@
 @media (max-width: 640px) {
   .writing-mode-options { grid-template-columns: 1fr; }
   .writing-settings-button { width: 100%; }
+  /* 모바일: 버전 저장은 유형 버튼들 아래 줄에서 한 줄 전체를 씀 (.writing-settings-button의 width: 100%) */
+  /* 모바일: 위쪽 버튼 묶음도 한 줄 전체, 새 글 쓰기 / 개인 맞춤 설정은 반씩 */
+  .writing-heading-actions { width: 100%; }
+  .writing-heading-actions .writing-settings-button { width: auto; flex: 1; }
   .writing-type-option { flex: 1 1 auto; }
 }
 
@@ -124,7 +164,8 @@
 .writing-ai-tool-button span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .writing-ai-tool-button strong { font-size: 13px; line-height: 1.4; }
 .writing-ai-tool-button small { font-size: 11px; line-height: 1.5; font-weight: 400; color: #6d8498; }
-.writing-save-actions { justify-content: space-between; }
+/* 아래쪽 버튼 줄에는 이제 최종 저장 하나만 남아서 오른쪽 끝으로 */
+.writing-save-actions { justify-content: flex-end; }
 .writing-ai-draft-preview { margin-top: 20px; border: 1px solid #b6daf2; border-radius: 12px; padding: 18px; background: #f4faff; }
 .writing-ai-draft-preview h3 { margin: 0 0 8px; color: #245c83; font-size: 16px; }
 .writing-ai-draft-preview p { margin: 0 0 12px; font-size: 12px; color: #627c90; }

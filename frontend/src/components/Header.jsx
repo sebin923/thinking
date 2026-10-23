@@ -53,12 +53,18 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
   // 로그인 상태에 따라 오른쪽에 보여줄 버튼 묶음
   // (PC 오른쪽과 모바일 메뉴 안에서 똑같이 쓰려고 변수에 담아둠)
   // user가 있으면(로그인 상태) 이름 + 로그아웃, 없으면 로그인 + 회원가입
+  // 이름("○○님")을 누르면 마이페이지로 이동 (마이페이지·수정 화면에 있을 땐 진하게 표시)
   const authButtons = user ? (
     <>
-      <span className="header-user">
+      <button
+        type="button"
+        className={activeNav === "mypage" ? "header-user active" : "header-user"}
+        onClick={() => handleNavClick("mypage")}
+        title="마이페이지로 이동"
+      >
         <UserRound size={18} />
         {user.name}님
-      </span>
+      </button>
       <button className="login-button" onClick={handleLogout}>
         로그아웃
       </button>

@@ -1,7 +1,14 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+// CheckCircle2: 저장 완료 팝업에 쓰는 체크 아이콘
+import { CheckCircle2 } from "lucide-react";
+// 저장 완료 팝업 스타일 (화면 전체를 살짝 어둡게 덮고 가운데에 하얀 상자)
+import "./WritingSettingPage.css";
 
 const API_BASE_URL = "http://localhost:8000";
+
+// 저장 완료 팝업을 보여준 뒤 글쓰기 화면으로 자동으로 돌아가기까지 기다리는 시간 (밀리초, 1500 = 1.5초)
+const RETURN_DELAY = 1500;
 
 const DEFAULT_SETTINGS = {
     preferred_tone: "natural",
@@ -53,6 +60,24 @@ function WritingSettingPage({ auth, onBack }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState("");
+
+    // showSavedPopup: "설정이 저장되었습니다" 팝업을 보여줄지 (true / false)
+    const [showSavedPopup, setShowSavedPopup] = useState(false);
+    // returnTimerRef: "1.5초 뒤 글쓰기 화면으로 돌아가기" 예약(setTimeout) 번호를 기억해 두는 곳
+    // useRef 값은 바뀌어도 화면을 다시 그리지 않아서 타이머 번호 보관에 딱 맞음
+    const returnTimerRef = useRef(null);
+
+    // 화면을 떠날 때(뒤로가기 버튼 등) 남은 예약이 있으면 취소
+    // → 다른 화면으로 이미 갔는데 1.5초 뒤에 글쓰기 화면으로 또 끌려가는 일을 막음
+    useEffect(() => {
+        return () => clearTimeout(returnTimerRef.current);
+    }, []);
+
+    // 팝업의 "바로 돌아가기" 버튼: 예약을 취소하고 지금 바로 글쓰기 화면으로
+    const handleReturnNow = () => {
+        clearTimeout(returnTimerRef.current);
+        onBack();
+    };
 
     // 로그인한 사용자의 설정 불러오기
     useEffect(() => {
@@ -144,7 +169,9 @@ function WritingSettingPage({ auth, onBack }) {
                 );
             }
 
-            setMessage("글쓰기 설정이 저장되었습니다.");
+            // 저장 성공 → 팝업을 띄우고, 잠시 뒤 글쓰기 화면으로 자동으로 돌아감
+            setShowSavedPopup(true);
+            returnTimerRef.current = setTimeout(onBack, RETURN_DELAY);
         } catch (error) {
             setMessage(error.message);
         } finally {
@@ -251,7 +278,8 @@ function WritingSettingPage({ auth, onBack }) {
                     <button
                         type="button"
                         onClick={handleSave}
-                        disabled={saving || !auth?.token}
+                        // 팝업이 떠 있는 동안에도 막아서 두 번 저장되지 않게
+                        disabled={saving || showSavedPopup || !auth?.token}
                         style={{
                             width: "100%",
                             padding: "15px",
@@ -266,6 +294,40 @@ function WritingSettingPage({ auth, onBack }) {
                         {saving ? "저장 중..." : "설정 저장하기"}
                     </button>
                 </>
+            )}
+
+            {/*
+              ===== 저장 완료 팝업 =====
+              role="dialog" + aria-modal: 화면 읽기 프로그램에 "팝업 창"이라고 알려줌
+              aria-live="polite": 팝업이 뜨면 안의 문구를 바로 읽어 줌
+            */}
+            {showSavedPopup && (
+                <div className="setting-popup-backdrop">
+                    <div
+                        className="setting-popup"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="setting-popup-title"
+                        aria-live="polite"
+                    >
+                        <CheckCircle2 size={44} strokeWidth={1.8} className="setting-popup-icon" />
+                        <p id="setting-popup-title" className="setting-popup-title">
+                            설정이 저장되었습니다
+                        </p>
+                        <p className="setting-popup-desc">
+                            잠시 후 글쓰기 화면으로 돌아가요.
+                        </p>
+                        {/* autoFocus: 팝업이 뜨면 이 버튼에 바로 커서가 가서 엔터만 눌러도 돌아감 */}
+                        <button
+                            type="button"
+                            className="setting-popup-button"
+                            onClick={handleReturnNow}
+                            autoFocus
+                        >
+                            바로 돌아가기
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

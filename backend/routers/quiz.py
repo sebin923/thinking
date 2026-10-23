@@ -49,7 +49,9 @@ def submit_ranking(request: schemas.RankingSubmitRequest, db: Session = Depends(
     db_ranking = models.Ranking(
         user_id=request.user_id,
         category=request.category,
-        score=request.score
+        score=request.score,
+        # 도전에 걸린 시간(초) — 요청에 들어온 값을 같이 저장 (예전엔 빠져 있어서 항상 0이었음)
+        elapsed_time=request.elapsed_time,
     )
     db.add(db_ranking)
     db.commit()
@@ -65,6 +67,8 @@ def submit_ranking(request: schemas.RankingSubmitRequest, db: Session = Depends(
         "nickname": nickname,
         "category": db_ranking.category,
         "score": db_ranking.score,
+        # RankingResponse에 elapsed_time이 필수 칸이라 꼭 넣어야 함 (빠지면 500 에러)
+        "elapsed_time": db_ranking.elapsed_time or 0.0,
         "challenged_at": db_ranking.challenged_at
     }
 
@@ -100,6 +104,8 @@ def get_rankings(category: str = "spelling", db: Session = Depends(get_db)):
             "nickname": (user.nickname or user.name) if user else "알 수 없음",
             "category": r.category,
             "score": r.score,
+            # RankingResponse에 elapsed_time이 필수 칸이라 꼭 넣어야 함 (빠지면 500 에러)
+            "elapsed_time": r.elapsed_time or 0.0,
             "challenged_at": r.challenged_at
         })
         

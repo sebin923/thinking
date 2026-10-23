@@ -1,0 +1,88 @@
+/* =============================================================
+   WritingSettingPage.css — 글쓰기 개인 맞춤 설정 화면의 "저장 완료" 팝업
+   (화면 나머지 부분은 WritingSettingPage.jsx 안에 style={{ }}로 들어 있음)
+   ============================================================= */
+
+/* 화면 전체를 살짝 어둡게 덮는 배경 */
+.setting-popup-backdrop {
+  position: fixed;           /* 스크롤과 상관없이 화면에 딱 붙어 있음 */
+  inset: 0;                  /* top·right·bottom·left 전부 0 → 화면 전체를 덮음 */
+  z-index: 200;              /* 헤더 등 다른 모든 것보다 위 */
+  display: grid;
+  place-items: center;       /* 팝업 상자를 화면 정가운데로 */
+  padding: 16px;             /* 모바일에서 화면 가장자리에 딱 붙지 않게 */
+  background: rgba(20, 40, 64, 0.35);
+  animation: setting-fade-in 0.2s ease-out;
+}
+
+/* 가운데 하얀 팝업 상자 */
+.setting-popup {
+  width: 100%;
+  max-width: 340px;
+  padding: 30px 26px 24px;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(20, 40, 64, 0.2);
+  text-align: center;
+  animation: setting-pop-in 0.25s ease-out;
+}
+
+/* 초록 체크 아이콘 */
+.setting-popup-icon {
+  color: #2f9c69;
+}
+
+.setting-popup-title {
+  margin: 12px 0 6px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #245780;
+}
+
+.setting-popup-desc {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #667085;
+}
+
+/* "바로 돌아가기" 버튼 (설정 저장하기 버튼과 같은 하늘색) */
+.setting-popup-button {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: #64b5f6;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.setting-popup-button:hover {
+  background: #4a98d3;
+}
+
+/* 키보드로 이동했을 때 테두리가 보이게 */
+.setting-popup-button:focus-visible {
+  outline: 3px solid #b9dcf7;
+  outline-offset: 2px;
+}
+
+/* 배경: 투명 → 어둡게 */
+@keyframes setting-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* 팝업 상자: 살짝 작게 → 원래 크기로 톡 튀어나옴 */
+@keyframes setting-pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 애니메이션 끄기 */
+@media (prefers-reduced-motion: reduce) {
+  .setting-popup-backdrop,
+  .setting-popup {
+    animation: none;
+  }
+}

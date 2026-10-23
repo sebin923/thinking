@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   PenLine,
+  FilePlus2, // "새 글 쓰기" 버튼 아이콘
   Check,
   Bold,
   Italic,
@@ -63,6 +64,47 @@ function loadDraft(userId) {
     return null;
   }
 }
+// ----- 글 단계 정하기 (초안 / 수정 / 완료) -----
+// 백엔드 routers/mypage.py의 get_stage와 똑같은 규칙 → 글쓰기 화면과 마이페이지가 항상 같은 단계를 보여줌
+//  - 최종 저장을 누른 글                → 완료
+//  - 2번 이상 저장한 글 (버전 2 이상)   → 수정  (처음 저장한 뒤 다시 저장할 때마다)
+//  - 아직 저장 안 했거나 1번만 저장     → 초안  (맨 처음 저장 = 초안)
+// ※ "AI 피드백 및 수정"도 피드백을 받기 전에 본문을 한 번 저장하기 때문에 저장 1번으로 셈
+function getStage(savedVersion, isComplete) {
+  if (isComplete) return "완료";
+  if (savedVersion >= 2) return "수정";
+  return "초안";
+}
+// 단계 → 배지 색 CSS 이름 (WritingPageCustom.css의 .writing-stage-badge.draft 등)
+const STAGE_CLASS = { 초안: "draft", 수정: "revise", 완료: "done" };
+// ----- 일반 글자 → 본문 칸에 넣을 HTML로 바꾸기 -----
+// 서버에는 본문이 서식 없는 글자(줄바꿈 포함)로 저장돼 있음
+// 본문 칸(div)에 그대로 넣으려면 &, <, > 같은 특수문자를 안전한 글자로 바꾸고, 줄바꿈은 <br>로 바꿔야 함
+// (바꾸지 않으면 본문에 "<b>" 같은 글자가 있을 때 진짜 태그로 실행돼 버림)
+function textToHtml(text) {
+  return (text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+}
+// ----- 마이페이지에서 연 글 → 임시저장본과 같은 모양으로 바꾸기 -----
+// doc: { id, title, document_type, status, content } (App이 넘겨줌)
+// 임시저장본과 모양을 맞춰 두면, 아래에서 처음 값을 정하는 코드를 그대로 같이 쓸 수 있음
+function documentToDraft(doc) {
+  // 글쓰기 유형 버튼에 있는 값이면 그 버튼을, 없으면(직접 입력한 유형) "기타" + 직접 입력칸
+  const isKnownType = WRITING_TYPES.some((item) => item.value === doc.document_type);
+  return {
+    title: doc.title || "",
+    html: textToHtml(doc.content),
+    writingType: isKnownType ? doc.document_type : "기타",
+    customType: isKnownType ? "" : doc.document_type,
+    documentId: doc.id, // ★ 이 번호가 있어야 저장할 때 새 글이 아니라 이 글에 이어서 저장됨
+    savedVersion: doc.latest_version || 0, // 지금까지 저장한 횟수 (초안/수정 단계를 정하는 데 씀)
+    isComplete: doc.status === "완료", // 최종 저장까지 끝난 글이면 읽기 전용으로 열기
+    fromServer: true, // 서버에서 불러온 글이라는 표시 (안내 문구를 다르게 띄우려고)
+  };
+}
 // ----- 서식이 들어간 HTML에서 글자 수만 세기 -----
 function countText(html) {
   // 화면에 안 붙인 임시 div에 HTML을 넣고, 태그를 뺀 글자(textContent)만 꺼냄
@@ -71,20 +113,58 @@ function countText(html) {
   return temp.textContent.trim().length;
 }
 // WritingPage 컴포넌트
-// props: idea → 메인 페이지에서 처음 입력한 생각 (없으면 빈 문자열)
+// props:
+//  - idea → 메인 페이지에서 처음 입력한 생각 (없으면 빈 문자열)
+//  - initialDocument → 마이페이지 "내가 쓴 글"에서 연 글 { id, title, document_type, status, content, latest_version }
+//                      (없으면 null → 새 글쓰기 또는 임시저장본 이어 쓰기)
+//  - onNewWriting → "새 글 쓰기" 버튼을 눌렀을 때 실행 (App이 글쓰기 화면을 빈 새 글로 다시 만듦)
+//  - onWritingStateChange → 지금 글 상태 { documentId, savedVersion, isComplete, createdHere }가 바뀔 때마다 App에 알려줌
+//                           (App이 글쓰기 화면을 떠날 때 "쓰다 만 글"인지 보고 지우는 데 씀)
 function WritingPage({
   idea = "",
   auth = null,
-  onOpenSettings
+  onOpenSettings,
+  initialDocument = null,
+  onNewWriting,
+  onWritingStateChange,
 }) {
-  const [isComplete, setIsComplete] = useState(false);
   const [pendingAiDraft, setPendingAiDraft] = useState(null);
   const [draftLoading, setDraftLoading] = useState(false);
   // draft: 페이지가 처음 뜰 때 딱 한 번 임시저장본을 꺼내서 기억해둠
   // useState(함수) 처럼 함수를 넣으면 "처음 한 번만" 그 함수를 실행해서 초기값으로 씀
   // (setDraft는 안 쓰니까 배열에서 첫 번째 값만 꺼냄)
   // 초기 글 유형/작성 방식도 임시저장에 함께 기록합니다.
-  const [draft] = useState(() => loadDraft(auth?.user?.user_id));
+  //
+  // 처음 값을 정하는 순서
+  //  1) 마이페이지에서 글을 열었고, 그 글을 고치다가 개인 맞춤 설정에 다녀온 경우
+  //     → 브라우저 임시저장본이 서버 글보다 최신이니까 임시저장본 사용 (고치던 내용이 안 사라지게)
+  //  2) 마이페이지에서 글을 연 경우 → 서버에 마지막으로 저장된 글
+  //  3) 그 외 → 브라우저 임시저장본 (설정 화면에 다녀오기 전에 쓰던 글, 없으면 빈 새 글)
+  //
+  // ★ 글 단계(초안/수정/완료)는 "글 하나" 기준이라, 새 글은 저장 횟수 0부터 시작해야 함
+  //   그래서 임시저장본은 한 번 화면에 옮기면 바로 지움 (resumedFromSettings → 아래 useEffect)
+  //   → 안 지우면 나중에 새 글을 쓰러 왔을 때 예전 글 번호가 다시 살아나서
+  //     새 글의 첫 저장이 예전 글의 "수정"으로 들어가 버림
+  const [draft] = useState(() => {
+    const saved = loadDraft(auth?.user?.user_id);
+    if (!initialDocument) return saved ? { ...saved, resumedFromSettings: true } : null;
+    if (saved?.documentId === initialDocument.id) return { ...saved, resumedFromSettings: true };
+    return documentToDraft(initialDocument);
+  });
+  // isComplete: 최종 저장까지 끝난 글인지 (true면 제목·본문 수정과 저장 버튼이 막힘)
+  const [isComplete, setIsComplete] = useState(Boolean(draft?.isComplete));
+  // savedVersion: 이 글을 서버에 저장한 횟수 (= 마지막 버전 번호, 아직 안 했으면 0)
+  // 0~1이면 초안, 2 이상이면 수정 단계 (getStage 참고)
+  const [savedVersion, setSavedVersion] = useState(draft?.savedVersion || 0);
+  // stage: 지금 글의 단계 (글쓰기 카드 제목 옆 배지에 보여줌)
+  const stage = getStage(savedVersion, isComplete);
+  // createdHere: 이 글을 지금 글쓰기 화면에서 새로 만들었는지
+  // (마이페이지에서 연 예전 글은 false → 떠날 때 자동으로 지우면 안 되니까 구분해 둠)
+  // 설정 화면에 다녀와도 유지되게 임시저장본에도 같이 기록함
+  const [createdHere, setCreatedHere] = useState(Boolean(draft?.createdHere));
+  // dirty: 마지막으로 저장한 뒤에 제목·본문을 고쳤는지 (true면 떠날 때 App이 경고창을 띄움)
+  // 설정 화면에 다녀와도 "고친 게 있음"이 유지되게 임시저장본에서 이어받음
+  const [dirty, setDirty] = useState(Boolean(draft?.dirty));
   const [writingType, setWritingType] = useState(draft?.writingType || "자유 글쓰기");
   const [customType, setCustomType] = useState(draft?.customType || "");
   const selectedDocumentType = writingType === "기타" ? customType.trim() : writingType;
@@ -95,9 +175,18 @@ function WritingPage({
   const [bodyLength, setBodyLength] = useState(() => countText(draft?.html));
   // toast: 화면 아래에 잠깐 떴다 사라지는 알림 문구 (빈 문자열이면 안 보임)
   // 임시저장본을 불러왔으면 처음부터 안내 문구를 띄운 상태로 시작
-  const [toast, setToast] = useState(draft ? "임시저장된 글을 불러왔어요." : "");
-  const [documentId, setDocumentId] = useState(null);
-  const [apiMessage, setApiMessage] = useState("");
+  const [toast, setToast] = useState(() => {
+    if (!draft) return "";
+    if (draft.fromServer) return `"${draft.title}" 글을 불러왔어요.`; // 마이페이지에서 연 글
+    return "임시저장된 글을 불러왔어요.";
+  });
+  // documentId: 서버에 만들어진 글 번호 (null이면 아직 서버에 없는 새 글)
+  // 마이페이지에서 열었거나 임시저장본에 번호가 있으면 그 번호로 시작 → 저장하면 그 글에 새 버전으로 쌓임
+  const [documentId, setDocumentId] = useState(draft?.documentId ?? null);
+  // 최종 저장된 글을 열었으면 처음부터 안내 문구를 보여줌
+  const [apiMessage, setApiMessage] = useState(
+    draft?.isComplete ? "최종 저장이 완료된 글이에요. 내용은 볼 수만 있어요." : ""
+  );
   const [savedDrafts, setSavedDrafts] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
@@ -117,6 +206,27 @@ function WritingPage({
     // setTimeout(함수, 밀리초): 정해진 시간 뒤에 함수를 한 번 실행하고, 타이머 번호를 돌려줌
     toastTimerRef.current = setTimeout(() => setToast(""), 2500);
   };
+  // 설정 화면에 다녀와서 이어 쓰는 경우, 그때 만든 임시저장본은 이미 화면에 옮겼으니 지움
+  // → 나중에 마이페이지에서 같은 글을 다시 열 때 예전 임시저장본이 아니라 서버의 최신 글이 열리고,
+  //   새 글을 쓰러 왔을 때 예전 글이 다시 불러와지지 않게
+  // (useState 안이 아니라 useEffect에서 지우는 이유: 개발 모드(StrictMode)에서는 useState 초기값 함수가
+  //  두 번 실행될 수 있어서, 거기서 지우면 두 번째 실행 때 임시저장본을 못 찾게 됨)
+  useEffect(() => {
+    if (draft?.resumedFromSettings) {
+      try {
+        localStorage.removeItem(getDraftKey(auth?.user?.user_id));
+      } catch {
+        // 지우기 실패해도 화면에는 문제없으니 무시
+      }
+    }
+    // draft와 auth는 처음 한 번 정해지고 안 바뀌니까 사실상 처음 한 번만 실행됨
+  }, [draft, auth?.user?.user_id]);
+  // ----- 지금 글 상태를 App에 알려주기 -----
+  // 글 번호·저장 횟수·완료 여부가 바뀔 때마다 App에 전달
+  // → App은 사용자가 다른 메뉴로 갈 때 이 값을 보고, "새로 만들었는데 한 번도 저장 안 한 글"이면 서버에서 지움
+  useEffect(() => {
+    onWritingStateChange?.({ documentId, savedVersion, isComplete, createdHere, dirty });
+  }, [documentId, savedVersion, isComplete, createdHere, dirty, onWritingStateChange]);
   // 페이지를 떠날 때(컴포넌트가 사라질 때) 남은 타이머 정리
   // useEffect 안에서 return한 함수는 "정리(clean-up) 함수"로, 화면에서 사라질 때 실행됨
   useEffect(() => {
@@ -142,6 +252,8 @@ function WritingPage({
     setBodyLength(editorRef.current.innerText.trim().length);
     // 본문이 수정되면 이전 피드백 표시 제거
     setFeedback(null);
+    // 저장 안 한 수정이 생김 → 떠날 때 경고창 대상
+    setDirty(true);
   };
   // ----- 툴바 버튼을 눌렀을 때 -----
   const handleToolbar = (command) => {
@@ -171,6 +283,13 @@ function WritingPage({
         html: editorRef.current?.innerHTML || "",
         writingType,
         customType,
+        // 서버에 이미 만들어진 글이면 그 번호도 같이 기억
+        // → 설정 화면에 다녀와도 같은 글에 이어서 저장됨 (없으면 새 글이 하나 더 생겨 버림)
+        documentId,
+        isComplete,
+        savedVersion, // 설정 화면에 다녀와도 초안/수정 단계가 그대로 유지되게
+        createdHere, // 설정 화면에 다녀와도 "새로 만든 글" 표시가 유지되게
+        dirty, // 설정 화면에 다녀와도 "저장 안 한 수정 있음"이 유지되게 (떠날 때 경고창용)
         savedAt: new Date().toISOString(),
       }));
       return true;
@@ -178,6 +297,13 @@ function WritingPage({
       console.error("임시저장 실패:", error);
       return false;
     }
+  };
+
+  // ----- 새 글 쓰기 버튼 -----
+  // 지금 글을 닫고 빈 새 글로 시작 → 새 글은 저장 횟수 0부터 (첫 저장 = 초안)
+  // 저장 안 한 내용이 있으면 App이 "나가기 경고창"을 띄워서 한 번 물어봄 (메뉴 이동할 때와 같은 창)
+  const handleNewWriting = () => {
+    onNewWriting?.();
   };
 
   const handleOpenSettings = () => {
@@ -213,6 +339,7 @@ function WritingPage({
     }
     const data = await response.json();
     setDocumentId(data.id);
+    setCreatedHere(true); // 이 화면에서 새로 만든 글이라고 표시 (저장 안 하고 떠나면 App이 지움)
     return data.id;
   };
   const saveThoughtFromIdea = async (targetDocumentId) => {
@@ -299,8 +426,17 @@ function WritingPage({
         );
       }
       const data = await response.json();
-      setApiMessage(`초안 버전 ${data.version}이 저장되었습니다.`);
-      showToast(`초안 버전 ${data.version} 저장 완료`);
+      // 서버가 알려준 버전 번호로 저장 횟수 갱신 → 위쪽 단계 배지도 같이 바뀜
+      setSavedVersion(data.version);
+      setDirty(false); // 방금 저장했으니 "저장 안 한 수정" 없음
+      // 맨 처음 저장(버전 1)은 초안, 그다음부터는 수정으로 저장됨
+      if (data.version === 1) {
+        setApiMessage("초안으로 저장했어요. 다음 저장부터는 '수정' 단계로 저장돼요.");
+        showToast("초안 저장 완료");
+      } else {
+        setApiMessage(`수정본으로 저장했어요. (${data.version}번째 저장)`);
+        showToast("수정본 저장 완료");
+      }
     } catch (error) {
       console.error(error);
       showToast(error.message || "초안 저장 실패");
@@ -333,6 +469,9 @@ function WritingPage({
         throw new Error("글 저장에 실패했습니다.");
       }
       const savedDraft = await saveResponse.json();
+      // 피드백 받기 전에 본문을 한 번 저장했으니 저장 횟수도 갱신 (초안 → 수정 단계가 바뀔 수 있음)
+      setSavedVersion(savedDraft.version);
+      setDirty(false); // 피드백 받기 전에 본문을 저장했으니 "저장 안 한 수정" 없음
       const feedbackResponse = await fetch(
         `${API_BASE_URL}/api/drafts/${savedDraft.id}/feedback-ai`,
         {
@@ -417,6 +556,10 @@ function WritingPage({
       if (!saveResponse.ok) {
         throw new Error("최종 글 저장에 실패했습니다.");
       }
+      // 최종 저장도 본문을 새 버전으로 한 번 저장하니까 저장 횟수 갱신 (배지의 "○번 저장"이 서버와 맞게)
+      const finalDraft = await saveResponse.json();
+      setSavedVersion(finalDraft.version);
+      setDirty(false); // 최종 저장까지 끝남
       // 문서 상태를 '완료'로 변경
       const completeResponse = await fetch(
         `${API_BASE_URL}/api/documents/${targetDocumentId}/complete`,
@@ -427,7 +570,7 @@ function WritingPage({
       }
       setIsComplete(true);
       setPendingAiDraft(null);
-      setApiMessage("최종 저장이 완료되었습니다.");
+      setApiMessage("최종 저장이 완료되었습니다. 이 글은 이제 '완료' 단계예요. 다른 글은 위쪽 '새 글 쓰기'로 시작해 주세요.");
       localStorage.removeItem(getDraftKey(auth?.user?.user_id));
       showToast("최종 저장 완료!");
     } catch (error) {
@@ -454,29 +597,56 @@ function WritingPage({
           {/* ----- 왼쪽: 글쓰기 카드 ----- */}
           <section className="panel writing-card">
             <div className="writing-card-heading">
-              <h2 className="writing-card-title"><PenLine size={22} /> 글쓰기</h2>
-              <button type="button" className="writing-settings-button" onClick={handleOpenSettings}>
-                <Settings2 size={16} /> 개인 맞춤 설정
-              </button>
+              <h2 className="writing-card-title">
+                <PenLine size={22} /> 글쓰기
+                {/* 지금 글의 단계 배지 (초안 / 수정 / 완료) + 저장 횟수 */}
+                <span className={`writing-stage-badge ${STAGE_CLASS[stage]}`} title="마이페이지 '내가 쓴 글'에도 이 단계로 보여요">
+                  {stage}
+                  <small>{savedVersion > 0 ? `· ${savedVersion}번 저장` : "· 저장 전"}</small>
+                </span>
+              </h2>
+              {/* 오른쪽 위 버튼들: (이미 저장된 글을 쓰는 중이면) 새 글 쓰기 + 개인 맞춤 설정 */}
+              <div className="writing-heading-actions">
+                {documentId !== null && (
+                  <button type="button" className="writing-settings-button writing-new-button" onClick={handleNewWriting}>
+                    <FilePlus2 size={16} /> 새 글 쓰기
+                  </button>
+                )}
+                <button type="button" className="writing-settings-button" onClick={handleOpenSettings}>
+                  <Settings2 size={16} /> 개인 맞춤 설정
+                </button>
+              </div>
             </div>
             <div className="writing-setup">
               <div className="writing-setup-header">
                 <span className="field-label">어떤 글을 작성할까요?</span>
               </div>
-              <div className="writing-type-options" role="group" aria-label="글 유형 선택">
-                {WRITING_TYPES.map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    className={`writing-type-option ${writingType === item.value ? "selected" : ""}`}
-                    aria-pressed={writingType === item.value}
-                    disabled={documentId !== null}
-                    title={item.detail}
-                    onClick={() => setWritingType(item.value)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              {/* 글 유형 버튼 줄: 왼쪽에 유형 버튼들, 같은 줄 오른쪽 끝에 버전 저장 */}
+              <div className="writing-type-row">
+                <div className="writing-type-options" role="group" aria-label="글 유형 선택">
+                  {WRITING_TYPES.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={`writing-type-option ${writingType === item.value ? "selected" : ""}`}
+                      aria-pressed={writingType === item.value}
+                      disabled={documentId !== null}
+                      title={item.detail}
+                      onClick={() => setWritingType(item.value)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {/* 버전 저장: 지금 본문을 새 버전으로 서버에 저장 (예전엔 맨 아래 최종 저장 옆에 있었음) */}
+                <button
+                  type="button"
+                  className="writing-settings-button writing-version-button"
+                  onClick={handleSaveVersion}
+                  disabled={feedbackLoading || draftLoading || isComplete}
+                >
+                  <FileText size={16} /> 버전 저장
+                </button>
               </div>
               {writingType === "기타" && (
                 <input
@@ -503,7 +673,10 @@ function WritingPage({
                 placeholder="글의 제목을 입력해주세요."
                 value={title}
                 // 글자를 칠 때마다 title에 저장
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  setDirty(true); // 저장 안 한 수정이 생김
+                }}
                 disabled={isComplete}
                 maxLength={TITLE_MAX}
               />
@@ -606,10 +779,8 @@ function WritingPage({
                 </div>
               </section>
             )}
+            {/* 맨 아래: 최종 저장 (버전 저장은 위쪽 "개인 맞춤 설정" 아래로 옮김) */}
             <div className="writing-actions writing-save-actions">
-              <button type="button" className="btn-outline" onClick={handleSaveVersion} disabled={feedbackLoading || draftLoading || isComplete}>
-                <FileText size={18} /> 버전 저장
-              </button>
               <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || isComplete}>
                 <Check size={18} /> {isComplete ? "저장 완료" : "최종 저장"}
               </button>
