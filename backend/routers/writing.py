@@ -249,3 +249,55 @@ def complete_document(
         "final_draft_id": latest_draft.id,
         "version": latest_draft.version,
     }
+
+
+@router.delete("/documents/{document_id}")
+def delete_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # 1. 로그인한 사용자의 문서인지 확인
+    document = get_owned_document(
+        db, document_id, current_user.user_id
+    )
+
+    try:
+        # 2. 문서에 연결된 초안 ID 조회
+        draft_ids = [
+            draft_id
+            for (draft_id,) in db.query(models.Draft.id).filter(
+                models.Draft.document_id == document.id
+            ).all()
+        ]
+
+        # 3. 초안과 연결된 AI 피드백 삭제
+        if draft_ids:
+            db.query(models.AIFeedback).filter(
+                models.AIFeedback.draft_id.in_(draft_ids)
+            ).delete(synchronize_session=False)
+
+        # 4. 저장된 초안 및 수정본 삭제
+        db.query(models.Draft).filter(
+            models.Draft.document_id == document.id
+        ).delete(synchronize_session=False)
+
+        # 5. 생각 입력 기록 삭제
+        db.query(models.Thought).filter(
+            models.Thought.document_id == document.id
+        ).delete(synchronize_session=False)
+
+        # 6. 문서 삭제
+        db.delete(document)
+
+        # 7. 모든 삭제가 성공했을 때만 DB에 반영
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "message": "글이 삭제되었습니다.",
+        "document_id": document_id,
+    }
