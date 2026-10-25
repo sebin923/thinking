@@ -22,3 +22,6 @@ __pycache__/
 # 편집기 설정
 .idea/
 .vscode/
+
+backend/training_candidates_*.json
+backend/training_data/
