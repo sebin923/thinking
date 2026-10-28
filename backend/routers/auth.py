@@ -255,6 +255,14 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             detail="아이디 또는 비밀번호가 올바르지 않아요.",
         )
 
+    # 관리자가 이용 정지한 회원은 로그인 막기 (403: "누군지는 알지만 허락 안 함")
+    # ※ 비밀번호가 맞을 때만 알려줌 → 남의 아이디로 정지 여부를 떠보는 걸 막음
+    if user.status == "suspended":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="이용이 정지된 계정이에요. 관리자에게 문의해 주세요.",
+        )
+
     token = create_access_token(user.user_id, user.login_id)
     return LoginResponse(access_token=token, user=UserOut.model_validate(user))
 
@@ -289,6 +297,12 @@ def get_current_user(
     user = db.get(User, int(payload["sub"]))  # 기본키(user_id)로 사용자 찾기
     if user is None:
         raise unauthorized
+    # 로그인해 있는 동안 관리자가 정지하면, 그다음 요청부터 바로 막힘
+    if user.status == "suspended":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="이용이 정지된 계정이에요. 관리자에게 문의해 주세요.",
+        )
     return user
 
 

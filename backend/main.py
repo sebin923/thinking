@@ -17,11 +17,15 @@ from routers.auth import router as auth_router
 from routers.writing_preferences import router as writing_preferences_router
 
 from routers import mypage
+# 관리자 페이지 API (주소는 /api/admin/... 로 시작, 관리자만 사용 가능)
+from routers import admin
 
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
 
 Base.metadata.create_all(bind=engine)
+# 이미 있는 users 테이블에 status(이용 상태) 칸이 없으면 추가 (create_all은 칸 추가를 안 해 줘서)
+admin.ensure_user_status_column(engine)
 
 # 서버에 CORS 규칙을 추가하는 부분
 app.add_middleware(
@@ -54,6 +58,9 @@ app.include_router(writing_preferences_router)
 app.include_router(auth_router)
 
 app.include_router(mypage.router)
+
+# 관리자 페이지 API를 서버에 붙이기
+app.include_router(admin.router)
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
 # 바로 아래 함수를 실행하라는 뜻 (서버가 살아있는지 확인하는 용도)

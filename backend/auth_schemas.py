@@ -156,6 +156,9 @@ class UserOut(BaseModel):
     login_id: str
     name: str
     email: str
+    # 역할: "general"(일반) / "admin"(관리자) → 프론트가 이 값을 보고 헤더에 "관리자" 버튼을 보여줌
+    # (예전 회원은 비어 있을 수 있어서 None도 허용, 비어 있으면 일반 회원으로 봄)
+    role: str | None = "general"
 
 
 class MessageResponse(BaseModel):

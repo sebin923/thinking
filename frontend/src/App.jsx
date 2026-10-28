@@ -25,6 +25,8 @@ import ChallengePage from "./pages/ChallengePage";
 import WritingSettingPage from "./pages/WritingSettingPage";
 import MyPage from "./pages/MyPage";
 import MyPageEdit from "./pages/MyPageEdit";
+// 관리자 페이지 (퀴즈·회원·랭킹 관리, 관리자 계정만)
+import AdminPage from "./pages/AdminPage";
 // 글쓰기에서 저장 안 한 채로 나가려고 할 때 띄우는 경고창
 import LeaveConfirmModal from "./components/LeaveConfirmModal";
 // 쓰다 만 글(한 번도 저장 안 한 글)을 서버에서 지우는 함수
@@ -336,7 +338,9 @@ function App() {
     setAuth(nextAuth);
     // 지난번에 이 계정으로 쓰다가 컴퓨터가 꺼진 글이 있으면 정리 (로그인해야 서버 글을 지울 수 있어서 여기서도 한 번)
     cleanupLeftoverDraft(nextAuth);
-    setActiveNav("home");
+    // 로그인 후 첫 화면: 관리자 계정이면 바로 관리자 페이지, 일반 회원은 홈
+    // (role은 로그인 응답의 user에 들어 있음 → backend/auth_schemas.py의 UserOut)
+    setActiveNav(nextAuth.user?.role === "admin" ? "admin" : "home");
     // TODO: 다른 API를 부를 때 헤더에 "Authorization: Bearer 토큰"을 붙여서 보내기
   };
 
@@ -460,6 +464,14 @@ function App() {
             onBack={() => setActiveNav("mypage")}
             onProfileUpdated={handleProfileUpdated}
             onWithdrawn={handleWithdrawn}
+            onGoLogin={() => handleNavigate("login")}
+            onSessionExpired={handleSessionExpired}
+          />
+        );
+      case "admin":
+        return (
+          <AdminPage
+            auth={auth}
             onGoLogin={() => handleNavigate("login")}
             onSessionExpired={handleSessionExpired}
           />

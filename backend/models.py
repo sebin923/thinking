@@ -21,6 +21,11 @@ class User(Base):
     # (비어 있으면 화면·랭킹에서는 name을 대신 보여주면 됨)
     nickname = Column(String(50), nullable=True)
     role = Column(String(20), default="general") # general(일반), admin(관리자)
+    # 이용 상태: active(정상) / suspended(이용 정지) — 관리자 페이지의 회원 관리에서 바꿈
+    # 정지된 회원은 로그인이 막힘 (routers/auth.py)
+    # server_default: DB에 직접 넣는 경우에도 기본값 'active'가 들어가게
+    # ※ 이미 만들어진 DB에는 서버가 켜질 때 routers/admin.py의 ensure_user_status_column이 칸을 추가해 줌
+    status = Column(String(20), nullable=False, default="active", server_default="active")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # ----- 회원가입 / 로그인용 칸 (routers/auth.py 에서 사용) -----

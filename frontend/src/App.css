@@ -144,6 +144,15 @@
   color: var(--sky);
 }
 
+/* 관리자 버튼 (관리자 계정일 때만 이름 왼쪽에 보임): 연한 하늘색 알약으로 이름과 구분 */
+.header-admin {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--sky-soft);
+  color: #2f6fa6;
+  font-size: 14px;
+}
+
 /* 회원가입: 하늘색 알약 모양 버튼 */
 .signup-button {
   border: none;

@@ -1,0 +1,653 @@
+/* =============================================================
+   AdminPage.css — 관리자 페이지 (퀴즈 관리 / 회원 관리 / 랭킹 관리)
+   색은 App.css의 변수(--sky, --navy 등)와 마이페이지 색을 그대로 써서 사이트 전체와 맞춤
+   ============================================================= */
+
+/* ----- 로그인 안 했거나 관리자가 아닐 때 안내 상자 ----- */
+.admin-message {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 44px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  color: var(--text-sub);
+  font-size: 15px;
+}
+
+.admin-message p {
+  margin: 0;
+}
+
+/* ===================== 탭 ===================== */
+
+.admin-tabs {
+  max-width: 900px;
+  margin: 0 auto 14px;
+  display: flex;
+  gap: 8px;
+}
+
+.admin-tab {
+  flex: 1;                   /* 세 탭이 같은 너비로 나눠 가짐 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 10px;
+  border: 1px solid #dbe7f2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #4f6378;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.admin-tab:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+/* 고른 탭: 하늘색으로 꽉 채움 */
+.admin-tab.active {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(61, 139, 199, 0.22);
+}
+
+.admin-panel {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ===================== 위쪽 도구 줄 ===================== */
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;           /* 좁은 화면에서는 다음 줄로 */
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+/* 작은 알약 버튼 묶음 (맞춤법/문법, 전체/정상/정지) */
+.admin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-chip {
+  padding: 8px 15px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-chip:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+.admin-chip.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* 검색창 (돋보기 아이콘 + 입력칸) */
+.admin-search {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #93a4b5;
+}
+
+.admin-search:focus-within {
+  border-color: var(--sky);  /* 안의 입력칸에 커서가 있으면 테두리 강조 */
+}
+
+.admin-search input {
+  flex: 1;
+  min-width: 0;              /* 좁은 화면에서 입력칸이 넘치지 않게 */
+  padding: 9px 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* ===================== 버튼 ===================== */
+
+.admin-primary,
+.admin-secondary,
+.admin-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 파란 꽉 찬 버튼 (문제 추가, 저장) */
+.admin-primary {
+  border: none;
+  background: var(--sky);
+  color: #fff;
+}
+
+.admin-primary:hover:not(:disabled) {
+  background: var(--sky-dark);
+}
+
+/* 테두리 버튼 (수정, 취소, 정지 해제) */
+.admin-secondary {
+  border: 1px solid #b9d6ef;
+  background: #f4f9fe;
+  color: #2f6fa6;
+}
+
+.admin-secondary:hover:not(:disabled) {
+  background: #e6f1fb;
+}
+
+/* 빨간 테두리 버튼 (삭제, 이용 정지) — 위험한 동작이라 눈에 띄게 */
+.admin-danger {
+  border: 1px solid #efb7b4;
+  background: #fff;
+  color: #d9534f;
+}
+
+.admin-danger:hover:not(:disabled) {
+  background: #fff3f2;
+  border-color: #d9534f;
+}
+
+/* 목록 안의 작은 버튼 */
+.admin-primary.small,
+.admin-secondary.small,
+.admin-danger.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.admin-primary:disabled,
+.admin-secondary:disabled,
+.admin-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 글자만 있는 버튼 (보기 추가, 검색) */
+.admin-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: #3d8bc7;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-text-button:hover {
+  text-decoration: underline;
+}
+
+/* 아이콘만 있는 버튼 (닫기 X, 보기 지우기) */
+.admin-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: #8a97a5;
+}
+
+.admin-icon-button:hover:not(:disabled) {
+  background: #f1f4f8;
+  color: var(--navy);
+}
+
+.admin-icon-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 키보드로 이동했을 때 테두리 보이게 */
+.admin-tab:focus-visible,
+.admin-chip:focus-visible,
+.admin-primary:focus-visible,
+.admin-secondary:focus-visible,
+.admin-danger:focus-visible,
+.admin-text-button:focus-visible,
+.admin-icon-button:focus-visible {
+  outline: 2px solid #4a98d3;
+  outline-offset: 2px;
+}
+
+/* 확인창(ConfirmModal) 버튼: 처리 중에는 흐리게 + 빙글 아이콘 줄 맞춤 */
+.leave-modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.leave-modal-actions .spin {
+  vertical-align: -2px;
+}
+
+/* ===================== 안내 문구 ===================== */
+
+.admin-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e9f7f0;
+  color: #23885a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-error {
+  margin: 0;
+  color: #d9534f;
+  font-size: 14px;
+}
+
+.admin-hint {
+  margin: 0;
+  color: #93a4b5;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 랭킹 탭 위쪽 설명: 검색창과 한 줄을 나눠 씀 */
+.admin-hint.wide {
+  flex: 2;
+  min-width: 240px;
+  font-size: 13px;
+  word-break: keep-all;
+}
+
+.admin-count {
+  margin: 0 0 10px;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-muted {
+  color: #a3b1bf;
+  font-size: 13px;
+}
+
+/* 불러오는 중 / 실패 / 비어 있음 */
+.admin-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 40px 12px;
+  color: var(--text-sub);
+  font-size: 14px;
+  text-align: center;
+}
+
+.admin-state p {
+  margin: 0;
+}
+
+/* ===================== 퀴즈 입력 폼 ===================== */
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid #cfe2f3;
+  border-radius: 14px;
+  background: #f7fbff;
+}
+
+.admin-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--navy);
+  font-size: 16px;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.admin-label {
+  color: #2f4a63;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-field textarea,
+.admin-options input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d6e3ef;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;      /* textarea는 기본 글꼴이 달라서 사이트 글꼴로 맞춤 */
+  line-height: 1.6;
+  resize: vertical;          /* 세로로만 크기 조절 */
+}
+
+.admin-field textarea:focus,
+.admin-options input[type="text"]:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px #e6f1fb;
+}
+
+/* 보기 입력 줄들 */
+.admin-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-options li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 정답 고르는 동그라미 */
+.admin-options input[type="radio"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: #23885a;     /* 체크하면 초록색 */
+  cursor: pointer;
+}
+
+/* 정답으로 고른 보기 칸은 초록 테두리 */
+.admin-options li.is-answer input[type="text"] {
+  border-color: #8fd3b2;
+  background: #f4fbf7;
+}
+
+.admin-answer-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e9f7f0;
+  color: #23885a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ===================== 목록 (퀴즈·회원 공통) ===================== */
+
+.admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, 1fr): 안쪽 글이 길어도 카드가 목록 폭을 넘지 않게 */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.admin-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #e6eef6;
+  border-radius: 14px;
+  background: #fff;
+}
+
+/* 정지된 회원 카드: 살짝 흐리게 + 왼쪽 빨간 줄 */
+.admin-item.suspended {
+  background: #fffafa;
+  border-left: 4px solid #efb7b4;
+}
+
+.admin-item-main {
+  flex: 1;
+  min-width: 0;              /* 긴 글이 버튼 쪽을 밀어내지 않게 */
+}
+
+.admin-item-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.admin-meta {
+  margin: 8px 0 0;
+  color: #93a4b5;
+  font-size: 12px;
+}
+
+/* ----- 퀴즈 카드 ----- */
+.admin-quiz-question {
+  margin: 0;
+  color: #2f4a63;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: keep-all;      /* 한글이 단어 중간에서 안 끊기게 */
+  overflow-wrap: anywhere;   /* 아주 긴 영어·숫자는 끊어서라도 줄바꿈 */
+}
+
+.admin-quiz-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.admin-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f4f8;
+  color: #5d6f82;
+  font-size: 13px;
+}
+
+/* 정답 보기: 초록 */
+.admin-option.correct {
+  background: #e9f7f0;
+  color: #23885a;
+  font-weight: 700;
+}
+
+.admin-quiz-explanation {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f7fafd;
+  color: #5f7286;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+/* ----- 회원 카드 ----- */
+.admin-user-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #2f4a63;
+  font-size: 15px;
+}
+
+.admin-user-id {
+  color: #93a4b5;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-user-contact {
+  margin: 6px 0 0;
+  color: #5f7286;
+  font-size: 13px;
+  overflow-wrap: anywhere;   /* 긴 이메일도 카드 안에서 줄바꿈 */
+}
+
+/* 작은 상태 배지 */
+.admin-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-badge.active    { background: #e9f7f0; color: #23885a; }  /* 정상: 초록 */
+.admin-badge.suspended { background: #fdecec; color: #d9534f; }  /* 정지: 빨강 */
+.admin-badge.admin     { background: #e6f1fb; color: #2f6fa6; }  /* 관리자: 파랑 */
+.admin-badge.me        { background: #f1f4f8; color: #5d6f82; }  /* 나: 회색 */
+
+/* ===================== 랭킹 표 ===================== */
+
+/* 화면이 좁으면 표만 옆으로 스크롤 (페이지 전체가 옆으로 밀리지 않게) */
+.admin-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e6eef6;
+  border-radius: 14px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse; /* 칸 사이 이중 테두리 없애기 */
+  font-size: 14px;
+}
+
+.admin-table th {
+  padding: 11px 14px;
+  background: #f7fafd;
+  color: #5f7286;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 11px 14px;
+  border-top: 1px solid #eef3f8;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.admin-table tbody tr:hover {
+  background: #fafcfe;
+}
+
+/* 숫자 칸: 자릿수가 세로로 잘 맞게 (tabular-nums = 숫자 폭을 똑같이) */
+.admin-table .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table .strong {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.admin-table .right {
+  text-align: right;
+}
+
+/* 눈에는 안 보이지만 화면 읽기 프로그램은 읽는 글자 (표 맨 끝 "관리" 칸 이름) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ===================== 좁은 화면 (모바일) ===================== */
+
+@media (max-width: 640px) {
+  .admin-panel {
+    padding: 16px;
+  }
+
+  .admin-tab {
+    flex-direction: column;  /* 아이콘 위, 글자 아래 → 세 탭이 한 줄에 들어가게 */
+    gap: 4px;
+    padding: 10px 4px;
+    font-size: 13px;
+  }
+
+  .admin-search {
+    min-width: 0;
+    flex-basis: 100%;        /* 검색창은 한 줄 전체 */
+  }
+
+  /* 카드: 버튼을 내용 아래로 */
+  .admin-item {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .admin-item-actions {
+    align-self: flex-end;
+  }
+
+  .admin-form {
+    padding: 14px;
+  }
+}

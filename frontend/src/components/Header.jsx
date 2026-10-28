@@ -2,7 +2,8 @@
 // Header.jsx — 맨 위 상단 메뉴바
 // -------------------------------------------------------------
 // 왼쪽: 로고 / 가운데: 홈(아이콘)·서비스 소개·글쓰기 학습·퀴즈·랭킹·이용안내
-// 오른쪽: 로그인 전 → 로그인·회원가입 / 로그인 후 → "OOO님" + 로그아웃
+// 오른쪽: 로그인 전 → 로그인·회원가입 / 로그인 후 → ("관리자") + "OOO님" + 로그아웃
+//         ("관리자" 버튼은 관리자 계정(role = "admin")으로 로그인했을 때만 보임)
 // 여러 페이지에서 같이 쓸 거라서 컴포넌트로 따로 분리함
 // =============================================================
 
@@ -11,8 +12,8 @@
 import { useState } from "react";
 
 // 아이콘 (lucide-react): Menu = 햄버거(≡) 아이콘, X = 닫기 아이콘, Home = 집 모양 아이콘
-// UserRound = 사람 아이콘 (로그인한 사용자 이름 옆)
-import { Menu, X, Home, UserRound } from "lucide-react";
+// UserRound = 사람 아이콘 (로그인한 사용자 이름 옆), ShieldCheck = 방패 아이콘 (관리자 버튼)
+import { Menu, X, Home, UserRound, ShieldCheck } from "lucide-react";
 
 // 가운데 메뉴 목록
 // 배열로 만들어두면 아래에서 map으로 반복해서 메뉴를 그릴 수 있음
@@ -38,6 +39,10 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
   // 처음에는 닫혀 있으니까 false
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // 관리자 페이지에서는 가운데 메뉴(홈·서비스 소개·글쓰기 학습·퀴즈·랭킹·이용안내)를 숨김
+  // → 관리 업무에 필요 없는 메뉴라 화면을 깔끔하게 (로고를 누르면 홈으로 가서 메뉴가 다시 보임)
+  const hideMenu = activeNav === "admin";
+
   // 메뉴 하나를 클릭했을 때 실행되는 함수
   const handleNavClick = (key) => {
     onNavClick(key); // 부모(App)에게 어떤 메뉴를 눌렀는지 알려줌
@@ -56,6 +61,18 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
   // 이름("○○님")을 누르면 마이페이지로 이동 (마이페이지·수정 화면에 있을 땐 진하게 표시)
   const authButtons = user ? (
     <>
+      {/* 관리자 계정일 때만 "관리자" 버튼 (누르면 관리자 페이지로) */}
+      {user.role === "admin" && (
+        <button
+          type="button"
+          className={activeNav === "admin" ? "header-user header-admin active" : "header-user header-admin"}
+          onClick={() => handleNavClick("admin")}
+          title="관리자 페이지로 이동"
+        >
+          <ShieldCheck size={18} />
+          관리자
+        </button>
+      )}
       <button
         type="button"
         className={activeNav === "mypage" ? "header-user active" : "header-user"}
@@ -98,7 +115,7 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
         → 모바일 CSS에서 open일 때만 메뉴를 보여줌 (PC에서는 항상 보임)
       */}
       <nav className={isMenuOpen ? "header-nav open" : "header-nav"}>
-        {NAV_ITEMS.map((item) => {
+        {!hideMenu && NAV_ITEMS.map((item) => {
           // 아이콘이 있는 메뉴면 아이콘 컴포넌트를 꺼내둠 (없으면 undefined)
           const Icon = item.icon;
 
