@@ -101,7 +101,17 @@ def _feedback_from_content(raw, original):
         if quote not in original or quote in seen:
             continue
         seen.add(quote)
-        valid.append({k: item[k].strip() for k in fields})
+        cleaned = {k: item[k].strip() for k in fields}
+        revised = item.get("revised_text", "")
+        if not isinstance(revised, str):
+            revised = ""
+        revised = revised.strip()
+        # 자리표시자, 동일 문장, 지나치게 긴 수정안은 자동 적용 대상에서 제외
+        if ("[" in revised or "]" in revised or "<" in revised or ">" in revised
+                or revised == quote or len(revised) > 2000):
+            revised = ""
+        cleaned["revised_text"] = revised
+        valid.append(cleaned)
     return {"overall_feedback": summary.strip(), "highlights": valid}
 
 
@@ -412,6 +422,11 @@ def create_feedback_with_ai(
         "각 highlights의 original_text는 원문에서 정확히 연속해서 복사한 구절이어야 합니다. "
         "type은 '맞춤법', '문법', '표현', '논리', '구성' 중 가장 가까운 하나를 사용하세요. "
         "reason에는 그 구절이 왜 문제인지, suggestion에는 사용자가 실행할 수 있는 개선 방향을 적으세요. "
+        "revised_text에는 original_text 전체를 그대로 대체할 수 있는 완성된 수정 문장을 작성하세요. "
+        "original_text의 범위 밖에 있는 문장을 삭제하거나 중복시키지 마세요. "
+        "문장 통합이 필요하면 해당 문장들을 original_text에 연속된 구절로 포함하세요. "
+        "확인되지 않은 사실이나 구체적 정보가 필요해 수정할 수 없으면 revised_text는 빈 문자열로 반환하세요. "
+        "대괄호 자리표시자나 설명문을 revised_text에 넣지 마세요. "
         "원문에 없는 개인 경험, 사실, 수치나 성과는 만들지 마세요. "
         "수정이 필요 없다면 highlights는 빈 배열로 반환하세요. "
         "같은 문제를 중복 지적하지 말고 한국어로 설명하세요. "
@@ -456,13 +471,15 @@ def create_feedback_with_ai(
                                 "original_text": {"type": "string"},
                                 "type": {"type": "string"},
                                 "reason": {"type": "string"},
-                                "suggestion": {"type": "string"}
+                                "suggestion": {"type": "string"},
+                                "revised_text": {"type": "string"}
                             },
                             "required": [
                                 "original_text",
                                 "type",
                                 "reason",
-                                "suggestion"
+                                "suggestion",
+                                "revised_text"
                             ]
                         }
                     }
