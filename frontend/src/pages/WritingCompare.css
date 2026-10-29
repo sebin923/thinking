@@ -1,0 +1,54 @@
+/* AI 원문 및 수정안 비교 */
+.writing-compare-panel { margin-top: 18px; }
+.writing-compare-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.writing-compare-card { padding: 14px; border: 1px solid #d9e2ec; border-radius: 12px; background: #fff; min-width: 0; }
+.writing-compare-card-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 9px; }
+.writing-compare-content { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; min-height: 50px; }
+.writing-compare-added { background: #ffe3e3; color: #b42318; border-radius: 3px; }
+.writing-compare-removed { background: #ffe3e3; color: #b42318; text-decoration: line-through; border-radius: 3px; }
+.writing-compare-source { color: #b42318; background: #fff0f0; padding: 8px; border-radius: 6px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.writing-compare-copy, .writing-compare-apply { cursor: pointer; border: 1px solid #cdd9e5; border-radius: 8px; background: #fff; color: #244c67; padding: 6px 10px; font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.writing-compare-copy:hover, .writing-compare-apply:hover { background: #eff8ff; }
+.writing-compare-apply { margin-top: 10px; }
+.writing-compare-apply:disabled { opacity: .5; cursor: not-allowed; }
+.writing-feedback-compare { margin: 14px 0; }
+.writing-compare-hint { color: #64748b; font-size: 13px; line-height: 1.6; }
+@media (max-width: 720px) { .writing-compare-grid { grid-template-columns: 1fr; } }
+
+/* 편집 중에도 유지되는 비파괴형 AI 밑줄 표시 */
+::highlight(writing-ai-issues) {
+  color: #dc2626;
+  text-decoration: underline wavy #ef4444 2px;
+  background-color: #fff0f0;
+}
+
+/* 피드백이 있을 때 편집기와 피드백 영역을 넓게 배치 */
+@media (min-width: 1200px) {
+  .sub-page-inner:has(.writing-layout-feedback) {
+    max-width: 1500px;
+    width: calc(100% - 48px);
+  }
+
+  .writing-layout-feedback {
+    grid-template-columns: minmax(0, 1fr) 520px;
+    width: 100%;
+    gap: 24px;
+  }
+}
+
+/* 본문 제목 옆 복사 버튼 */
+.writing-body-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.writing-body-heading .field-label { margin: 0; }
+.writing-compare-copy:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 피드백 내용의 불필요한 상단 여백 제거 */
+.writing-layout-feedback .ai-feedback-panel { margin-top: 0; padding-top: 0; border-top: none; }
+.writing-layout-feedback .tip-card { min-width: 0; }
+
+/* 본문 복사 및 AI 적용 취소 버튼 */
+.writing-body-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
