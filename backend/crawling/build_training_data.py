@@ -127,7 +127,7 @@ def determine_document_type(title: str, body: str) -> str:
     
     if any(k in combined_text for k in ["연설", "발표", "축사", "기조", "브리핑", "선언"]):
         return "발표문"
-    elif any(k in combined_text for k in ["생애", "인물", "업적", "자서전", "전기", "도전", "경험"]):
+    elif any(k in combined_text for k in ["자기계발", "역량", "성장", "진로", "직무", "학습", "동기", "커리어", "취업", "교육", "경험", "도전"]):
         return "자기소개서"
     elif any(k in combined_text for k in ["에세이", "문화", "사상", "예술", "철학", "문학", "생각", "산문"]):
         return "자유글쓰기"

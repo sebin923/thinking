@@ -1,12 +1,12 @@
 # =============================================================
 # export_csv_txt.py — 크롤링한 위키백과 글을 CSV / TXT 파일로 저장 (사람이 보기 편한 형태)
 # -------------------------------------------------------------
-# crawl_wikipedia.py가 만든 output/wiki_raw.jsonl 은 프로그램용 형식(한 줄에 JSON 하나)이라
+# crawl_wikipedia.py가 만든 output/total_raw.jsonl 은 프로그램용 형식(한 줄에 JSON 하나)이라
 # 엑셀이나 메모장으로 보기 불편함 → 이 파일로 바꿔서 저장
 #
 # 만들어지는 파일 (output/ 폴더)
-#   wiki_articles.csv     엑셀로 여는 표 (번호, 제목, 글자 수, 문단 제목, 본문, 주소, 출처, 라이선스, 수집 시각)
-#   wiki_all.txt          모든 글을 한 파일에 이어 붙인 텍스트 (글 사이에 ==== 구분선)
+#   total_articles.csv    엑셀로 여는 표 (번호, 제목, 글자 수, 문단 제목, 본문, 주소, 출처, 라이선스, 수집 시각)
+#   total_all.txt         모든 글을 한 파일에 이어 붙인 텍스트 (글 사이에 ==== 구분선)
 #   txt/0001_제목.txt      글 하나당 텍스트 파일 하나
 #
 # 실행: python export_csv_txt.py   (crawl_wikipedia.py 다음에 실행)
@@ -18,9 +18,9 @@ import re
 from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-RAW_PATH = OUTPUT_DIR / "wiki_raw.jsonl"
-CSV_PATH = OUTPUT_DIR / "wiki_articles.csv"
-ALL_TXT_PATH = OUTPUT_DIR / "wiki_all.txt"
+RAW_PATH = OUTPUT_DIR / "total_raw.jsonl"
+CSV_PATH = OUTPUT_DIR / "total_articles.csv"
+ALL_TXT_PATH = OUTPUT_DIR / "total_all.txt"
 TXT_DIR = OUTPUT_DIR / "txt"
 
 
