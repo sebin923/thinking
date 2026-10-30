@@ -10,7 +10,7 @@
 # 하는 일
 #   1) 주제 분류(경제·사회·환경·교육·과학 등)에 들어 있는 글 제목을 모음 (하위 분류까지 2단계)
 #   2) 글마다 본문을 받아서 각주·외부 링크 같은 부분을 빼고 정리
-#   3) 너무 짧은 글, 목록·동음이의 문서는 버리고 output/wiki_raw.jsonl 에 한 줄씩 저장
+#   3) 너무 짧은 글, 목록·동음이의 문서는 버리고 output/total_raw.jsonl 에 한 줄씩 저장
 #
 # 실행 방법 (backend/crawling 폴더에서, 가상환경 켠 상태로)
 #   python crawl_wikipedia.py                 ← 기본 1200개
@@ -75,7 +75,7 @@ MAX_BODY_CHARS = 1500  # 이보다 길면 문단 단위로 잘라서 저장 (학
 
 # 저장 위치 (이 파일이 있는 폴더 아래 output/)
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-RAW_PATH = OUTPUT_DIR / "wiki_raw.jsonl"
+RAW_PATH = OUTPUT_DIR / "total_raw.jsonl"
 
 
 # ===================== API 요청 =====================

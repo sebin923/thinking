@@ -28,7 +28,7 @@ import re
 from pathlib import Path
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-RAW_PATH = OUTPUT_DIR / "wiki_raw.jsonl"
+RAW_PATH = OUTPUT_DIR / "total_raw.jsonl"
 TRAIN_PATH = OUTPUT_DIR / "wiki_train.jsonl"
 TEST_PATH = OUTPUT_DIR / "wiki_test.jsonl"
 SOURCES_PATH = OUTPUT_DIR / "wiki_sources.csv"

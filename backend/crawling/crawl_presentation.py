@@ -1,5 +1,9 @@
 # =============================================================
 # crawl_presentation.py — 대한민국 정책브리핑 발표문·연설문 수집 (최종 완성 버전)
+# -------------------------------------------------------------
+# 실행 방법:
+#   python crawl_crawl_presentation.py               ← 기본 500개
+#   python crawl_crawl_presentation.py --target 1000 ← 개수 바꾸기
 # =============================================================
 
 import argparse
@@ -13,7 +17,7 @@ from bs4 import BeautifulSoup
 
 BASE_LIST_URL = "https://www.korea.kr/briefing/speechList.do"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-RAW_PATH = OUTPUT_DIR / "wiki_raw.jsonl"
+RAW_PATH = OUTPUT_DIR / "total_raw.jsonl"
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="대한민국 정책브리핑 발표문/연설문 수집")
