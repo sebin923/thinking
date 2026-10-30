@@ -14,9 +14,9 @@
 #   (제목·문단 제목만 주고 긴 글을 쓰게 하면, 정보를 지어내는 버릇이 생김)
 #
 # 결과 파일 (output/ 폴더)
-#   wiki_train.jsonl   학습용 (90%)
-#   wiki_test.jsonl    시험용 (10%, 학습에 안 씀 → 학습 전·후 비교 테스트할 때 사용)
-#   wiki_sources.csv   출처 목록 (제목, 주소, 라이선스) — CC BY-SA 출처 표기용
+#   wiki_train.jsonl    학습용 (90%)
+#   wiki_test.jsonl     시험용 (10%, 학습에 안 씀 → 학습 전·후 비교 테스트할 때 사용)
+#   wiki_sources.csv    출처 목록 (제목, 주소, 라이선스) — CC BY-SA 출처 표기용
 #
 # 실행: python build_training_data.py
 # =============================================================
@@ -70,7 +70,7 @@ JONG_SSANGSIOT = 20  # ㅆ 받침 번호
 def nominalize_ending(memo: str) -> str:
     """위 규칙에 안 걸린 "~다"로 끝나는 말을 메모 말투로 (받침을 보고 판단)
       - "늘어났다", "낮아졌다" (ㅆ 받침 + 다) → "늘어났음", "낮아졌음"
-      - "쓰인다", "간다" (ㄴ 받침 + 다)     → "쓰임", "감"  (ㄴ 받침을 ㅁ 받침으로)
+      - "쓰인다", "간다" (ㄴ 받침 + 다)    → "쓰임", "감"  (ㄴ 받침을 ㅁ 받침으로)
       - 그 밖 ("더디다" 등)                → 그대로 둠 (억지로 바꾸면 더 어색해서)
     """
     if len(memo) < 2 or not memo.endswith("다"):
@@ -118,6 +118,25 @@ def to_memo(sentence: str) -> str:
     return re.sub(r"\s{2,}", " ", memo).strip(" ,")
 
 
+def determine_document_type(title: str, body: str) -> str:
+    """
+    수집된 글의 제목과 내용 키워드를 기반으로 
+    보고서, 발표문, 자기소개서, 자유글쓰기, 기타 중 하나로 분류합니다.
+    """
+    combined_text = title + " " + body[:150]
+    
+    if any(k in combined_text for k in ["연설", "발표", "축사", "기조", "브리핑", "선언"]):
+        return "발표문"
+    elif any(k in combined_text for k in ["생애", "인물", "업적", "자서전", "전기", "도전", "경험"]):
+        return "자기소개서"
+    elif any(k in combined_text for k in ["에세이", "문화", "사상", "예술", "철학", "문학", "생각", "산문"]):
+        return "자유글쓰기"
+    elif any(k in combined_text for k in ["경제", "보고", "제도", "과학", "기술", "연구", "정책", "통계", "역사", "사회"]):
+        return "보고서"
+    else:
+        return "기타"
+
+
 def build_record(article: dict) -> dict | None:
     """위키백과 글 하나 → 학습 문제 하나 (팀원 형식과 같은 prompt / completion 대화 모양)"""
     sentences = split_sentences(article["body"])
@@ -127,12 +146,15 @@ def build_record(article: dict) -> dict | None:
         return None  # 메모가 너무 적으면 학습 문제로 쓰기 어려움
 
     memo_text = "\n".join(f"- {m}" for m in memos)
+    
+    doc_type = determine_document_type(article["title"], article["body"])
+
     user_prompt = (
         "작업: 초안 작성\n"
-        "글 유형: 보고서\n"
+        f"글 유형: {doc_type}\n"
         f"제목: {article['title']}\n\n"
         f"[생각 메모]\n{memo_text}\n\n"
-        "생각 메모의 사실만 사용해서 자연스러운 보고서 본문을 작성하세요."
+        f"생각 메모의 사실만 사용해서 자연스러운 {doc_type} 본문을 작성하세요."
     )
     return {
         "prompt": [
@@ -141,8 +163,13 @@ def build_record(article: dict) -> dict | None:
         ],
         # 정답: 원래 위키백과 글 (문단은 빈 줄로 구분)
         "completion": [{"role": "assistant", "content": article["body"]}],
-        # 학습에는 안 쓰지만 나중에 확인·출처 표기용으로 같이 남겨 둠
-        "meta": {"source": article["source"], "license": article["license"], "url": article["url"]},
+        # 학습에는 안 쓰지만 나중에 확인·출처 표기용으로 같이 남겨 둠 (document_type 메타데이터 추가)
+        "meta": {
+            "source": article["source"], 
+            "license": article["license"], 
+            "url": article["url"],
+            "document_type": doc_type
+        },
     }
 
 
@@ -192,5 +219,6 @@ def main() -> None:
     print(f"  출처 목록 → {SOURCES_PATH}")
 
 
+# 이 파일을 직접 실행했을 때만 main() 실행
 if __name__ == "__main__":
     main()
