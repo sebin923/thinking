@@ -38,7 +38,7 @@ MIN_BODY_CHARS = 300
 MAX_BODY_CHARS = 1500
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-RAW_PATH = OUTPUT_DIR / "wiki_raw.jsonl"
+RAW_PATH = OUTPUT_DIR / "total_raw.jsonl"
 
 session = requests.Session()
 session.headers["User-Agent"] = USER_AGENT
