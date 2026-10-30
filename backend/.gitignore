@@ -25,3 +25,4 @@ __pycache__/
 
 backend/training_candidates_*.json
 backend/training_data/
+crawling/output/txt/

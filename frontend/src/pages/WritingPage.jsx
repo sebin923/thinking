@@ -506,13 +506,11 @@ function WritingPage({
       const data = await response.json();
       setSavedVersion(data.version);
       setDirty(false);
-      if (data.version === 1) {
-        setApiMessage("초안으로 저장했어요. 다음 저장부터는 '수정' 단계로 저장돼요.");
-        showToast("초안 저장 완료");
-      } else {
-        setApiMessage(`수정본으로 저장했어요. (${data.version}번째 저장)`);
-        showToast("수정본 저장 완료");
-      }
+      // 저장 결과는 잠깐 떴다 사라지는 알림(toast)으로만 알려줌
+      // (본문 아래에 "수정본으로 저장했어요. (N번째 저장)" 같은 안내 문구는 띄우지 않음)
+      // 이전에 떠 있던 안내 문구(예: AI 초안 생성 완료)도 저장하면 지움
+      setApiMessage("");
+      showToast(data.version === 1 ? "초안 저장 완료" : "수정본 저장 완료");
     } catch (error) {
       console.error(error);
       showToast(error.message || "초안 저장 실패");

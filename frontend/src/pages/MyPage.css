@@ -822,3 +822,72 @@
     font-size: 13px;
   }
 }
+
+/* =====================================================
+   페이지 번호 (페이지네이션) — 내가 쓴 글 10개씩 나눠 보기
+   ===================================================== */
+.mypage-pagination {
+  display: flex;
+  justify-content: center;   /* 가운데 정렬 */
+  align-items: center;
+  flex-wrap: wrap;           /* 좁은 화면에서 넘치면 다음 줄로 */
+  gap: 6px;
+  margin-top: 20px;
+}
+
+/* 숫자 버튼 (동그란 모양) */
+.mypage-page {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* 숫자 폭을 똑같이 → 버튼 크기가 들쭉날쭉하지 않게 */
+}
+
+.mypage-page:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+/* 지금 보고 있는 페이지: 하늘색으로 꽉 채움 */
+.mypage-page.active {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+  cursor: default;
+}
+
+/* 이전 / 다음 화살표 버튼 */
+.mypage-page-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #4f6378;
+}
+
+.mypage-page-arrow:hover:not(:disabled) {
+  background: #eef5fc;
+  color: var(--navy);
+}
+
+/* 첫 페이지에서 "이전", 마지막 페이지에서 "다음"은 누를 수 없음 → 흐리게 */
+.mypage-page-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.mypage-page:focus-visible,
+.mypage-page-arrow:focus-visible {
+  outline: 2px solid #4a98d3;
+  outline-offset: 2px;
+}

@@ -25,6 +25,8 @@ import {
   X,
   Search,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   LogIn,
   Lock,
@@ -59,6 +61,22 @@ const TABS = [
 // 보기 개수 제한 (서버 admin_schemas.py의 QuizIn과 똑같이 맞춤)
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 6;
+
+// 목록 한 페이지에 보여줄 개수 (퀴즈·회원·랭킹 공통) — 바꾸고 싶으면 이 숫자만 고치면 됨
+const PAGE_SIZE = 10;
+
+// ----- 목록을 페이지로 나누기 (페이지네이션) -----
+// list: 전체 목록, page: 보고 싶은 페이지 번호(1부터)
+// 돌려주는 값: { items: 그 페이지에 보여줄 것들, currentPage: 실제 페이지, totalPages: 전체 페이지 수 }
+function paginate(list, page) {
+  // 23개면 23 / 10 = 2.3 → 올림(Math.ceil)해서 3페이지 (최소 1페이지)
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  // 삭제 등으로 페이지 수가 줄었는데 지금 페이지가 더 크면 마지막 페이지로
+  const currentPage = Math.min(page, totalPages);
+  // slice(시작, 끝): 1페이지는 0~9번, 2페이지는 10~19번
+  const items = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  return { items, currentPage, totalPages };
+}
 
 // ----- 날짜 → "2026.10.27" -----
 function formatDate(value) {
@@ -182,6 +200,7 @@ function QuizManager({ token, onSessionExpired }) {
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0); // +1 하면 목록을 다시 불러옴
   const [keyword, setKeyword] = useState(""); // 문제 검색어 (화면에서만 거름)
+  const [page, setPage] = useState(1); // 지금 보고 있는 페이지 (10개씩)
 
   // editor: 입력 폼 상태 (null이면 폼 닫힘)
   //  { quizId: 수정할 퀴즈 번호(새 문제면 null), form: 입력값, saving: 저장 중인지, error: 실패 문구 }
@@ -216,6 +235,7 @@ function QuizManager({ token, onSessionExpired }) {
     if (key === category) return;
     setLoading(true);
     setCategory(key);
+    setPage(1); // 종류가 바뀌면 1페이지부터
   };
 
   // 성공 문구를 3초 동안 보여주기
@@ -304,6 +324,7 @@ function QuizManager({ token, onSessionExpired }) {
     showNotice(quizId ? "퀴즈를 수정했어요." : "퀴즈를 추가했어요.");
     // 저장한 문제의 종류 목록을 보여줌 (다른 종류로 저장했으면 그쪽으로 이동)
     setLoading(true);
+    setPage(1); // 새 문제·수정한 문제는 목록 맨 위 쪽이라 1페이지로
     if (form.category !== category) setCategory(form.category);
     else setReloadKey((key) => key + 1);
   };
@@ -334,6 +355,8 @@ function QuizManager({ token, onSessionExpired }) {
         [quiz.question, quiz.explanation || "", ...quiz.options.map(String)].some((value) => value.includes(text))
       )
     : quizzes;
+  // 지금 페이지에 보여줄 10개
+  const quizPage = paginate(visible, page);
 
   return (
     <>
@@ -358,7 +381,10 @@ function QuizManager({ token, onSessionExpired }) {
           <input
             type="search"
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onChange={(event) => {
+              setKeyword(event.target.value);
+              setPage(1); // 검색어가 바뀌면 1페이지부터
+            }}
             placeholder="문제·보기·해설 검색"
             aria-label="퀴즈 검색"
           />
@@ -507,7 +533,7 @@ function QuizManager({ token, onSessionExpired }) {
       >
         <p className="admin-count">총 {visible.length}문제</p>
         <ul className="admin-list">
-          {visible.map((quiz) => (
+          {quizPage.items.map((quiz) => (
             <li key={quiz.quiz_id} className="admin-item">
               <div className="admin-item-main">
                 <p className="admin-quiz-question">{quiz.question}</p>
@@ -548,6 +574,7 @@ function QuizManager({ token, onSessionExpired }) {
             </li>
           ))}
         </ul>
+        <Pagination page={quizPage.currentPage} totalPages={quizPage.totalPages} onChange={setPage} label="퀴즈 목록 페이지" />
       </ListState>
 
       {confirm && (
@@ -586,6 +613,7 @@ function UserManager({ token, myUserId, onSessionExpired }) {
   const [filters, setFilters] = useState({ q: "", status: "" });
   const [reloadKey, setReloadKey] = useState(0);
   const [confirm, setConfirm] = useState(null); // 상태 변경 확인창 { user, next, busy, error }
+  const [page, setPage] = useState(1); // 지금 보고 있는 페이지 (10명씩)
 
   useEffect(() => {
     let ignore = false;
@@ -610,6 +638,7 @@ function UserManager({ token, myUserId, onSessionExpired }) {
   const handleSearch = (event) => {
     event.preventDefault();
     setLoading(true);
+    setPage(1); // 검색하면 1페이지부터
     setFilters((prev) => ({ ...prev, q: input.trim() }));
   };
 
@@ -617,6 +646,7 @@ function UserManager({ token, myUserId, onSessionExpired }) {
   const handleStatusFilter = (key) => {
     if (key === filters.status) return;
     setLoading(true);
+    setPage(1); // 필터를 바꾸면 1페이지부터
     setFilters((prev) => ({ ...prev, status: key }));
   };
 
@@ -645,6 +675,8 @@ function UserManager({ token, myUserId, onSessionExpired }) {
   };
 
   const suspendedCount = users.filter((user) => user.status === "suspended").length;
+  // 지금 페이지에 보여줄 10명
+  const userPage = paginate(users, page);
 
   return (
     <>
@@ -693,7 +725,7 @@ function UserManager({ token, myUserId, onSessionExpired }) {
           총 {users.length}명{suspendedCount > 0 && ` · 정지 ${suspendedCount}명`}
         </p>
         <ul className="admin-list">
-          {users.map((user) => {
+          {userPage.items.map((user) => {
             const isSuspended = user.status === "suspended";
             const isAdmin = user.role === "admin";
             const isMe = user.user_id === myUserId;
@@ -743,6 +775,7 @@ function UserManager({ token, myUserId, onSessionExpired }) {
             );
           })}
         </ul>
+        <Pagination page={userPage.currentPage} totalPages={userPage.totalPages} onChange={setPage} label="회원 목록 페이지" />
       </ListState>
 
       {confirm && (
@@ -775,6 +808,7 @@ function RankingManager({ token, onSessionExpired }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [keyword, setKeyword] = useState(""); // 이름·아이디 검색 (화면에서만 거름)
   const [confirm, setConfirm] = useState(null); // 삭제 확인창 { row, busy, error }
+  const [page, setPage] = useState(1); // 지금 보고 있는 페이지 (10개씩)
 
   useEffect(() => {
     let ignore = false;
@@ -817,6 +851,8 @@ function RankingManager({ token, onSessionExpired }) {
   const visible = text
     ? ranked.filter((row) => (row.name || "").includes(text) || (row.login_id || "").includes(text))
     : ranked;
+  // 지금 페이지에 보여줄 10개 (순번은 위에서 매긴 전체 순번 그대로)
+  const rankingPage = paginate(visible, page);
   // 서로 다른 도전자 수 (Set: 중복 없는 묶음)
   const playerCount = new Set(rows.map((row) => row.user_id)).size;
 
@@ -833,7 +869,10 @@ function RankingManager({ token, onSessionExpired }) {
           <input
             type="search"
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onChange={(event) => {
+              setKeyword(event.target.value);
+              setPage(1); // 검색어가 바뀌면 1페이지부터
+            }}
             placeholder="이름·아이디 검색"
             aria-label="랭킹 기록 검색"
           />
@@ -869,7 +908,7 @@ function RankingManager({ token, onSessionExpired }) {
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
+              {rankingPage.items.map((row) => (
                 <tr key={row.ranking_id}>
                   <td className="num">{row.order}</td>
                   <td>
@@ -899,6 +938,12 @@ function RankingManager({ token, onSessionExpired }) {
             </tbody>
           </table>
         </div>
+        <Pagination
+          page={rankingPage.currentPage}
+          totalPages={rankingPage.totalPages}
+          onChange={setPage}
+          label="랭킹 기록 페이지"
+        />
       </ListState>
 
       {confirm && (
@@ -916,6 +961,62 @@ function RankingManager({ token, onSessionExpired }) {
         />
       )}
     </>
+  );
+}
+
+// =============================================================
+// 공통: 페이지 번호 (페이지네이션)
+// =============================================================
+// page: 지금 페이지, totalPages: 전체 페이지 수, onChange: 번호를 누르면 그 번호로 실행, label: 화면 읽기용 이름
+// 1페이지뿐이어도 항상 보여줌 (‹ 1 › — 화살표는 둘 다 흐리게 막힘)
+function Pagination({ page, totalPages, onChange, label }) {
+
+  // 보여줄 번호: 페이지가 많으면 지금 페이지 근처 최대 5개만 (예: 3 4 [5] 6 7)
+  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+  const end = Math.min(totalPages, start + 4);
+  // Array.from({ length: n }, (_, i) => ...): n개짜리 배열을 만들면서 값 채우기
+  const numbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+  // 페이지 이동: 번호를 바꾸고 탭 위치로 부드럽게 스크롤 (목록 맨 위부터 보이게)
+  const go = (next) => {
+    if (next < 1 || next > totalPages || next === page) return;
+    onChange(next);
+    document.querySelector(".admin-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  return (
+    // nav: "이동 메뉴" 태그 → 화면 읽기 프로그램이 페이지 이동 버튼 묶음으로 알아들음
+    <nav className="admin-pagination" aria-label={label}>
+      <button
+        type="button"
+        className="admin-page-arrow"
+        onClick={() => go(page - 1)}
+        disabled={page === 1}
+        aria-label="이전 페이지"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      {numbers.map((number) => (
+        <button
+          key={number}
+          type="button"
+          className={number === page ? "admin-page active" : "admin-page"}
+          onClick={() => go(number)}
+          aria-current={number === page ? "page" : undefined} // 지금 보고 있는 페이지 표시
+        >
+          {number}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="admin-page-arrow"
+        onClick={() => go(page + 1)}
+        disabled={page === totalPages}
+        aria-label="다음 페이지"
+      >
+        <ChevronRight size={18} />
+      </button>
+    </nav>
   );
 }
 

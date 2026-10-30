@@ -36,6 +36,8 @@ import {
   ChevronDown,
   ArrowRight,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
   LogIn,
   Loader2,
@@ -62,6 +64,9 @@ const OTHER_CATEGORY = "기타";
 
 // 맨 앞 "전체" 버튼의 key
 const ALL = "all";
+
+// 한 페이지에 보여줄 글(카드) 수 — 바꾸고 싶으면 이 숫자만 고치면 됨
+const PAGE_SIZE = 10;
 
 // ----- 단계 목록 -----
 // 서버(routers/mypage.py)가 두 가지로 계산해서 보내 줌
@@ -125,6 +130,8 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
 
   const [category, setCategory] = useState(ALL); // 지금 고른 카테고리 (처음엔 전체)
   const [stage, setStage] = useState(null); // 지금 고른 단계 (null이면 단계로 거르지 않음 = 모든 단계)
+  // page: 지금 보고 있는 페이지 번호 (1부터 시작) — 글 목록을 PAGE_SIZE개씩 나눠서 보여줌 (페이지네이션)
+  const [page, setPage] = useState(1);
   // openKey: 본문을 펼친 카드 (하나만 펼침, 없으면 null)
   //  - 글 카드: "doc-글번호" / 저장본 카드: "doc-글번호-v버전" (아래 entryKey 참고)
   const [openKey, setOpenKey] = useState(null);
@@ -309,7 +316,7 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
     <PageHero
       eyebrow="나의 글쓰기 기록"
       title="마이페이지"
-      description={"내 정보와 지금까지 쓴 글을 한눈에 확인해요.\n회원정보는 오른쪽 위 수정 버튼에서 바꿀 수 있어요."}
+      description={"내 정보와 지금까지 쓴 글을 한눈에 확인해요."}
       memoText={"차곡차곡\n쌓이는\n내 문장 :)"}
       memoVariant="note"
     />
@@ -383,6 +390,31 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
     ? versionEntries(stage)
     : categoryDocuments.map((doc) => ({ key: entryKey(doc.id, null), doc, version: null, info: null }));
 
+  // ----- 페이지 나누기 (페이지네이션) -----
+  // 전체 페이지 수: 카드 23개면 23 / 10 = 2.3 → 올림(Math.ceil)해서 3페이지 (최소 1페이지)
+  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  // 글을 지워서 페이지 수가 줄었는데 지금 페이지가 그보다 크면 마지막 페이지를 보여줌
+  // (예: 3페이지의 마지막 글을 지우면 → 2페이지로)
+  const currentPage = Math.min(page, totalPages);
+  // slice(시작, 끝): 배열에서 그 구간만 잘라냄 → 1페이지는 0~9번, 2페이지는 10~19번 카드
+  const pageEntries = entries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // 아래에 보여줄 페이지 번호들 (페이지가 많으면 지금 페이지 근처 최대 5개만: 예) 3 4 [5] 6 7)
+  const pageNumbers = (() => {
+    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+    const end = Math.min(totalPages, start + 4);
+    // Array.from({ length: n }, (_, i) => ...): n개짜리 배열을 만들면서 값 채우기
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  })();
+
+  // 페이지 번호 누르기: 그 페이지로 바꾸고, 펼쳐 둔 본문은 접고, 목록 맨 위로 스크롤
+  const handlePage = (next) => {
+    if (next < 1 || next > totalPages || next === currentPage) return;
+    setPage(next);
+    setOpenKey(null);
+    // scrollIntoView: 그 요소가 화면 맨 위에 오도록 스크롤 (behavior: "smooth" → 부드럽게)
+    document.getElementById("mypage-docs-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   // 버튼 옆에 보여줄 개수
   //  - 카테고리 버튼: 그 카테고리의 글 수
   //  - 단계 버튼: 지금 고른 카테고리 안에서 그 단계에 들어가는 저장본 수
@@ -394,12 +426,14 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
   const handleCategory = (key) => {
     setCategory(key);
     setOpenKey(null);
+    setPage(1); // 목록이 바뀌니까 1페이지부터
   };
 
   // 단계 버튼 누르기: 이미 고른 단계를 다시 누르면 꺼짐(null) → 모든 단계 보기
   const handleStage = (key) => {
     setStage((prev) => (prev === key ? null : key));
     setOpenKey(null);
+    setPage(1); // 목록이 바뀌니까 1페이지부터
   };
 
   // 걸러진 결과가 없을 때 보여줄 문구 (어떤 조건으로 걸렀는지 알려줌)
@@ -545,15 +579,17 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
               <p>{emptyMessage}</p>
               {/* 단계까지 골라서 비었으면 단계만 풀 수 있게 버튼 제공 */}
               {stage && (
-                <button type="button" className="mypage-doc-toggle" onClick={() => setStage(null)}>
+                <button type="button" className="mypage-doc-toggle" onClick={() => handleStage(stage)}>
                   글 목록으로 보기
                 </button>
               )}
             </div>
           ) : (
             // ----- 글 목록 -----
+            <>
             <ul className="mypage-doc-list">
-              {entries.map((entry) => {
+              {/* 지금 페이지에 해당하는 카드(최대 10개)만 그림 */}
+              {pageEntries.map((entry) => {
                 const { doc, version, info } = entry; // info: 저장본 카드일 때 그 저장본 정보 (글 카드면 null)
                 const isOpen = openKey === entry.key;
                 const body = bodies[doc.id]; // 불러온 적 있으면 저장본 정보, 없으면 undefined
@@ -680,6 +716,46 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
                 );
               })}
             </ul>
+
+            {/* ----- 페이지 번호 (1페이지뿐이어도 항상 보여줌) ----- */}
+            {totalPages >= 1 && (
+              // nav: "이동 메뉴"라는 뜻의 태그 → 화면 읽기 프로그램이 페이지 이동 버튼 묶음으로 알아들음
+              <nav className="mypage-pagination" aria-label="내가 쓴 글 페이지">
+                <button
+                  type="button"
+                  className="mypage-page-arrow"
+                  onClick={() => handlePage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  aria-label="이전 페이지"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+
+                {pageNumbers.map((number) => (
+                  <button
+                    key={number}
+                    type="button"
+                    className={number === currentPage ? "mypage-page active" : "mypage-page"}
+                    onClick={() => handlePage(number)}
+                    // aria-current="page": 지금 보고 있는 페이지라는 표시
+                    aria-current={number === currentPage ? "page" : undefined}
+                  >
+                    {number}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  className="mypage-page-arrow"
+                  onClick={() => handlePage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  aria-label="다음 페이지"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </nav>
+            )}
+            </>
           )}
         </section>
       </div>

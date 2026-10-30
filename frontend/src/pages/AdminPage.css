@@ -651,3 +651,70 @@
     padding: 14px;
   }
 }
+
+/* =====================================================
+   페이지 번호 (페이지네이션) — 퀴즈·회원·랭킹 목록 10개씩
+   (마이페이지 페이지 번호와 같은 모양)
+   ===================================================== */
+.admin-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.admin-page {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* 숫자 폭을 똑같이 */
+}
+
+.admin-page:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+/* 지금 보고 있는 페이지 */
+.admin-page.active {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+  cursor: default;
+}
+
+.admin-page-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: #4f6378;
+}
+
+.admin-page-arrow:hover:not(:disabled) {
+  background: #eef5fc;
+  color: var(--navy);
+}
+
+.admin-page-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.admin-page:focus-visible,
+.admin-page-arrow:focus-visible {
+  outline: 2px solid #4a98d3;
+  outline-offset: 2px;
+}
