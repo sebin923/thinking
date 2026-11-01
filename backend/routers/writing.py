@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from routers.auth import get_current_user
 from models import UserWritingPreference
+from routers.writing_preferences import DEFAULT_PREFERENCES
+
 
 import models
 from database import get_db
@@ -16,8 +18,10 @@ def get_user_preferences(db: Session, user_id: int):
     preference = db.query(UserWritingPreference).filter(
         UserWritingPreference.user_id == user_id
     ).first()
+
     if preference is None:
-        return None
+        return DEFAULT_PREFERENCES.model_dump()
+
     return {
         "preferred_tone": preference.preferred_tone,
         "sentence_length": preference.sentence_length,
@@ -608,4 +612,209 @@ def get_training_candidates(
             "학습 후보입니다. 실제 모델 학습 전에 "
             "내용과 피드백을 검토해야 합니다."
         )
+    }
+
+# Add at the bottom of backend/routers/writing.py.
+# Existing imports in writing.py: requests, HTTPException, Depends, Session, models, get_db, get_current_user.
+# Existing functions: get_owned_document(), get_user_preferences().
+import os
+
+COMMON_LLM_URL = os.getenv('COMMON_LLM_URL', 'http://127.0.0.1:8001').rstrip('/')
+
+
+def _common_llm_tone(preferences):
+    raw = str(
+        (preferences or {}).get("preferred_tone") or ""
+    ).strip()
+
+    tone_map = {
+        # 기존 생각한줄 설정값
+        "natural": "친근",
+        "formal": "격식",
+        "confident": "격식",
+
+        # 공통 LLM 설정값
+        "기본": "기본",
+        "담백": "담백",
+        "격식": "격식",
+        "친근": "친근",
+    }
+
+    return tone_map.get(raw, "기본")
+
+@router.post('/documents/{document_id}/draft-common-ai')
+def create_common_ai_draft(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    document = get_owned_document(db, document_id, current_user.user_id)
+    document_type = str(document.document_type).strip()
+    if document_type not in ('보고서', '자기소개서'):
+        raise HTTPException(status_code=400, detail='공통 LLM은 현재 보고서와 자기소개서만 지원합니다.')
+
+    thoughts = db.query(models.Thought).filter(
+        models.Thought.document_id == document_id
+    ).order_by(models.Thought.id.asc()).all()
+    facts = [str(x.content).strip() for x in thoughts if str(x.content).strip()]
+    if not facts:
+        latest_draft = (
+            db.query(models.Draft)
+            .filter(models.Draft.document_id == document_id)
+            .order_by(
+                models.Draft.version.desc(),
+                models.Draft.id.desc()
+            )
+            .first()
+        )
+
+        if latest_draft and latest_draft.content.strip():
+            facts = [latest_draft.content.strip()]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="생각 또는 저장된 글이 없습니다."
+            )
+
+    # Current LLM accepts at most 15 facts, each should be concise.
+    facts = facts[:15]
+    preferences = get_user_preferences(db, current_user.user_id)
+    tone = _common_llm_tone(preferences)
+    sentence_length = (preferences or {}).get("sentence_length", "normal")
+    length_targets = {
+        "short": {"보고서": 160, "자기소개서": 160},
+        "normal": {"보고서": 250, "자기소개서": 220},
+        "long": {"보고서": 450, "자기소개서": 400},
+    }
+    target_chars = length_targets.get(
+        sentence_length, length_targets["normal"]
+    )[document_type]
+
+    payload = {
+        'document_type': document_type,
+        'topic': (document.title or document_type).strip(),
+        'facts': facts,
+        'tone': tone,
+        'target_chars': target_chars,
+        'mode': 'common',
+    }
+    try:
+        response = requests.post(
+            f'{COMMON_LLM_URL}/draft', json=payload, timeout=(10, 180)
+        )
+        response.raise_for_status()
+        result = response.json()
+    except requests.Timeout as exc:
+        raise HTTPException(status_code=504, detail='공통 LLM 응답 시간이 초과되었습니다.') from exc
+    except (requests.RequestException, ValueError) as exc:
+        raise HTTPException(status_code=502, detail='공통 LLM 서비스 호출에 실패했습니다.') from exc
+
+    content = result.get('content')
+    if not isinstance(content, str) or not content.strip():
+        raise HTTPException(status_code=502, detail='공통 LLM이 유효한 초안을 반환하지 않았습니다.')
+
+    return {
+        'content': content,
+        'document_type': document_type,
+        'tone': tone,
+        'model': result.get('model'),
+        'checks': result.get('checks', []),
+        'personalization_type': 'preference_prompt' if tone != '기본' else 'none',
+    }
+
+@router.post("/documents/{document_id}/draft-personal-ai")
+def create_personal_ai_draft(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    document = get_owned_document(db, document_id, current_user.user_id)
+
+    document_type = str(document.document_type).strip()
+    if document_type not in ("보고서", "자기소개서"):
+        raise HTTPException(
+            status_code=400,
+            detail="개인화 LLM은 현재 보고서와 자기소개서만 지원합니다."
+        )
+
+    thoughts = db.query(models.Thought).filter(
+        models.Thought.document_id == document_id
+    ).order_by(models.Thought.id.asc()).all()
+
+    facts = [
+        str(t.content).strip()
+        for t in thoughts
+        if t.content and str(t.content).strip()
+    ]
+
+    if not facts:
+        latest_draft = (
+            db.query(models.Draft)
+            .filter(models.Draft.document_id == document_id)
+            .order_by(models.Draft.version.desc(), models.Draft.id.desc())
+            .first()
+        )
+        if latest_draft and latest_draft.content and latest_draft.content.strip():
+            facts = [latest_draft.content.strip()]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="생각 또는 저장된 글이 없습니다."
+            )
+
+    preferences = get_user_preferences(db, current_user.user_id)
+    tone = _common_llm_tone(preferences)
+
+    length = (preferences or {}).get("sentence_length", "normal")
+    targets = {
+        "short": {"보고서": 160, "자기소개서": 160},
+        "normal": {"보고서": 250, "자기소개서": 220},
+        "long": {"보고서": 450, "자기소개서": 400},
+    }
+
+    target_chars = targets.get(
+        length, targets["normal"]
+    )[document_type]
+
+    payload = {
+        "document_type": document_type,
+        "topic": (document.title or document_type).strip(),
+        "facts": facts[:15],
+        "tone": tone,
+        "target_chars": target_chars,
+        "user_id": current_user.user_id,
+        "mode": "personal",
+    }
+
+    try:
+        response = requests.post(
+            f"{COMMON_LLM_URL}/draft",
+            json=payload,
+            timeout=(10, 180),
+        )
+        if response.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail="개인화 모델이 없습니다. 먼저 개인화 학습을 진행해 주세요."
+            )
+        response.raise_for_status()
+        result = response.json()
+
+    except requests.Timeout as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="개인화 LLM 응답 시간 초과"
+        ) from exc
+    except (requests.RequestException, ValueError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="개인화 LLM 연결 실패"
+        ) from exc
+
+    return {
+        "content": result["content"],
+        "model": result.get("model"),
+        "personalized": result.get("personalized", False),
+        "tone": tone,
+        "checks": result.get("checks", []),
     }
