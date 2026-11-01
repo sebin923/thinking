@@ -1,7 +1,10 @@
-"""생각한줄 공통 LLM: 단일 모델 로딩 + 보고서/자기소개서 초안 + 선호 반영.
-Run: uvicorn common_llm:app --host 127.0.0.1 --port 8001
-On GTX 1660 6GB use 4-bit QLoRA inference. This is not per-user fine-tuning.
+"""생각한줄 공통 LLM: 보고서 / 자기소개서 초안 생성.
+
+기존 SFT v3 어댑터 보존. 출력 품질 미달 시 미리 작성된 글로 대체하지 않음.
+실행: python -m uvicorn common_llm:app --host 127.0.0.1 --port 8001
 """
+from __future__ import annotations
+
 import os
 import re
 import threading
@@ -15,13 +18,15 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel
 
 ROOT = Path(__file__).resolve().parent
-BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct"
 ADAPTER_PATH = Path(os.getenv("THINKING_ADAPTER", str(ROOT / "outputs" / "writing-sft-v3-adapter")))
 USE_ADAPTER = os.getenv("THINKING_USE_ADAPTER", "1") == "1"
-app = FastAPI(title="생각한줄 공통 글쓰기 LLM")
+
+app = FastAPI(title="생각한줄 공통 LLM")
 _lock = threading.Lock()
 _model = None
 _tokenizer = None
+
 
 class DraftRequest(BaseModel):
     document_type: Literal["report", "cover_letter", "보고서", "자기소개서"]
@@ -29,7 +34,8 @@ class DraftRequest(BaseModel):
     facts: list[str] = Field(default_factory=list, max_length=15)
     tone: Literal["기본", "격식", "담백", "친근"] = "기본"
     target_chars: int = Field(default=450, ge=150, le=900)
-    user_id: int | None = None  # 메타정보: 이 서비스에 저장하거나 개인 식별에 활용하지 않음
+    user_id: int | None = None
+
 
 class DraftResponse(BaseModel):
     document_type: str
@@ -45,74 +51,170 @@ def load_model():
     if _model is not None:
         return
     if not torch.cuda.is_available():
-        raise RuntimeError("CUDA GPU 없음: 이 구성은 GTX 1660에서 실행하도록 설정됨")
+        raise RuntimeError("CUDA GPU가 필요합니다")
     if USE_ADAPTER and not (ADAPTER_PATH / "adapter_config.json").is_file():
         raise RuntimeError(f"어댑터가 없습니다: {ADAPTER_PATH}")
-    _tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-    if _tokenizer.pad_token is None:
-        _tokenizer.pad_token = _tokenizer.eos_token
-    quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True)
-    base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float16, device_map={"": 0}, quantization_config=quant)
+    tok = AutoTokenizer.from_pretrained(MODEL_ID)
+    if tok.pad_token is None:
+        tok.pad_token = tok.eos_token
+    quant = BitsAndBytesConfig(
+        load_in_4bit=True, bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True,
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID, dtype=torch.float16, device_map={"": 0}, quantization_config=quant
+    )
     if USE_ADAPTER:
-        from json import loads
-        cfg = loads((ADAPTER_PATH / "adapter_config.json").read_text(encoding="utf-8"))
-        if cfg.get("base_model_name_or_path", "").rstrip("/") != BASE_MODEL:
-            raise RuntimeError("어댑터와 기본 모델이 일치하지 않음")
-        base = PeftModel.from_pretrained(base, str(ADAPTER_PATH), is_trainable=False)
-    base.eval()
-    _model = base
+        import json
+        cfg = json.loads((ADAPTER_PATH / "adapter_config.json").read_text(encoding="utf-8"))
+        if cfg.get("base_model_name_or_path", "").rstrip("/") != MODEL_ID:
+            raise RuntimeError("어댑터와 기본 모델이 일치하지 않습니다")
+        model = PeftModel.from_pretrained(model, str(ADAPTER_PATH), is_trainable=False)
+    model.eval()
+    _model, _tokenizer = model, tok
 
 
-def build_messages(req: DraftRequest):
-    kind = "보고서" if req.document_type in ("report", "보고서") else "자기소개서"
-    facts = [f.strip() for f in req.facts if f.strip()]
-    fact_lines = "\n".join(f"- {x}" for x in facts) if facts else "(제공된 개인 경험 또는 구체적 사실 없음)"
-    # 중요한 사실: 제공한 경험이 없으면 자기소개서 개인경험을 창작하지 않는다.
-    if kind == "보고서":
-        format_spec = "서론, 본론, 결론을 각각 한 문단으로 쓰되, 본론에는 원인/문제점/개선 방안을 담아라. 소제목은 서론, 본론, 결론 3개만 사용하라."
-    else:
-        format_spec = "자연스럽게 연결된 2~3문단의 자기소개서 초안만 출력하라. 실제 역할, 행동, 배운 점을 우선하라."
-    system = ("너는 생각한줄의 한국어 글쓰기 도우미다. 요청한 초안 본문만 작성한다. "
-              "같은 내용을 반복하지 말고 구체적으로 쓴다. 사실로 주어지지 않은 수치, 연구, 출처, 경력, 성과, 감정은 창작하지 않는다. "
-              "정보가 부족하면 일반적인 설명에 머물고, 개인 경험을 지어내지 않는다. "
-              "요청한 분량은 가능한 한 준수하고, 메타 설명이나 작성 방법 안내를 출력하지 않는다.")
-    user = (f"글 유형: {kind}\n주제/지원 분야: {req.topic}\n문체: {req.tone}\n"
-            f"목표 분량: 공백 포함 약 {req.target_chars}자\n"
-            f"사용자가 제공한 사실:\n{fact_lines}\n작성 형식: {format_spec}\n초안을 작성하라.")
-    return kind, [{"role": "system", "content": system}, {"role": "user", "content": user}]
+def clean(text: str) -> str:
+    text = re.sub(r"(?m)^\s{0,3}(?:#{1,6}\s*|\d+[.)]\s+|[-*]\s+)", "", text)
+    text = re.sub(r"\*\*|__|```", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    # 불필요한 소제목·목록 방지. 서론·본론·결론은 호출마다 별도 붙임.
+    text = re.sub(r"(?m)^\s*(?:서론|본론|결론|원인|문제점|개선\s*방안)\s*[:：]?\s*$", "", text)
+    return text.strip()
 
 
-def generate(req: DraftRequest) -> DraftResponse:
-    load_model()
-    kind, messages = build_messages(req)
-    inputs = _tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt", return_dict=True)
-    inputs = {k: v.to("cuda:0") for k,v in inputs.items()}
-    # Small models sometimes fail to terminate: bounded output plus explicit truncation warning.
-    token_budget = min(950, max(300, int(req.target_chars * 1.4)))
+def complete_sentences(text: str) -> str:
+    """잘린 마지막 문장이 있으면 완성된 문장까지만 반환."""
+    text = text.strip()
+    if not text:
+        return text
+    if re.search(r"[.!?。][\"'’”)]?$", text):
+        return text
+    # 줄 중간에서 끝났을 경우 마지막 완성 문장까지만 남김
+    marks = list(re.finditer(r"[.!?。](?=\s|$)", text))
+    return text[:marks[-1].end()].strip() if marks else text
+
+
+def run_once(system: str, user: str, max_tokens: int) -> tuple[str, bool]:
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    inputs = _tokenizer.apply_chat_template(
+        messages, tokenize=True, add_generation_prompt=True,
+        return_tensors="pt", return_dict=True,
+    )
+    inputs = {k: v.to("cuda:0") for k, v in inputs.items()}
     with _lock, torch.inference_mode():
-        output = _model.generate(**inputs, max_new_tokens=token_budget, do_sample=False,
-                                 repetition_penalty=1.12, no_repeat_ngram_size=5,
-                                 pad_token_id=_tokenizer.pad_token_id, eos_token_id=_tokenizer.eos_token_id)
-    generated = output[0][inputs["input_ids"].shape[-1]:]
-    text = _tokenizer.decode(generated, skip_special_tokens=True).strip()
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    flags=[]
-    if len(generated) >= token_budget: flags.append("출력 제한 도달: 문장이 잘렸을 수 있음")
-    if not (req.target_chars * .7 <= len(text) <= req.target_chars * 1.3): flags.append("목표 글자 수와 차이 있음")
-    if kind == "보고서" and not all(x in text for x in ("서론", "본론", "결론")): flags.append("보고서의 3개 구분 누락")
-    if kind == "자기소개서" and not req.facts: flags.append("제공된 경험 없음: 개인 경험 작성 불가")
-    return DraftResponse(document_type=kind, content=text, char_count=len(text), model=BASE_MODEL + (" + writing-sft-v3" if USE_ADAPTER else " (base)"), personalized=req.tone != "기본", checks=flags)
+        out = _model.generate(
+            **inputs, max_new_tokens=max_tokens, do_sample=False,
+            repetition_penalty=1.12, no_repeat_ngram_size=5,
+            pad_token_id=_tokenizer.pad_token_id, eos_token_id=_tokenizer.eos_token_id,
+        )
+    new = out[0][inputs["input_ids"].shape[-1]:]
+    eos = int(_tokenizer.eos_token_id) if _tokenizer.eos_token_id is not None else -1
+    stopped_by_limit = len(new) >= max_tokens and (not len(new) or int(new[-1]) != eos)
+    return complete_sentences(clean(_tokenizer.decode(new, skip_special_tokens=True))), stopped_by_limit
+
+
+def format_facts(req: DraftRequest) -> str:
+    facts = [x.strip() for x in req.facts if x.strip()]
+    return "\n".join(f"- {x}" for x in facts) if facts else "(사용자가 제공한 구체적인 사실 없음)"
+
+
+def draft_report(req: DraftRequest) -> tuple[str, list[str]]:
+    checks = []
+    system = (
+        "너는 한국어 보고서 초안 작성자다. 명확하고 쉬운 한국어만 쓴다. "
+        "오직 한 문단의 완성된 본문만 작성한다. 제목, 번호, 목록, 소제목, 영어, 한자 금지. "
+        "제공되지 않은 실험·통계·개인 경험·출처를 지어내지 않는다. "
+        "같은 문장을 반복하지 않는다. 문단을 2~4문장으로 마친다."
+    )
+    segments = [
+        ("서론", "주제를 소개하고 왜 다룰 필요가 있는지 설명하라. 원인과 해결책은 아직 설명하지 말라."),
+        ("본론", "사용자가 제공한 사실을 중심으로 원인, 문제점, 실천 가능한 개선 방안을 구체적으로 연결해 설명하라. 근거 없는 단정은 피하라."),
+        ("결론", "본문 핵심을 정리하고 현실적인 제안으로 마무리하라. 새로운 사실은 추가하지 말라."),
+    ]
+    weights = [0.24, 0.53, 0.23]
+    sections = []
+    for (heading, instruction), weight in zip(segments, weights):
+        section_chars = max(65, round(req.target_chars * weight))
+        prompt = (
+            f"주제: {req.topic}\n제공 사실:\n{format_facts(req)}\n문체: {req.tone}\n"
+            f"이번에 작성할 부분: {heading}\n지침: {instruction}\n"
+            f"분량: 한국어 공백 포함 약 {section_chars}자. 완성된 본문 문단만 작성."
+        )
+        # 너무 긴 출력으로 반복하거나 결론이 잘리는 것을 방지: 작은 문단 3회
+        body, cut = run_once(system, prompt, min(320, max(130, round(section_chars * 1.2))))
+        if cut:
+            checks.append(f"{heading}: 출력 제한 도달")
+        if not body:
+            raise HTTPException(status_code=422, detail=f"{heading} 생성 실패: 빈 출력")
+        sections.append(f"{heading}\n{body}")
+    return "\n\n".join(sections), checks
+
+
+def draft_cover(req: DraftRequest) -> tuple[str, list[str]]:
+    if not any(x.strip() for x in req.facts):
+        raise HTTPException(status_code=422, detail="자기소개서에는 실제 경험을 facts에 1개 이상 입력해 주세요")
+    system = (
+        "너는 한국어 자기소개서 초안 작성자다. 제공된 경험만 사용한다. "
+        "제공되지 않은 성과, 역할, 자격증, 감정, 수치를 추가하지 않는다. "
+        "담백한 1인칭 존댓말로 자연스러운 본문만 쓴다. "
+        "제목, 번호, 목록, 소제목, 영어·한자 혼용(기술 고유명사 제외)을 피한다. "
+        "같은 문장을 반복하지 않고 3~6개의 완성된 문장으로 끝낸다."
+    )
+    user = (
+        f"지원 직무: {req.topic}\n실제 제공 경험:\n{format_facts(req)}\n"
+        f"문체: {req.tone}\n목표: {req.target_chars}자 내외. "
+        "제공 경험→그 경험이 직무와 관련되는 이유→지원 방향을 순서대로 연결한 자기소개서 본문을 작성하라. "
+        "경험이 부족하면 분량을 억지로 늘리거나 없는 사실을 만들지 말라."
+    )
+    content, cut = run_once(system, user, min(510, max(230, round(req.target_chars * 1.05))))
+    if not content:
+        raise HTTPException(status_code=422, detail="자기소개서 생성 실패: 빈 출력")
+    return content, ["출력 제한 도달"] if cut else []
+
+
+def checks_for(content: str, req: DraftRequest, old: list[str]) -> list[str]:
+    checks = list(old)
+    ratio = len(content) / req.target_chars
+    if ratio < 0.7 or ratio > 1.3:
+        checks.append(f"목표 분량과 차이 있음: {len(content)}자 / {req.target_chars}자")
+    if re.search(r"[\u4e00-\u9fff]", content):
+        checks.append("한자 혼용 확인 필요")
+    if re.search(r"\b(?:planners|asleep)\b", content, re.I):
+        checks.append("영어 혼용 확인 필요")
+    lines = [re.sub(r"\s+", "", p) for p in re.split(r"[.!?。]", content) if len(p.strip()) > 18]
+    if len(lines) != len(set(lines)):
+        checks.append("동일 문장 반복 탐지")
+    return checks
+
 
 @app.get("/health")
 def health():
-    return {"status":"ok", "loaded":_model is not None, "adapter_configured":USE_ADAPTER, "adapter_found":(ADAPTER_PATH / "adapter_config.json").is_file()}
+    return {"status": "ok", "loaded": _model is not None,
+            "adapter_configured": USE_ADAPTER,
+            "adapter_found": (ADAPTER_PATH / "adapter_config.json").is_file()}
+
 
 @app.post("/draft", response_model=DraftResponse)
 def draft(req: DraftRequest):
     try:
-        return generate(req)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        load_model()
+        kind = "보고서" if req.document_type in ("report", "보고서") else "자기소개서"
+        if kind == "보고서":
+            content, notes = draft_report(req)
+        else:
+            content, notes = draft_cover(req)
+        return DraftResponse(
+            document_type=kind,
+            content=content,
+            char_count=len(content),
+            model=MODEL_ID + (" + writing-sft-v3" if USE_ADAPTER else " (base)"),
+            personalized=req.tone != "기본",  # 문체 선택만 반영, 개인별 LoRA 아님
+            checks=checks_for(content, req, notes),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 
 if __name__ == "__main__":
     import uvicorn
