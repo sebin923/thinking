@@ -127,7 +127,6 @@ function compareText(before, after) {
   while (j < b.length) push("added", b[j++]);
   return parts;
 }
-
 // 변경 부분 강조 표시
 // 본문 문자열 위치를 DOM Range로 변환해 서식을 건드리지 않고 강조합니다.
 function highlightEditorMatches(editor, phrases) {
@@ -164,14 +163,12 @@ function highlightEditorMatches(editor, phrases) {
   if (ranges.length) CSS.highlights.set("writing-ai-issues", new Highlight(...ranges));
   else CSS.highlights.delete("writing-ai-issues");
 }
-
 // AI 초안이 바꾸려고 제안한 원문 부분만 추출합니다.
 function getDraftChangedPhrases(before, after) {
   return compareText(before, after)
     .filter((part) => part.kind === "removed" && part.text.trim())
     .map((part) => part.text.trim());
 }
-
 function CompareText({ before, after, side }) {
   const parts = compareText(before, after);
   return <div className="writing-compare-content">{parts.map((part, index) => {
@@ -180,7 +177,6 @@ function CompareText({ before, after, side }) {
     return <span key={index} className={part.kind === "same" ? "" : `writing-compare-${part.kind}`}>{part.text}</span>;
   })}</div>;
 }
-
 // 글쓰기 페이지
 function WritingPage({
   idea = "",
@@ -193,6 +189,8 @@ function WritingPage({
   const [pendingAiDraft, setPendingAiDraft] = useState(null);
   const [pendingAiOriginal, setPendingAiOriginal] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
+  const [commonDraftLoading, setCommonDraftLoading] = useState(false);
+  const [personalDraftLoading, setPersonalDraftLoading] = useState(false);
   const [draft] = useState(() => {
     const saved = loadDraft(auth?.user?.user_id);
     if (!initialDocument) return saved ? { ...saved, resumedFromSettings: true } : null;
@@ -237,7 +235,6 @@ function WritingPage({
     refreshEditorHighlights();
     return () => CSS?.highlights?.delete("writing-ai-issues");
   }, [feedback, pendingAiDraft, pendingAiOriginal]);
-
   const showToast = (message) => {
     setToast(message);
     clearTimeout(toastTimerRef.current);
@@ -313,16 +310,13 @@ function WritingPage({
       return false;
     }
   };
-
   const handleNewWriting = () => {
     onNewWriting?.();
   };
-
   const handleOpenSettings = () => {
     saveBrowserDraft();
     onOpenSettings?.();
   };
-
   const createDocumentIfNeeded = async () => {
     if (documentId) {
       return documentId;
@@ -386,7 +380,6 @@ function WritingPage({
       showToast("복사에 실패했습니다. 브라우저의 클립보드 권한을 확인해 주세요.");
     }
   };
-
   // AI 문장을 본문에 적용
   const applyAiText = (value) => {
     if (isComplete || !editorRef.current) return;
@@ -400,7 +393,6 @@ function WritingPage({
     handleBodyInput();
     showToast("AI 수정안이 본문에 적용되었습니다. 저장은 별도로 해 주세요.");
   };
-
   // AI 적용 전 상태로 돌아가기
   const undoAiApply = () => {
     if (isComplete || undoAiHtml === null || !editorRef.current) return;
@@ -410,7 +402,6 @@ function WritingPage({
     handleBodyInput();
     showToast("AI 수정안 적용을 취소했습니다.");
   };
-
   // 취소한 AI 수정안 다시 적용
   const redoAiApply = () => {
     if (isComplete || redoAiHtml === null || !editorRef.current) return;
@@ -420,7 +411,6 @@ function WritingPage({
     handleBodyInput();
     showToast("AI 수정안을 다시 적용했습니다.");
   };
-
   // 완성된 수정 문장만 원문 위치에 적용
   const applyHighlightedEdit = (original, proposed) => {
     const before = (original || "").trim();
@@ -438,10 +428,9 @@ function WritingPage({
     }
     applyAiText(updated);
   };
-
   // AI 초안 요청
   const handleAiDraft = async () => {
-    if (draftLoading || isComplete) return;
+    if (draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
     const originalAtRequest = getBodyText();
     setDraftLoading(true);
     try {
@@ -471,6 +460,88 @@ function WritingPage({
       showToast(error.message || "AI 초안 작성 실패");
     } finally {
       setDraftLoading(false);
+    }
+  };
+  // 공통 Qwen SFT 초안 요청 (기존 CLOVA 기능은 유지)
+  const handleCommonAiDraft = async () => {
+    if (commonDraftLoading || draftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
+    if (!["보고서", "자기소개서"].includes(selectedDocumentType)) {
+      showToast("공통 LLM은 보고서와 자기소개서만 지원합니다.");
+      return;
+    }
+    if (!auth?.token) {
+      showToast("로그인이 필요합니다.");
+      return;
+    }
+    const originalAtRequest = getBodyText();
+    setCommonDraftLoading(true);
+    try {
+      setApiMessage("");
+      const targetDocumentId = await createDocumentIfNeeded();
+      await saveThoughtFromIdea(targetDocumentId);
+      const response = await fetch(
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-common-ai`,
+        { method: "POST", headers: getAuthHeaders() }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.detail === "string" ? data.detail : "공통 LLM 초안 생성 실패");
+      }
+      if (typeof data.content !== "string" || !data.content.trim()) {
+        throw new Error("공통 LLM이 빈 초안을 반환했습니다.");
+      }
+      setPendingAiOriginal(originalAtRequest);
+      setPendingAiDraft(data.content);
+      setApiMessage("");
+    } catch (error) {
+      console.error("공통 LLM 초안 오류:", error);
+      showToast(error.message || "공통 LLM 호출 실패");
+    } finally {
+      setCommonDraftLoading(false);
+    }
+  };
+  // 사용자별 LoRA 초안 요청: 기존 본문을 변경하지 않고 비교 패널에만 표시
+  const handlePersonalAiDraft = async () => {
+    if (personalDraftLoading || commonDraftLoading || draftLoading || feedbackLoading || isComplete) return;
+    if (!["보고서", "자기소개서"].includes(selectedDocumentType)) {
+      showToast("개인화 LLM은 보고서와 자기소개서만 지원합니다.");
+      return;
+    }
+    if (!auth?.token) {
+      showToast("로그인이 필요합니다.");
+      return;
+    }
+    const originalAtRequest = getBodyText();
+    setPersonalDraftLoading(true);
+    try {
+      setApiMessage("");
+      const targetDocumentId = await createDocumentIfNeeded();
+      // 본문이나 초기 생각이 있는 경우 기존 공통 LLM과 동일하게 전달
+      if ((idea || originalAtRequest).trim()) {
+        await saveThoughtFromIdea(targetDocumentId);
+      }
+      const response = await fetch(
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-personal-ai`,
+        { method: "POST", headers: getAuthHeaders() }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.detail === "string" ? data.detail : "개인화 LLM 초안 생성 실패");
+      }
+      if (!data.personalized) {
+        throw new Error("개인화 모델이 적용되지 않았습니다.");
+      }
+      if (typeof data.content !== "string" || !data.content.trim()) {
+        throw new Error("개인화 LLM이 빈 초안을 반환했습니다.");
+      }
+      setPendingAiOriginal(originalAtRequest);
+      setPendingAiDraft(data.content);
+      setApiMessage("");
+    } catch (error) {
+      console.error("개인화 LLM 초안 오류:", error);
+      showToast(error.message || "개인화 LLM 호출 실패");
+    } finally {
+      setPersonalDraftLoading(false);
     }
   };
   // 글 버전 저장
@@ -518,7 +589,7 @@ function WritingPage({
   };
   // AI 피드백 요청
   const handleAiFeedback = async () => {
-    if (feedbackLoading) return;
+    if (feedbackLoading || draftLoading || commonDraftLoading || isComplete) return;
     const bodyText = getBodyText();
     if (!title.trim() || !bodyText) {
       showToast("제목과 본문을 먼저 작성해 주세요.");
@@ -594,11 +665,9 @@ function WritingPage({
     const headers = {
       "Content-Type": "application/json"
     };
-
     if (auth?.token) {
       headers.Authorization = `Bearer ${auth.token}`;
     }
-
     return headers;
   };
   const handleSaveDraft = () => {
@@ -651,7 +720,6 @@ function WritingPage({
   return (
     <div className="sub-page">
       <div className="sub-page-inner">
-
         <PageHero
           eyebrow="당신의 생각이, 하나의 글이 되는 과정"
           title="내 생각을 글로 완성해보세요"
@@ -662,20 +730,16 @@ function WritingPage({
           memoText={"당신의\n생각이\n글이 되는 곳"}
           memoVariant="note"
         />
-
         <div className={`writing-layout ${feedback ? "writing-layout-feedback" : ""}`}>
-
           <section className="panel writing-card">
             <div className="writing-card-heading">
               <h2 className="writing-card-title">
                 <PenLine size={22} /> 글쓰기
-
                 <span className={`writing-stage-badge ${STAGE_CLASS[stage]}`} title="마이페이지 '내가 쓴 글'에도 이 단계로 보여요">
                   {stage}
                   <small>{savedVersion > 0 ? `· ${savedVersion}번 저장` : "· 저장 전"}</small>
                 </span>
               </h2>
-
               <div className="writing-heading-actions">
                 {documentId !== null && (
                   <button type="button" className="writing-settings-button writing-new-button" onClick={handleNewWriting}>
@@ -691,7 +755,6 @@ function WritingPage({
               <div className="writing-setup-header">
                 <span className="field-label">어떤 글을 작성할까요?</span>
               </div>
-
               <div className="writing-type-row">
                 <div className="writing-type-options" role="group" aria-label="글 유형 선택">
                   {WRITING_TYPES.map((item) => (
@@ -708,12 +771,11 @@ function WritingPage({
                     </button>
                   ))}
                 </div>
-
                 <button
                   type="button"
                   className="writing-settings-button writing-version-button"
                   onClick={handleSaveVersion}
-                  disabled={feedbackLoading || draftLoading || isComplete}
+                  disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}
                 >
                   <FileText size={16} /> 버전 저장
                 </button>
@@ -731,7 +793,6 @@ function WritingPage({
               )}
               {documentId !== null && <p className="writing-hint">문서가 생성된 뒤에는 글 유형을 변경할 수 없습니다.</p>}
             </div>
-
             <label className="field-label" htmlFor="writing-title">
               제목
             </label>
@@ -748,12 +809,10 @@ function WritingPage({
                 disabled={isComplete}
                 maxLength={TITLE_MAX}
               />
-
               <span className="counter">
                 {title.length}/{TITLE_MAX}
               </span>
             </div>
-
             <div className="writing-body-heading">
               <span className="field-label" id="writing-body-label">본문</span>
               <div className="writing-body-actions">
@@ -769,7 +828,6 @@ function WritingPage({
               </div>
             </div>
             <div className="editor-box">
-
               <div className="editor-toolbar" role="toolbar" aria-label="본문 서식">
                 {TOOLBAR.map((tool, index) => {
                   const Icon = tool.icon;
@@ -791,7 +849,6 @@ function WritingPage({
                   );
                 })}
               </div>
-
               <div
                 ref={editorRef}
                 className={bodyLength === 0 ? "editor is-empty" : "editor"}
@@ -805,23 +862,41 @@ function WritingPage({
                   "직접 글을 작성하거나 AI 초안을 활용할 수 있습니다."
                 }
               />
-
               <div className={bodyLength > BODY_MAX ? "editor-counter over" : "editor-counter"}>
                 {bodyLength.toLocaleString()} / {BODY_MAX.toLocaleString()}
               </div>
             </div>
-
             <div className="writing-ai-tools">
               <h3 className="writing-ai-tools-title">AI 글쓰기 도구</h3>
               <p className="writing-ai-tools-subtitle">필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다.</p>
               <div className="writing-ai-tool-buttons">
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={draftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
                   <FileText size={19} />
                   <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
                 </button>
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={draftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
                   <Lightbulb size={19} />
                   <span><strong>{feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}</strong><small>문제점 분석과 개선 방향 확인</small></span>
+                </button>
+                <button
+                  type="button"
+                  className="writing-ai-tool-button"
+                  onClick={handleCommonAiDraft}
+                  disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
+                  title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
+                >
+                  <Sparkles size={19} />
+                  <span><strong>{commonDraftLoading ? "공통 LLM 생성 중..." : "공통 LLM 초안 작성"}</strong><small> 실험용 </small></span>
+                </button>
+                <button
+                  type="button"
+                  className="writing-ai-tool-button"
+                  onClick={handlePersonalAiDraft}
+                  disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
+                  title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
+                >
+                  <Sparkles size={19} />
+                  <span><strong>{personalDraftLoading ? "개인화 LLM 생성 중..." : "개인화 LLM 초안 작성"}</strong><small>실험용</small></span>
                 </button>
               </div>
             </div>
@@ -852,9 +927,8 @@ function WritingPage({
                 </div>
               </section>
             )}
-
             <div className="writing-actions writing-save-actions">
-              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || isComplete}>
+              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}>
                 <Check size={18} /> {isComplete ? "저장 완료" : "최종 저장"}
               </button>
             </div>
@@ -894,7 +968,6 @@ function WritingPage({
               </div>
             )}
           </section>
-
           <aside className="panel tip-card">
             {feedback ? (
               <div className="ai-feedback-panel">
@@ -974,7 +1047,6 @@ function WritingPage({
           </aside>
         </div>
       </div>
-
       {toast && (
         <div className="toast" role="status">
           {toast}

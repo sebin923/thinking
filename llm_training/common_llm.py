@@ -23,7 +23,7 @@ ADAPTER_PATH = Path(os.getenv("THINKING_ADAPTER", str(ROOT / "outputs" / "writin
 USE_ADAPTER = os.getenv("THINKING_USE_ADAPTER", "1") == "1"
 
 app = FastAPI(title="생각한줄 공통 LLM")
-_lock = threading.Lock()
+_lock = threading.RLock()
 _model = None
 _tokenizer = None
 
@@ -35,6 +35,7 @@ class DraftRequest(BaseModel):
     tone: Literal["기본", "격식", "담백", "친근"] = "기본"
     target_chars: int = Field(default=450, ge=150, le=900)
     user_id: int | None = None
+    mode: Literal["common", "personal"] = "common"
 
 
 class DraftResponse(BaseModel):
@@ -95,6 +96,25 @@ def complete_sentences(text: str) -> str:
     return text[:marks[-1].end()].strip() if marks else text
 
 
+def select_adapter(req: DraftRequest) -> str:
+    """지정한 사용자 어댑터가 실제로 존재할 때만 개인화 사용."""
+    if req.mode == 'common':
+        return 'default'
+    if req.user_id is None or req.user_id < 1:
+        raise HTTPException(status_code=400, detail='personal 모드에는 user_id가 필요합니다.')
+    personal = ROOT / 'outputs' / 'personalized' / f'user_{req.user_id}'
+    if not (personal/'adapter_config.json').is_file():
+        raise HTTPException(status_code=404, detail='해당 사용자의 학습된 개인 어댑터가 없습니다.')
+    name = f'user_{req.user_id}'
+    if name not in _model.peft_config:
+        import json
+        cfg = json.loads((personal/'adapter_config.json').read_text(encoding='utf-8'))
+        if cfg.get('base_model_name_or_path', '').rstrip('/') != MODEL_ID:
+            raise HTTPException(status_code=422, detail='개인 어댑터 기본 모델 불일치')
+        _model.load_adapter(str(personal), adapter_name=name, is_trainable=False)
+    return name
+
+
 def run_once(system: str, user: str, max_tokens: int) -> tuple[str, bool]:
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     inputs = _tokenizer.apply_chat_template(
@@ -102,7 +122,7 @@ def run_once(system: str, user: str, max_tokens: int) -> tuple[str, bool]:
         return_tensors="pt", return_dict=True,
     )
     inputs = {k: v.to("cuda:0") for k, v in inputs.items()}
-    with _lock, torch.inference_mode():
+    with torch.inference_mode():
         out = _model.generate(
             **inputs, max_new_tokens=max_tokens, do_sample=False,
             repetition_penalty=1.12, no_repeat_ngram_size=5,
@@ -118,15 +138,53 @@ def format_facts(req: DraftRequest) -> str:
     facts = [x.strip() for x in req.facts if x.strip()]
     return "\n".join(f"- {x}" for x in facts) if facts else "(사용자가 제공한 구체적인 사실 없음)"
 
+def draft_short_report(req: DraftRequest) -> tuple[str, list[str]]:
+    system = (
+        "너는 한국어 글쓰기 초안 작성 AI다. "
+        "사용자가 제공한 사실만 자연스럽게 정리한다. "
+        "제공하지 않은 경험, 원인, 행동, 사례를 추가하지 않는다. "
+        "서론, 본론, 결론 같은 소제목을 쓰지 않는다. "
+        "입력된 정보가 적으면 짧게 작성한다. "
+        "같은 뜻을 반복하지 않고 완성된 문장 2~3개만 작성한다. "
+        "번역 안내나 질문 응답을 출력하지 않는다. "
+        "사용자가 작성한 내용과 같은 주제만 다룬다."
+    )
+
+    user = (
+        f"주제: {req.topic}\n"
+        f"사용자가 제공한 사실:\n{format_facts(req)}\n"
+        f"문체: {req.tone}\n"
+        "제공된 사실을 바탕으로 짧은 한국어 본문만 작성해."
+    )
+
+    content, cut = run_once(system, user, max_tokens=100)
+
+    if not content:
+        raise HTTPException(
+            status_code=422,
+            detail="짧은 보고서 생성에 실패했습니다."
+        )
+
+    return content, ["출력 제한 도달"] if cut else []
 
 def draft_report(req: DraftRequest) -> tuple[str, list[str]]:
+    if req.target_chars <= 200:
+        return draft_short_report(req)
     checks = []
     system = (
-        "너는 한국어 보고서 초안 작성자다. 명확하고 쉬운 한국어만 쓴다. "
-        "오직 한 문단의 완성된 본문만 작성한다. 제목, 번호, 목록, 소제목, 영어, 한자 금지. "
-        "제공되지 않은 실험·통계·개인 경험·출처를 지어내지 않는다. "
-        "같은 문장을 반복하지 않는다. 문단을 2~4문장으로 마친다."
+        "너는 생각한줄의 한국어 보고서 초안 작성 AI다. "
+        "사용자가 제공한 사실과 주제만 활용하여 글을 작성한다. "
+        "입력에 없는 개인 경험, 행동, 감정, 통계, 사례, 출처를 절대 지어내지 않는다. "
+        "주어진 정보가 적으면 글도 짧게 작성하고 분량을 억지로 늘리지 않는다. "
+        "같은 사실이나 의미를 반복하지 않는다. "
+        "자연스럽고 정확한 한국어를 사용한다. "
+        "한 문단은 1~2개의 완성된 문장으로 작성한다. "
+        "제목, 번호, 목록, 소제목은 출력하지 않는다. "
+        "서론과 본론, 결론의 역할에 맞는 본문만 작성한다. "
+        "추측이나 과장된 표현을 사용하지 않는다. "
+        "사용자가 제공하지 않은 해결 방법을 임의로 추가하지 않는다. "
     )
+
     segments = [
         ("서론", "주제를 소개하고 왜 다룰 필요가 있는지 설명하라. 원인과 해결책은 아직 설명하지 말라."),
         ("본론", "사용자가 제공한 사실을 중심으로 원인, 문제점, 실천 가능한 개선 방안을 구체적으로 연결해 설명하라. 근거 없는 단정은 피하라."),
@@ -135,14 +193,17 @@ def draft_report(req: DraftRequest) -> tuple[str, list[str]]:
     weights = [0.24, 0.53, 0.23]
     sections = []
     for (heading, instruction), weight in zip(segments, weights):
-        section_chars = max(65, round(req.target_chars * weight))
+        section_chars = max(35, round(req.target_chars * weight))
         prompt = (
             f"주제: {req.topic}\n제공 사실:\n{format_facts(req)}\n문체: {req.tone}\n"
             f"이번에 작성할 부분: {heading}\n지침: {instruction}\n"
             f"분량: 한국어 공백 포함 약 {section_chars}자. 완성된 본문 문단만 작성."
         )
         # 너무 긴 출력으로 반복하거나 결론이 잘리는 것을 방지: 작은 문단 3회
-        body, cut = run_once(system, prompt, min(320, max(130, round(section_chars * 1.2))))
+        body, cut = run_once(
+            system, prompt,
+            min(120, max(50, round(section_chars * 0.75)))
+        )
         if cut:
             checks.append(f"{heading}: 출력 제한 도달")
         if not body:
@@ -155,19 +216,25 @@ def draft_cover(req: DraftRequest) -> tuple[str, list[str]]:
     if not any(x.strip() for x in req.facts):
         raise HTTPException(status_code=422, detail="자기소개서에는 실제 경험을 facts에 1개 이상 입력해 주세요")
     system = (
-        "너는 한국어 자기소개서 초안 작성자다. 제공된 경험만 사용한다. "
-        "제공되지 않은 성과, 역할, 자격증, 감정, 수치를 추가하지 않는다. "
-        "담백한 1인칭 존댓말로 자연스러운 본문만 쓴다. "
-        "제목, 번호, 목록, 소제목, 영어·한자 혼용(기술 고유명사 제외)을 피한다. "
-        "같은 문장을 반복하지 않고 3~6개의 완성된 문장으로 끝낸다."
+        "너는 생각한줄의 한국어 자기소개서 초안 작성 AI다. "
+        "반드시 사용자가 실제로 제공한 경험만 활용한다. "
+        "제공되지 않은 직무 경험, 역할, 자격증, 성과, 감정, 수치를 지어내지 않는다. "
+        "사용자의 경험이 적으면 글도 짧게 작성한다. "
+        "경험을 과장하거나 새로운 사건을 만들어내지 않는다. "
+        "같은 의미를 반복하지 않는다. "
+        "자연스러운 1인칭 존댓말로 작성한다. "
+        "제공된 사실을 명확하게 연결하고 문장은 짧고 간결하게 작성한다. "
+        "제목, 번호, 목록, 소제목은 출력하지 않는다. "
+        "입력에 없는 내용을 추가하여 분량을 채우지 않는다. "
     )
+    
     user = (
         f"지원 직무: {req.topic}\n실제 제공 경험:\n{format_facts(req)}\n"
         f"문체: {req.tone}\n목표: {req.target_chars}자 내외. "
-        "제공 경험→그 경험이 직무와 관련되는 이유→지원 방향을 순서대로 연결한 자기소개서 본문을 작성하라. "
+        "제공된 경험을 구체적으로 설명하고 직무 관련성을 조심스럽게 연결하라. "
         "경험이 부족하면 분량을 억지로 늘리거나 없는 사실을 만들지 말라."
     )
-    content, cut = run_once(system, user, min(510, max(230, round(req.target_chars * 1.05))))
+    content, cut = run_once(system, user, min(280, max(125, round(req.target_chars * 0.60))))
     if not content:
         raise HTTPException(status_code=422, detail="자기소개서 생성 실패: 빈 출력")
     return content, ["출력 제한 도달"] if cut else []
@@ -198,24 +265,34 @@ def health():
 @app.post("/draft", response_model=DraftResponse)
 def draft(req: DraftRequest):
     try:
-        load_model()
-        kind = "보고서" if req.document_type in ("report", "보고서") else "자기소개서"
-        if kind == "보고서":
-            content, notes = draft_report(req)
-        else:
-            content, notes = draft_cover(req)
+        with _lock:
+            load_model()
+            if not USE_ADAPTER and req.mode == 'personal':
+                raise HTTPException(status_code=400, detail='공통 어댑터 사용이 비활성화되어 있습니다.')
+            adapter_name = select_adapter(req) if USE_ADAPTER else None
+            if adapter_name is not None:
+                _model.set_adapter(adapter_name)
+            kind = "보고서" if req.document_type in ("report", "보고서") else "자기소개서"
+            try:
+                if kind == "보고서":
+                    content, notes = draft_report(req)
+                else:
+                    content, notes = draft_cover(req)
+            finally:
+                if USE_ADAPTER:
+                    _model.set_adapter('default')
+        using_personal = req.mode == 'personal'
         return DraftResponse(
-            document_type=kind,
-            content=content,
-            char_count=len(content),
-            model=MODEL_ID + (" + writing-sft-v3" if USE_ADAPTER else " (base)"),
-            personalized=req.tone != "기본",  # 문체 선택만 반영, 개인별 LoRA 아님
+            document_type=kind, content=content, char_count=len(content),
+            model=MODEL_ID + (f' + personalized/user_{req.user_id}' if using_personal
+                  else (' + writing-sft-v3' if USE_ADAPTER else ' (base)')),
+            personalized=using_personal,
             checks=checks_for(content, req, notes),
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host='127.0.0.1', port=8001)
