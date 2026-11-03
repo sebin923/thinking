@@ -9,6 +9,7 @@
 #   1. 퀴즈 관리: 문제·정답·해설 추가 / 수정 / 삭제
 #   2. 회원 관리: 회원 조회 + 이용 상태(정상 / 정지) 관리
 #   3. 랭킹 관리: 도전 점수·기록 조회 / 삭제
+#   4. 공지사항 관리: 공지 등록 / 수정 / 삭제 (보기는 누구나 → routers/notice.py)
 # =============================================================
 
 from datetime import datetime
@@ -143,3 +144,54 @@ class AdminRankingOut(BaseModel):
     score: int
     elapsed_time: float = 0.0  # 걸린 시간(초)
     challenged_at: datetime | None = None
+
+
+# =============================================================
+# 4. 공지사항
+# =============================================================
+
+NOTICE_TITLE_MAX = 100  # 제목 최대 글자 수 (models.Notice.title 길이와 같게)
+NOTICE_CONTENT_MAX = 5000  # 내용 최대 글자 수
+
+
+class NoticeIn(BaseModel):
+    """공지 등록·수정할 때 관리자가 보내는 값"""
+
+    title: str  # 제목
+    content: str  # 내용 (줄바꿈 포함)
+    is_pinned: bool = False  # 목록 맨 위에 고정할지 (안 보내면 고정 안 함)
+
+    # ----- 제목: 앞뒤 공백 지우고, 비었거나 너무 길면 거절 -----
+    @field_validator("title")
+    @classmethod
+    def check_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("제목을 입력해 주세요.")
+        if len(value) > NOTICE_TITLE_MAX:
+            raise ValueError(f"제목은 {NOTICE_TITLE_MAX}자 이하로 입력해 주세요.")
+        return value
+
+    # ----- 내용: 앞뒤 빈 줄만 지움 (가운데 줄바꿈은 그대로 둬야 문단이 유지됨) -----
+    @field_validator("content")
+    @classmethod
+    def check_content(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("내용을 입력해 주세요.")
+        if len(value) > NOTICE_CONTENT_MAX:
+            raise ValueError(f"내용은 {NOTICE_CONTENT_MAX}자 이하로 입력해 주세요.")
+        return value
+
+
+class NoticeOut(BaseModel):
+    """공지 한 개 (목록·상세 공통 모양)"""
+
+    model_config = ConfigDict(from_attributes=True)  # models.Notice 객체를 그대로 넣어도 변환됨
+
+    notice_id: int
+    title: str
+    content: str
+    is_pinned: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

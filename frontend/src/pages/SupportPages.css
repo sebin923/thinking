@@ -1,0 +1,348 @@
+/* =============================================================
+   SupportPages.css — 고객지원 화면 공통 스타일
+   (공지사항 NoticePage.jsx, 이용약관·개인정보처리방침 PolicyPage.jsx, 위쪽 탭 SupportTabs.jsx)
+   sub-page, panel, btn-outline 같은 공통 스타일은 PageHero.css에 있음
+   ============================================================= */
+
+/* 탭 + 카드를 가운데로 모으고 너비 제한 (글 읽기 편한 너비) */
+.support-wrap {
+  max-width: 820px;
+  margin: 0 auto;
+}
+
+/* ===================== 위쪽 탭 ===================== */
+.support-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 5px;
+  border: 1px solid #e3edf6;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  width: fit-content;        /* 글자 길이만큼만 (꽉 채우지 않음) */
+}
+
+.support-tab {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;       /* "개인정보처리방침"이 두 줄로 쪼개지지 않게 */
+  transition: background 0.15s, color 0.15s;
+}
+
+.support-tab:hover:not(.active) {
+  color: var(--navy);
+}
+
+/* 지금 보고 있는 탭: 하늘색으로 채움 */
+.support-tab.active {
+  background: var(--sky);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(61, 139, 199, 0.22);
+}
+
+.support-tab:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+
+/* ===================== 가운데 흰 카드 ===================== */
+.support-card {
+  padding: 28px 32px;
+}
+
+/* 불러오는 중 / 실패 / 비어 있음 */
+.support-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 40px 0;
+  color: var(--text-sub);
+  font-size: 15px;
+  text-align: center;
+}
+
+.support-state p {
+  margin: 0;
+}
+
+/* ===================== 공지사항: 목록 ===================== */
+.notice-count {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+.notice-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--navy);   /* 게시판처럼 위쪽에 진한 줄 */
+}
+
+.notice-list li {
+  border-bottom: 1px solid #e6eef6;
+}
+
+/* 한 줄 = 버튼 (버튼 기본 모양 없애고 게시판 한 줄처럼) */
+.notice-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 8px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.notice-row:hover {
+  background: #f5f9fd;
+}
+
+.notice-row:focus-visible {
+  outline: 2px solid var(--sky);
+  outline-offset: -2px;
+}
+
+/* 고정 공지: 아주 연한 하늘색 배경 */
+.notice-row.pinned {
+  background: #f3f8fd;
+}
+
+.notice-row-title {
+  flex: 1;                   /* 남는 자리를 제목이 다 차지 → 날짜는 오른쪽 끝으로 */
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;   /* 제목이 길면 "..."으로 자르기 */
+  white-space: nowrap;
+}
+
+.notice-row.pinned .notice-row-title {
+  color: var(--navy);
+}
+
+.notice-date {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums; /* 숫자 폭을 똑같이 → 날짜 줄이 가지런하게 */
+}
+
+/* "중요" 이름표 */
+.notice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sky);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 페이지 번호 (마이페이지·관리자 페이지와 같은 동그란 모양) */
+.support-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.support-page,
+.support-page-arrow {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.support-page-arrow {
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: none;
+}
+
+.support-page:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+.support-page.active {
+  background: var(--sky);
+  border-color: var(--sky);
+  color: #fff;
+}
+
+.support-page-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ===================== 공지사항: 상세 ===================== */
+.notice-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.notice-back:hover {
+  color: var(--navy);
+}
+
+.notice-detail-head {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e6eef6;
+}
+
+.notice-detail-head h2 {
+  margin: 10px 0 8px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.notice-content {
+  padding: 20px 0 6px;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--text);
+  white-space: pre-line;     /* 관리자가 넣은 줄바꿈을 그대로 보여줌 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;   /* 아주 긴 주소(URL)도 카드 밖으로 안 넘치게 */
+}
+
+/* ===================== 이용약관 · 개인정보처리방침 ===================== */
+.policy-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--sky-soft);
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 맨 위 안내 문단: 왼쪽 파란 줄로 강조 */
+.policy-intro {
+  margin: 0 0 8px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--sky);
+  border-radius: 4px 10px 10px 4px;
+  background: #f5f9fd;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.policy-section h2 {
+  margin: 28px 0 10px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.policy-section p {
+  margin: 8px 0;
+  font-size: 14.5px;
+  line-height: 1.8;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.policy-section ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.policy-section li {
+  margin: 4px 0;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.policy-section li::marker {
+  color: var(--sky);         /* 글머리 점을 하늘색으로 */
+}
+
+/* ===================== 모바일 ===================== */
+@media (max-width: 640px) {
+  .support-card {
+    padding: 20px 16px;
+  }
+
+  /* 탭: 화면 너비에 꽉 차게, 세 개가 같은 너비로 */
+  .support-tabs {
+    width: 100%;
+  }
+
+  .support-tab {
+    flex: 1;
+    padding: 9px 4px;
+    font-size: 13px;
+  }
+
+  /* 날짜를 제목 아래로 (좁은 화면에서 제목이 너무 짧게 잘리지 않게) */
+  .notice-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 14px 6px;
+  }
+
+  .notice-row-title {
+    flex-basis: 100%;
+    white-space: normal;     /* 모바일에서는 제목을 자르지 않고 줄바꿈 */
+    word-break: keep-all;
+    order: 1;                /* 이름표·날짜보다 아래 줄에 오지 않게 순서 조정 */
+  }
+
+  .notice-badge {
+    order: 0;
+  }
+
+  .notice-row .notice-date {
+    order: 2;
+  }
+
+  .notice-detail-head h2 {
+    font-size: 19px;
+  }
+}

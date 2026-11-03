@@ -16,11 +16,9 @@ const FOOTER_LINKS = [
     links: [
       { key: "home", label: "홈" },
       { key: "about", label: "서비스 소개" },
-      { key: "write", label: "글쓰기 학습" },
-      { key: "quiz", label: "퀴즈" },
-      { key: "ranking", label: "랭킹" },
-      { key: "challenge", label: "도전 모드" },
-      { key: "guide", label: "이용안내" },
+      { key: "write", label: "글쓰기" },
+      { key: "wrong-note", label: "오답노트" },
+      { key: "quiz", label: "퀴즈" }, // 퀴즈와 랭킹은 한 화면(탭)으로 합쳐짐
     ],
   },
   {

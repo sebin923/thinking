@@ -1,0 +1,52 @@
+/* =============================================================
+   WrongNotePage.css — 오답노트 "준비 중" 화면
+   (sub-page, panel, btn-primary 같은 공통 스타일은 PageHero.css에 있음)
+   ============================================================= */
+
+/* 가운데 안내 카드 */
+.wrong-note-ready {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 44px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* 동그란 하늘색 아이콘 배경 */
+.wrong-note-icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--sky-soft);
+  color: var(--sky);
+}
+
+.wrong-note-ready h2 {
+  margin: 18px 0 10px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.wrong-note-ready p {
+  margin: 0 0 24px;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+@media (max-width: 640px) {
+  .wrong-note-ready {
+    padding: 34px 18px 30px;
+  }
+
+  /* 모바일에서는 <br> 줄바꿈 대신 자연스럽게 이어지게 */
+  .wrong-note-ready p br {
+    display: none;
+  }
+}

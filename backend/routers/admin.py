@@ -18,6 +18,11 @@
 #  GET    /api/admin/rankings?category=spelling  도전 기록 전체 (점수 높은 순)
 #  DELETE /api/admin/rankings/{ranking_id}       도전 기록 하나 삭제 (부정 기록 정리용)
 #
+#  [공지사항 관리]  (목록 보기는 누구나 쓰는 GET /api/notices 를 같이 씀 → routers/notice.py)
+#  POST   /api/admin/notices                     공지 등록
+#  PUT    /api/admin/notices/{notice_id}         공지 수정
+#  DELETE /api/admin/notices/{notice_id}         공지 삭제
+#
 # ★ 관리자 계정 만드는 법 (화면에는 일부러 안 만듦 — 아무나 관리자가 되면 안 되니까)
 #   DB에서 직접:  UPDATE users SET role = 'admin' WHERE login_id = '아이디';
 #   → 바꾼 뒤 그 계정으로 다시 로그인하면 헤더에 "관리자" 버튼이 생김
@@ -28,7 +33,7 @@ from sqlalchemy import func, inspect, or_, text
 from sqlalchemy.orm import Session
 
 import models
-from admin_schemas import AdminRankingOut, AdminUserOut, QuizIn, QuizOut, UserStatusIn
+from admin_schemas import AdminRankingOut, AdminUserOut, NoticeIn, NoticeOut, QuizIn, QuizOut, UserStatusIn
 from auth_schemas import MessageResponse
 from database import get_db
 
@@ -376,3 +381,60 @@ def delete_ranking(
     db.delete(ranking)
     db.commit()
     return MessageResponse(message="도전 기록을 삭제했어요.")
+
+
+# =============================================================
+# 4. 공지사항 관리
+# =============================================================
+
+
+def find_notice(db: Session, notice_id: int) -> models.Notice:
+    """공지 번호로 찾기 (없으면 404)"""
+    notice = db.get(models.Notice, notice_id)  # 기본키(notice_id)로 바로 찾기
+    if notice is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="공지사항을 찾을 수 없어요.")
+    return notice
+
+
+@router.post("/notices", response_model=NoticeOut, status_code=status.HTTP_201_CREATED)
+def create_notice(
+    body: NoticeIn,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """공지 등록 (입력값 검사는 NoticeIn이 이미 끝냄: 제목·내용이 비었거나 너무 길면 422)"""
+    # **body.model_dump(): {"title": ..., "content": ..., "is_pinned": ...}를 이름=값으로 풀어서 넣음
+    notice = models.Notice(**body.model_dump(), author_id=admin.user_id)
+    db.add(notice)
+    db.commit()
+    db.refresh(notice)  # DB가 정해 준 번호·등록 시각을 다시 읽어옴
+    return notice
+
+
+@router.put("/notices/{notice_id}", response_model=NoticeOut)
+def update_notice(
+    notice_id: int,
+    body: NoticeIn,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """공지 수정 (제목·내용·고정 여부를 한 번에 바꿈 → updated_at은 모델의 onupdate가 자동으로 갱신)"""
+    notice = find_notice(db, notice_id)
+    for field, value in body.model_dump().items():
+        setattr(notice, field, value)  # notice.title = 새 제목 ... 처럼 칸마다 바꿔 넣기
+    db.commit()
+    db.refresh(notice)
+    return notice
+
+
+@router.delete("/notices/{notice_id}", response_model=MessageResponse)
+def delete_notice(
+    notice_id: int,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """공지 삭제 (다른 테이블이 공지를 가리키지 않아서 바로 지워도 됨)"""
+    notice = find_notice(db, notice_id)
+    db.delete(notice)
+    db.commit()
+    return MessageResponse(message="공지사항을 삭제했어요.")

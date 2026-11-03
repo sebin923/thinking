@@ -19,6 +19,8 @@ from routers.writing_preferences import router as writing_preferences_router
 from routers import mypage
 # 관리자 페이지 API (주소는 /api/admin/... 로 시작, 관리자만 사용 가능)
 from routers import admin
+# 공지사항 보기 API (누구나 사용 가능, 주소는 /api/notices)
+from routers import notice
 
 # app: 우리 백엔드 서버 본체
 app = FastAPI()
@@ -61,6 +63,9 @@ app.include_router(mypage.router)
 
 # 관리자 페이지 API를 서버에 붙이기
 app.include_router(admin.router)
+
+# 공지사항 보기 API를 서버에 붙이기 (등록·수정·삭제는 관리자 API 쪽에 있음)
+app.include_router(notice.router)
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
 # 바로 아래 함수를 실행하라는 뜻 (서버가 살아있는지 확인하는 용도)

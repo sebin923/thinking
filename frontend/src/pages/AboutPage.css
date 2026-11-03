@@ -1,0 +1,371 @@
+/* =============================================================
+   AboutPage.css — "서비스 소개" 화면 전용 스타일
+   (sub-page, panel, btn-primary, btn-outline 같은 공통 스타일은 PageHero.css에 있음)
+   색은 App.css의 변수(--sky, --navy, --text-sub 등)를 써서 다른 화면과 맞춤
+   ============================================================= */
+
+/* ----- 공통: 각 묶음(section) 사이 간격 + 제목 ----- */
+.about-section {
+  margin-top: 56px;
+}
+
+.about-section-title {
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--navy);
+  word-break: keep-all;      /* 한글이 단어 중간에서 끊기지 않게 */
+}
+
+.about-section-desc {
+  margin: -8px 0 18px;       /* 제목 바로 밑에 붙어 보이게 위쪽 여백을 당김 */
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+/* =============== 2) 소개 카드 =============== */
+.about-intro {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;   /* 왼쪽 글이 조금 더 넓게 */
+  gap: 36px;
+  align-items: center;
+  padding: 36px 40px;
+}
+
+.about-intro-text p {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.about-intro-text p:last-child {
+  margin-bottom: 0;
+}
+
+.about-intro-text strong {
+  color: var(--navy);
+}
+
+/* 오른쪽 "메모 → 문장" 예시 */
+.about-example {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 메모 상자와 결과 상자 공통 */
+.about-example-memo,
+.about-example-result {
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 14px;
+}
+
+/* 메모: 줄 노트처럼 연한 줄무늬 + 살짝 기울이기 */
+.about-example-memo {
+  background:
+    repeating-linear-gradient(180deg, transparent 0 27px, #e1ecf6 27px 28px) 0 34px,
+    #fdfeff;
+  border: 1px solid #e3edf6;
+  transform: rotate(-1.5deg);
+}
+
+.about-example-memo ul {
+  margin: 0;
+  padding-left: 18px;
+  font-family: "Nanum Pen Script", cursive;  /* 손글씨 느낌 */
+  font-size: 21px;
+  line-height: 28px;           /* 줄무늬 간격(28px)과 맞춤 */
+  color: #3a6a98;
+}
+
+/* 결과: 연한 하늘색 상자 */
+.about-example-result {
+  background: var(--sky-soft);
+  border: 1px solid #cfe3f5;
+}
+
+.about-example-result p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+/* "내가 적은 생각" / "정리된 문장" 작은 이름표 */
+.about-example-label {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--sky);
+}
+
+.about-example-arrow {
+  color: #8fbde3;
+}
+
+/* =============== 3) 사용 흐름 4단계 =============== */
+.about-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;          /* ol 기본 숫자(1. 2.) 없애기 → 직접 STEP 1처럼 표시 */
+}
+
+.about-flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 22px;
+  text-align: center;
+}
+
+.about-flow-number {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--sky);
+}
+
+/* 동그란 아이콘 배경 */
+.about-flow-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 12px 0 14px;
+  border-radius: 50%;
+  background: var(--sky-soft);
+  color: var(--sky);
+}
+
+.about-flow-step strong {
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.about-flow-step p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-sub);
+  white-space: pre-line;     /* \n 줄바꿈 */
+  word-break: keep-all;
+}
+
+/* =============== 4) 주요 기능 카드 =============== */
+.about-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* 카드 하나 = 버튼 (버튼 기본 모양을 없애고 카드처럼) */
+.about-feature {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 22px 22px 20px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+/* 마우스를 올리면 살짝 떠오르기 */
+.about-feature:hover {
+  transform: translateY(-3px);
+  border-color: #b9d8f1;
+  box-shadow: 0 16px 34px rgba(43, 91, 136, 0.12);
+}
+
+/* 키보드(Tab)로 왔을 때 위치가 보이게 */
+.about-feature:focus-visible {
+  outline: 3px solid #b9dcf7;
+  outline-offset: 2px;
+}
+
+.about-feature-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.about-feature-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--sky-soft);
+  color: var(--sky);
+}
+
+/* "AI", "연습" 같은 작은 분류 이름표 */
+.about-feature-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f6fb;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.about-feature strong {
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.about-feature p {
+  flex: 1;                   /* 설명 길이가 달라도 "바로 가기"가 카드 맨 아래에 맞춰짐 */
+  margin: 8px 0 14px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.about-feature-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sky);
+}
+
+/* =============== 5) 약속 3가지 =============== */
+.about-promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* 카드보다 가벼운 느낌: 흰 배경 대신 반투명 + 왼쪽 파란 줄 */
+.about-promise {
+  padding: 22px 22px 20px;
+  border-left: 3px solid var(--sky);
+  border-radius: 4px 14px 14px 4px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.about-promise-icon {
+  color: var(--sky);
+}
+
+.about-promise strong {
+  display: block;
+  margin: 12px 0 8px;
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.about-promise p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* =============== 6) 마지막 안내 =============== */
+.about-cta {
+  margin-top: 56px;
+  padding: 40px 24px;
+  text-align: center;
+  /* 다른 카드보다 살짝 하늘색이 도는 배경으로 마무리 느낌 */
+  background: linear-gradient(135deg, #ffffff 0%, #eef6fd 100%);
+}
+
+.about-cta-title {
+  margin: 0 0 8px;
+  font-family: "Nanum Pen Script", cursive;
+  font-size: 34px;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.about-cta-desc {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.about-cta-buttons {
+  display: flex;
+  flex-wrap: wrap;           /* 좁으면 버튼이 아래로 */
+  justify-content: center;
+  gap: 12px;
+}
+
+/* =============== 반응형 =============== */
+
+/* 태블릿: 4단계 → 2칸, 기능 카드 → 2칸 */
+@media (max-width: 960px) {
+  .about-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .about-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 모바일: 전부 한 줄에 하나씩 */
+@media (max-width: 768px) {
+  .about-section,
+  .about-cta {
+    margin-top: 40px;
+  }
+
+  .about-section-title {
+    font-size: 19px;
+  }
+
+  .about-intro {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 26px 20px;
+  }
+
+  .about-features,
+  .about-promises {
+    grid-template-columns: 1fr;
+  }
+
+  .about-cta {
+    padding: 32px 18px;
+  }
+
+  .about-cta-title {
+    font-size: 28px;
+  }
+}
+
+/* 아주 좁은 폰: 4단계도 한 줄에 하나 */
+@media (max-width: 480px) {
+  .about-flow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 떠오르는 효과 끄기 */
+@media (prefers-reduced-motion: reduce) {
+  .about-feature {
+    transition: none;
+  }
+
+  .about-feature:hover {
+    transform: none;
+  }
+}

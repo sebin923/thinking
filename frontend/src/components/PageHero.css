@@ -116,6 +116,7 @@
   line-height: 1.15;
   color: #3a6a98;
   white-space: pre-line;     /* \n 줄바꿈 */
+  word-break: keep-all;      /* "시작/해요"처럼 단어 중간에서 끊기지 않게 (띄어쓰기에서만 줄바꿈) */
   text-align: center;
 }
 

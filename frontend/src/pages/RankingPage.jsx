@@ -6,8 +6,10 @@
 //  - 일반 퀴즈(QuizPage)는 연습용이라 랭킹에 안 들어감
 //  - 랭킹은 맞춤법만 있음 (문법 랭킹 없음)
 //
+// 헤더 "퀴즈" 메뉴 안의 화면 → 맨 위 큰 탭 [퀴즈 | 랭킹]으로 퀴즈와 오감
+//
 // 구성 (위에서 아래로)
-//   1. 페이지 제목 영역 (PageHero)
+//   1. 페이지 제목 영역 (PageHero) + [퀴즈 | 랭킹] 탭
 //   2. 내 기록 안내 (로그인했을 때)
 //   3. 1~3위 시상대
 //   4. 4~10위 목록
@@ -21,6 +23,8 @@ import { useState, useEffect } from "react";
 import { Trophy, Medal, Crown, ArrowRight, UserRound, RefreshCw, Flame } from "lucide-react";
 
 import PageHero from "../components/PageHero";
+// QuizSectionTabs: 퀴즈 화면과 같은 큰 탭 [퀴즈 | 랭킹]
+import QuizSectionTabs from "../components/QuizSectionTabs";
 import "./RankingPage.css";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
@@ -88,7 +92,8 @@ function formatDate(value) {
 // props
 //  - user: 로그인한 사용자 (로그인 안 했으면 undefined) → 내 기록 강조용
 //  - onGoChallenge: "도전하기" 버튼을 눌렀을 때 실행 (맞춤법 도전 모드로 이동)
-function RankingPage({ user, onGoChallenge }) {
+//  - onChangeTab: 위쪽 탭에서 "퀴즈"를 눌렀을 때 실행 (퀴즈 화면으로 이동)
+function RankingPage({ user, onGoChallenge, onChangeTab }) {
   // rows: 등수까지 매긴 랭킹 목록 / loading: 불러오는 중 / error: 실패 문구
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -236,6 +241,11 @@ function RankingPage({ user, onGoChallenge }) {
           memoText={"오늘의\n1등은\n누구? :)"}
           memoVariant="note"
         />
+
+        {/* 퀴즈 화면과 같은 큰 탭 (랭킹이 선택된 상태) → "퀴즈"를 누르면 퀴즈 화면으로 */}
+        <div className="ranking-tabs-row">
+          <QuizSectionTabs value="ranking" onChange={onChangeTab} />
+        </div>
 
         <section className="panel ranking-card">
           <div className="ranking-head">

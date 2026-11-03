@@ -3,7 +3,7 @@
 // -------------------------------------------------------------
 // 구성 (위에서 아래로)
 //   1. 페이지 제목 영역 (PageHero)
-//   2. 내 프로필 카드: 이름·아이디·이메일·전화번호·가입일 + 오른쪽 위 "마이페이지 수정" 버튼
+//   2. 내 프로필 카드: 이름·아이디·이메일·전화번호·가입일 + 오른쪽 위 "이용권 충전"·"마이페이지 수정" 버튼
 //      아래쪽에 활동 요약 3칸 (내가 쓴 글 / 완료한 글 / 도전 최고 기록)
 //   3. 내가 쓴 글 목록
 //      - 위쪽 카테고리 버튼(전체 / 자유 글쓰기 / 자기소개서 / 보고서 / 발표문 / 기타)을 누르면
@@ -26,6 +26,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Settings,
+  Sparkles,
   Mail,
   Phone,
   CalendarDays,
@@ -112,12 +113,13 @@ function entryKey(documentId, version) {
 // props
 //  - auth: 로그인 정보 { token, user } (로그인 안 했으면 null)
 //  - onEdit: "마이페이지 수정" 버튼을 눌렀을 때 실행 (수정 화면으로 이동)
+//  - onCharge: "이용권 충전" 버튼을 눌렀을 때 실행 (결제 화면으로 이동)
 //  - onGoWrite: 쓴 글이 없을 때 "글쓰기 시작하기" 버튼
 //  - onGoLogin: 로그인 안 했을 때 "로그인하기" 버튼
 //  - onSessionExpired: 토큰이 만료됐을 때 (App이 로그아웃시키고 로그인 화면으로 보냄)
 //  - onOpenDocument: 글을 눌렀을 때 실행 → { id, title, document_type, status, content }를 넘기면
 //                    App이 그 글이 들어간 글쓰기 페이지로 이동시킴
-function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDocument }) {
+function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLogin, onSessionExpired, onOpenDocument }) {
   const token = auth?.token;
 
   // ----- 상태값 -----
@@ -484,11 +486,18 @@ function MyPage({ auth, onEdit, onGoWrite, onGoLogin, onSessionExpired, onOpenDo
               </dl>
             </div>
 
-            {/* 오른쪽 위: 마이페이지 수정 버튼 */}
-            <button type="button" className="btn-outline mypage-edit-button" onClick={onEdit}>
-              <Settings size={16} />
-              마이페이지 수정
-            </button>
+            {/* 오른쪽 위 버튼 두 개: 이용권 충전(위) + 마이페이지 수정(아래) */}
+            <div className="mypage-profile-actions">
+              {/* AI 초안 이용권 충전 → 결제 화면으로 */}
+              <button type="button" className="btn-primary mypage-edit-button" onClick={onCharge}>
+                <Sparkles size={16} />
+                이용권 충전
+              </button>
+              <button type="button" className="btn-outline mypage-edit-button" onClick={onEdit}>
+                <Settings size={16} />
+                마이페이지 수정
+              </button>
+            </div>
           </div>
 
           {/* 활동 요약 3칸 */}

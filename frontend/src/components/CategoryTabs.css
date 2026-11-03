@@ -15,6 +15,10 @@
 }
 
 .category-tab {
+  display: inline-flex;          /* 아이콘(랭킹 탭)과 글자를 가로로 나란히 */
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-width: 96px;
   padding: 10px 22px;
   border: none;
@@ -42,7 +46,51 @@
   cursor: default;
 }
 
-/* 모바일: 탭이 화면 너비를 반씩 나눠 쓰게 */
+/* ===== 큰 탭 [퀴즈 | 랭킹] (QuizSectionTabs.jsx) ===== */
+/* 기본 알약 모양 그대로 + 탭을 조금 더 넓게, 아래 작은 탭과 간격 */
+.category-tabs.section {
+  margin-bottom: 14px;
+}
+
+.category-tabs.section .category-tab {
+  min-width: 130px;
+  padding: 11px 24px;
+  font-size: 16px;
+}
+
+/* ===== 작은 하위 탭 [맞춤법 | 문법] (퀴즈 탭 안, variant="sub") ===== */
+/* 큰 탭과 구분되게: 알약 배경 없이 글자 + 아래 밑줄만 */
+.category-tabs.sub {
+  padding: 0;
+  margin-bottom: 18px;
+  gap: 18px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.category-tabs.sub .category-tab {
+  min-width: 0;
+  padding: 6px 4px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;   /* 선택 안 된 탭도 같은 높이를 유지하려고 투명 밑줄 */
+  font-size: 14px;
+}
+
+.category-tabs.sub .category-tab:not(.active):hover {
+  background: none;
+}
+
+/* 선택된 작은 탭: 하늘색 글자 + 하늘색 밑줄 */
+.category-tabs.sub .category-tab.active {
+  background: none;
+  box-shadow: none;
+  color: #2b5b88;
+  border-bottom-color: #4a98d3;
+}
+
+/* 모바일: 탭이 화면 너비를 똑같이 나눠 쓰게 (2개면 반씩) */
 @media (max-width: 640px) {
   .category-tabs {
     display: flex;
@@ -52,5 +100,22 @@
   .category-tab {
     flex: 1;
     min-width: 0;
+    padding: 10px 8px;
+  }
+
+  .category-tabs.section .category-tab {
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 15px;
+  }
+
+  /* 작은 하위 탭은 모바일에서도 글자 길이만큼만 (꽉 채우지 않음) */
+  .category-tabs.sub {
+    width: auto;
+  }
+
+  .category-tabs.sub .category-tab {
+    flex: none;
+    padding: 6px 4px;
   }
 }

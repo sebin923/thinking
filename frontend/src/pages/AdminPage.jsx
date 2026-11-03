@@ -1,10 +1,11 @@
 // =============================================================
 // AdminPage.jsx — 관리자 페이지
 // -------------------------------------------------------------
-// 기획서 구조 그대로 탭 3개
+// 기획서 구조 그대로 탭 3개 + 공지사항 관리 탭
 //   1. 퀴즈 관리: 문제·정답·해설 추가 / 수정 / 삭제
 //   2. 회원 관리: 회원 조회(검색·상태 필터) + 이용 상태 관리(정상 ↔ 정지)
 //   3. 랭킹 관리: 도전 점수·기록 조회 / 삭제
+//   4. 공지사항 관리: 공지 등록 / 수정 / 삭제 (+ 중요 공지 고정)
 //
 // 들어올 수 있는 사람: 로그인한 관리자(role = "admin")만
 //   - 화면에서도 막고(헤더에 버튼이 안 보이고, 들어와도 안내만 보임)
@@ -31,6 +32,8 @@ import {
   LogIn,
   Lock,
   CheckCircle2,
+  Megaphone,
+  Pin,
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
@@ -44,7 +47,12 @@ import {
   changeUserStatus,
   fetchAdminRankings,
   deleteRanking,
+  createNotice,
+  updateNotice,
+  deleteNotice,
 } from "../api/admin";
+// 공지 목록은 사용자 화면과 같은 API를 씀 (보이는 순서까지 똑같이 확인 가능)
+import { fetchNotices } from "../api/notice";
 import { QUIZ_CATEGORIES } from "../data/quizCategories";
 import { formatPhone } from "../utils/validation";
 // 로딩 아이콘이 빙글빙글 도는 .spin 클래스가 들어 있는 파일
@@ -56,6 +64,7 @@ const TABS = [
   { key: "quiz", label: "퀴즈 관리", icon: ListChecks },
   { key: "users", label: "회원 관리", icon: Users },
   { key: "rankings", label: "랭킹 관리", icon: Trophy },
+  { key: "notices", label: "공지사항 관리", icon: Megaphone },
 ];
 
 // 보기 개수 제한 (서버 admin_schemas.py의 QuizIn과 똑같이 맞춤)
@@ -110,7 +119,7 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
     <PageHero
       eyebrow="관리자 전용"
       title="관리자 페이지"
-      description={"퀴즈 문제, 회원 이용 상태, 랭킹 기록을 관리해요.\n변경 내용은 사용자 화면에 바로 반영돼요."}
+      description={"퀴즈 문제, 회원 이용 상태, 랭킹 기록, 공지사항을 관리해요.\n변경 내용은 사용자 화면에 바로 반영돼요."}
       memoText={"꼼꼼하게\n관리하기\n:)"}
       memoVariant="notebook"
     />
@@ -173,6 +182,7 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
             <UserManager token={auth.token} myUserId={auth.user.user_id} onSessionExpired={onSessionExpired} />
           )}
           {tab === "rankings" && <RankingManager token={auth.token} onSessionExpired={onSessionExpired} />}
+          {tab === "notices" && <NoticeManager token={auth.token} onSessionExpired={onSessionExpired} />}
         </section>
       </div>
     </div>
@@ -953,6 +963,294 @@ function RankingManager({ token, onSessionExpired }) {
           message={`${confirm.row.name || "탈퇴한 회원"} · ${confirm.row.score}문제 · ${Number(
             confirm.row.elapsed_time || 0
           ).toFixed(1)}초\n삭제하면 랭킹에서 빠지고, 되돌릴 수 없어요.`}
+          confirmLabel="삭제하기"
+          busy={confirm.busy}
+          error={confirm.error}
+          onCancel={closeConfirm}
+          onConfirm={handleDelete}
+        />
+      )}
+    </>
+  );
+}
+
+// =============================================================
+// 4. 공지사항 관리
+// =============================================================
+
+// 빈 입력 폼 (새 공지 등록할 때 시작 값)
+const emptyNoticeForm = () => ({ title: "", content: "", is_pinned: false });
+
+// 제목·내용 최대 글자 수 (서버 admin_schemas.py의 NoticeIn과 똑같이 맞춤)
+const NOTICE_TITLE_MAX = 100;
+const NOTICE_CONTENT_MAX = 5000;
+
+function NoticeManager({ token, onSessionExpired }) {
+  const [notices, setNotices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0); // +1 하면 목록을 다시 불러옴
+  const [page, setPage] = useState(1); // 지금 보고 있는 페이지 (10개씩)
+
+  // editor: 입력 폼 상태 (null이면 폼 닫힘)
+  //  { noticeId: 수정할 공지 번호(새 공지면 null), form: 입력값, saving: 저장 중인지, error: 실패 문구 }
+  const [editor, setEditor] = useState(null);
+  // confirm: 삭제 확인창 { notice, busy, error } (null이면 안 보임)
+  const [confirm, setConfirm] = useState(null);
+  // notice 이름은 공지(목록 한 줄)와 헷갈려서 성공 문구는 message로
+  const [message, setMessage] = useState("");
+
+  // ----- 목록 불러오기 (사용자 화면과 같은 GET /api/notices → 보이는 순서도 똑같음) -----
+  useEffect(() => {
+    let ignore = false;
+    fetchNotices()
+      .then((data) => {
+        if (ignore) return;
+        setNotices(data);
+        setError("");
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (ignore) return;
+        setError(err.message);
+        setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [reloadKey]);
+
+  // 성공 문구를 3초 동안 보여주기
+  const showMessage = (text) => {
+    setMessage(text);
+    setTimeout(() => setMessage(""), 3000);
+  };
+
+  // ----- 입력 폼 열기 -----
+  const openNew = () => setEditor({ noticeId: null, form: emptyNoticeForm(), saving: false, error: "" });
+  const openEdit = (item) =>
+    setEditor({
+      noticeId: item.notice_id,
+      form: { title: item.title, content: item.content, is_pinned: item.is_pinned },
+      saving: false,
+      error: "",
+    });
+
+  // 폼 안의 값 하나 바꾸기 (나머지 칸은 그대로 두고 바뀐 칸만 덮어씀)
+  const updateForm = (changes) =>
+    setEditor((prev) => ({ ...prev, error: "", form: { ...prev.form, ...changes } }));
+
+  // ----- 저장 (등록 또는 수정) -----
+  const handleSave = async (event) => {
+    event.preventDefault(); // form 제출 시 페이지가 새로고침되는 기본 동작 막기
+    const { form, noticeId } = editor;
+
+    // 화면에서 먼저 간단히 검사 (서버도 똑같이 검사함)
+    if (!form.title.trim()) return setEditor((prev) => ({ ...prev, error: "제목을 입력해 주세요." }));
+    if (!form.content.trim()) return setEditor((prev) => ({ ...prev, error: "내용을 입력해 주세요." }));
+
+    setEditor((prev) => ({ ...prev, saving: true, error: "" }));
+    try {
+      if (noticeId) await updateNotice(token, noticeId, form);
+      else await createNotice(token, form);
+    } catch (err) {
+      if (handleAuthError(err, onSessionExpired)) return;
+      setEditor((prev) => ({ ...prev, saving: false, error: err.message }));
+      return;
+    }
+
+    setEditor(null);
+    showMessage(noticeId ? "공지사항을 수정했어요." : "공지사항을 등록했어요.");
+    // 고정 여부가 바뀌면 순서도 바뀌니까 서버에서 정렬된 목록을 다시 받아옴
+    setLoading(true);
+    if (!noticeId) setPage(1); // 새 공지는 맨 위 쪽이라 1페이지로
+    setReloadKey((key) => key + 1);
+  };
+
+  // ----- 삭제 -----
+  const closeConfirm = useCallback(() => setConfirm(null), []);
+  const handleDelete = async () => {
+    const target = confirm.notice;
+    setConfirm((prev) => ({ ...prev, busy: true, error: "" }));
+    try {
+      await deleteNotice(token, target.notice_id);
+    } catch (err) {
+      if (handleAuthError(err, onSessionExpired)) return;
+      setConfirm((prev) => ({ ...prev, busy: false, error: err.message }));
+      return;
+    }
+    // 서버에 다시 묻지 않고 화면 목록에서 바로 빼기
+    setNotices((prev) => prev.filter((item) => item.notice_id !== target.notice_id));
+    // 지금 수정 중인 공지를 지웠으면 폼도 닫기
+    setEditor((prev) => (prev?.noticeId === target.notice_id ? null : prev));
+    setConfirm(null);
+    showMessage("공지사항을 삭제했어요.");
+  };
+
+  // 지금 페이지에 보여줄 10개
+  const noticePage = paginate(notices, page);
+
+  return (
+    <>
+      {/* ----- 위쪽 도구 줄: 안내 문구 + 등록 버튼 ----- */}
+      <div className="admin-toolbar">
+        <p className="admin-toolbar-text">
+          <Megaphone size={16} /> 등록한 공지는 푸터 &lsquo;공지사항&rsquo; 화면에 바로 보여요.
+        </p>
+        <button type="button" className="admin-primary" onClick={openNew} disabled={editor !== null}>
+          <Plus size={16} /> 공지 등록
+        </button>
+      </div>
+
+      {message && (
+        <p className="admin-notice" role="status">
+          <CheckCircle2 size={16} /> {message}
+        </p>
+      )}
+
+      {/* ----- 입력 폼 (등록·수정할 때만 보임) ----- */}
+      {editor && (
+        <form className="admin-form" onSubmit={handleSave}>
+          <div className="admin-form-head">
+            <strong>{editor.noticeId ? "공지사항 수정" : "새 공지사항 등록"}</strong>
+            <button type="button" className="admin-icon-button" onClick={() => setEditor(null)} aria-label="닫기">
+              <X size={18} />
+            </button>
+          </div>
+
+          <label className="admin-field">
+            <span className="admin-label">제목</span>
+            <input
+              type="text"
+              className="admin-input"
+              value={editor.form.title}
+              onChange={(event) => updateForm({ title: event.target.value })}
+              placeholder="예: 서비스 점검 안내"
+              maxLength={NOTICE_TITLE_MAX}
+            />
+            <small className="admin-hint">
+              {editor.form.title.length} / {NOTICE_TITLE_MAX}자
+            </small>
+          </label>
+
+          <label className="admin-field">
+            <span className="admin-label">내용</span>
+            <textarea
+              value={editor.form.content}
+              onChange={(event) => updateForm({ content: event.target.value })}
+              placeholder="공지 내용을 적어 주세요. 줄바꿈은 그대로 보여요."
+              rows={8}
+              maxLength={NOTICE_CONTENT_MAX}
+            />
+            <small className="admin-hint">
+              {editor.form.content.length} / {NOTICE_CONTENT_MAX}자
+            </small>
+          </label>
+
+          {/* 고정 여부: 체크하면 사용자 목록 맨 위에 "중요"로 고정 */}
+          <label className="admin-check">
+            <input
+              type="checkbox"
+              checked={editor.form.is_pinned}
+              onChange={(event) => updateForm({ is_pinned: event.target.checked })}
+            />
+            <span>
+              <strong>중요 공지로 고정</strong>
+              <small>목록 맨 위에 &lsquo;중요&rsquo; 표시와 함께 보여요.</small>
+            </span>
+          </label>
+
+          {editor.error && (
+            <p className="admin-error" role="alert">
+              {editor.error}
+            </p>
+          )}
+
+          <div className="admin-form-actions">
+            <button type="button" className="admin-secondary" onClick={() => setEditor(null)} disabled={editor.saving}>
+              취소
+            </button>
+            <button type="submit" className="admin-primary" disabled={editor.saving}>
+              {editor.saving ? (
+                <>
+                  <Loader2 size={16} className="spin" /> 저장하는 중...
+                </>
+              ) : editor.noticeId ? (
+                "수정 저장"
+              ) : (
+                "등록하기"
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* ----- 목록 ----- */}
+      <ListState
+        loading={loading}
+        error={error}
+        empty={notices.length === 0}
+        emptyText="등록된 공지사항이 없어요. '공지 등록'으로 첫 공지를 올려 보세요."
+        onRetry={() => {
+          setLoading(true);
+          setReloadKey((key) => key + 1);
+        }}
+      >
+        <p className="admin-count">총 {notices.length}건</p>
+        <ul className="admin-list">
+          {noticePage.items.map((item) => (
+            <li key={item.notice_id} className={item.is_pinned ? "admin-item pinned" : "admin-item"}>
+              <div className="admin-item-main">
+                <p className="admin-notice-title">
+                  {item.is_pinned && (
+                    <span className="admin-pin-tag">
+                      <Pin size={11} /> 중요
+                    </span>
+                  )}
+                  {item.title}
+                </p>
+                {/* 내용 미리보기: 줄바꿈·빈 줄을 띄어쓰기 하나로 합쳐서 한 문장처럼 보여주고,
+                    CSS로 두 줄까지만 보이고 나머지는 "..." (/\s+/g: 공백·줄바꿈이 1개 이상 이어진 곳 전부) */}
+                <p className="admin-notice-preview">{item.content.replace(/\s+/g, " ")}</p>
+                <p className="admin-meta">
+                  #{item.notice_id} · {formatDate(item.created_at)} 등록
+                  {formatDate(item.updated_at) !== formatDate(item.created_at) &&
+                    ` · ${formatDate(item.updated_at)} 수정`}
+                </p>
+              </div>
+              <div className="admin-item-actions">
+                <button
+                  type="button"
+                  className="admin-secondary small"
+                  onClick={() => openEdit(item)}
+                  disabled={editor !== null}
+                >
+                  <Pencil size={14} /> 수정
+                </button>
+                <button
+                  type="button"
+                  className="admin-danger small"
+                  onClick={() => setConfirm({ notice: item, busy: false, error: "" })}
+                >
+                  <Trash2 size={14} /> 삭제
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Pagination
+          page={noticePage.currentPage}
+          totalPages={noticePage.totalPages}
+          onChange={setPage}
+          label="공지사항 목록 페이지"
+        />
+      </ListState>
+
+      {confirm && (
+        <ConfirmModal
+          danger
+          title="이 공지사항을 삭제할까요?"
+          message={`"${confirm.notice.title}"\n사용자 공지사항 화면에서도 바로 사라지고,\n되돌릴 수 없어요.`}
           confirmLabel="삭제하기"
           busy={confirm.busy}
           error={confirm.error}

@@ -155,7 +155,8 @@
 .writing-ai-tools { margin-top: 28px; padding-top: 22px; border-top: 1px solid #e8eff6; }
 .writing-ai-tools-title { margin: 0 0 6px; font-size: 17px; color: #233f56; }
 .writing-ai-tools-subtitle { margin: 0 0 16px; font-size: 13px; color: #6e8296; }
-.writing-ai-tool-buttons { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+/* 카드가 4개라 3칸이면 마지막 하나만 혼자 떨어짐 → 2칸(2x2)으로 */
+.writing-ai-tool-buttons { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
 .writing-ai-tool-button { display: flex; align-items: flex-start; gap: 9px; min-width: 0; text-align: left; padding: 15px 12px; border: 1px solid #cbddeb; border-radius: 11px; background: #fff; color: #276f9d; cursor: pointer; font: inherit; transition: border-color .15s, background-color .15s; }
 .writing-ai-tool-button:hover:not(:disabled) { border-color: #62a9db; background: #eff8ff; }
 .writing-ai-tool-button:focus-visible { outline: 3px solid #8ecaf2; outline-offset: 2px; }

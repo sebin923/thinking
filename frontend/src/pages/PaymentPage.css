@@ -1,0 +1,493 @@
+/* =============================================================
+   PaymentPage.css — AI 초안 이용권 충전(결제) 화면
+   (sub-page, panel, btn-primary 같은 공통 스타일은 PageHero.css에 있음)
+   ============================================================= */
+
+/* 로그인 안 했을 때 안내 카드 */
+.pay-message {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  color: var(--text-sub);
+}
+
+.pay-message svg {
+  color: var(--sky);
+}
+
+.pay-message p {
+  margin: 0;
+}
+
+/* ----- 전체 배치: 왼쪽 고르기 + 오른쪽 주문 요약 ----- */
+.pay-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;        /* 오른쪽 카드가 왼쪽 높이만큼 늘어나지 않게 */
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.pay-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ----- 1) 무료 안내 ----- */
+.pay-free {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, #ffffff 0%, #eef6fd 100%);
+}
+
+.pay-free svg {
+  flex-shrink: 0;
+  color: var(--sky);
+}
+
+.pay-free p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.pay-free strong {
+  color: var(--navy);
+}
+
+/* ----- 묶음 카드 (상품 / 결제 수단) ----- */
+.pay-section {
+  margin: 0;
+  padding: 22px 22px 20px;
+  min-width: 0;              /* fieldset은 기본으로 안 줄어들어서 모바일에서 넘칠 수 있음 → 막기 */
+}
+
+/* 묶음 제목 (legend는 fieldset 테두리 위에 걸리는 게 기본이라, float로 일반 제목처럼 카드 안에 넣음)
+   결제 안내 카드의 h2도 같은 모양 */
+.pay-section-title {
+  margin-top: 0;
+  float: left;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.pay-section-title svg {
+  color: var(--sky);
+}
+
+/* float 다음 내용이 제목 옆이 아니라 아래로 오게 */
+.pay-packages {
+  clear: both;
+}
+
+/* 진짜 라디오 버튼은 화면에서만 숨김 (opacity 0 → 키보드 이동·화면 읽기는 그대로 동작) */
+.pay-package input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ----- 2) 상품 카드 3개 ----- */
+.pay-packages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pay-package {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 26px 12px 18px;
+  border: 1.5px solid #d6e5f2;
+  border-radius: 16px;
+  background: #fff;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+}
+
+.pay-package:hover {
+  border-color: #9cc8ea;
+  transform: translateY(-2px);
+}
+
+/* 고른 상품: 파란 테두리 + 연한 하늘색 배경 */
+.pay-package.checked {
+  border-color: var(--sky);
+  background: var(--sky-soft);
+}
+
+/* 키보드로 고르는 중이면 바깥 테두리로 위치 표시 */
+.pay-package:has(input:focus-visible) {
+  outline: 3px solid #b9dcf7;
+  outline-offset: 2px;
+}
+
+/* "인기" 같은 이름표: 카드 위쪽 테두리에 걸치게 */
+.pay-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);   /* 가운데 정렬 */
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--sky);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pay-package-count {
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+.pay-package-count strong {
+  font-size: 20px;
+  color: var(--navy);
+}
+
+.pay-package-price {
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-package-unit {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+/* 고른 카드 오른쪽 위 동그란 체크 */
+.pay-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sky);
+  color: #fff;
+}
+
+/* ----- 3) 결제 안내 ----- */
+.pay-toss-text {
+  clear: both;               /* 위 제목(float) 아래로 */
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.pay-toss-text strong {
+  color: var(--navy);
+}
+
+.pay-hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* ----- 4) 주문 요약 (PC에서는 스크롤해도 화면에 붙어 따라옴) ----- */
+.pay-summary {
+  position: sticky;
+  top: 100px;                /* 헤더 아래에 붙도록 */
+  padding: 22px;
+}
+
+.pay-summary h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.pay-summary dl {
+  margin: 0 0 16px;
+}
+
+.pay-summary dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+}
+
+.pay-summary dt {
+  color: var(--text-sub);
+}
+
+.pay-summary dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* 결제 금액 줄: 위에 선 + 크게 */
+.pay-summary .pay-total {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid #e6eef6;
+}
+
+.pay-total dt {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.pay-total dd {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+/* 동의 체크 */
+.pay-agree {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+  cursor: pointer;
+}
+
+.pay-agree input {
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  accent-color: var(--sky);  /* 체크박스 색을 사이트 하늘색으로 */
+}
+
+/* "이용약관 보기": 버튼이지만 글자 링크처럼 */
+.pay-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sky);
+  font-size: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pay-submit {
+  width: 100%;
+}
+
+/* 결제하기를 누른 뒤 안내 문구 */
+.pay-result {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f5f9fd;
+  color: var(--navy);
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.pay-result svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pay-result span {
+  white-space: pre-line;     /* \n 줄바꿈 */
+}
+
+/* 결제하기 버튼 안 로딩 아이콘 정렬 */
+.pay-submit:disabled {
+  cursor: wait;
+}
+
+/* ===================== 결제 결과 화면 (PaymentResultPage) ===================== */
+.pay-result-card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 36px 28px 30px;
+  text-align: center;
+}
+
+.pay-result-icon {
+  display: grid;
+  place-items: center;
+  color: var(--sky);
+}
+
+/* 상태별 아이콘 색 */
+.pay-result-card.is-done .pay-result-icon {
+  color: #2f9c69;
+}
+
+.pay-result-card.is-noServer .pay-result-icon,
+.pay-result-card.is-login .pay-result-icon {
+  color: #e0a23a;
+}
+
+.pay-result-card.is-error .pay-result-icon,
+.pay-result-card.is-failed .pay-result-icon,
+.pay-result-card.is-canceled .pay-result-icon {
+  color: #d0554f;
+}
+
+.pay-result-card h2 {
+  margin: 14px 0 8px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.pay-result-detail {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-sub);
+  white-space: pre-line;     /* \n 줄바꿈 */
+  word-break: keep-all;
+}
+
+/* 주문 내용 표 */
+.pay-result-order {
+  margin: 0 0 22px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f5f9fd;
+  text-align: left;
+}
+
+.pay-result-order div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 13.5px;
+}
+
+.pay-result-order dt {
+  flex-shrink: 0;
+  color: var(--text-sub);
+}
+
+.pay-result-order dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* 주문번호는 길어서 줄바꿈 허용 + 작게 */
+.pay-order-id {
+  font-size: 12px;
+  font-weight: 500 !important;
+  overflow-wrap: anywhere;
+}
+
+.pay-result-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* ===================== 반응형 ===================== */
+
+/* 태블릿 이하: 주문 요약을 아래로 */
+@media (max-width: 900px) {
+  .pay-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-summary {
+    position: static;        /* 따라오기 끄기 */
+  }
+}
+
+/* 모바일 */
+@media (max-width: 640px) {
+  .pay-section {
+    padding: 18px 16px 16px;
+  }
+
+  /* 상품 카드: 한 줄에 하나씩, 가로로 눕혀서 */
+  .pay-packages {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .pay-package {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: 10px;
+    padding: 18px 44px 16px 16px;  /* 오른쪽은 체크 표시 자리 */
+    text-align: left;
+  }
+
+  .pay-package-price {
+    margin: 0 0 0 auto;      /* 가격은 오른쪽 끝으로 */
+  }
+
+  .pay-package-unit {
+    flex-basis: 100%;
+  }
+
+  .pay-check {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .pay-badge {
+    left: 16px;
+    transform: none;
+  }
+
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 떠오르는 효과 끄기 */
+@media (prefers-reduced-motion: reduce) {
+  .pay-package {
+    transition: none;
+  }
+
+  .pay-package:hover {
+    transform: none;
+  }
+}

@@ -330,3 +330,11 @@
     display: none;               /* 좁으니까 날짜는 숨김 */
   }
 }
+
+/* 맨 위 [퀴즈 | 랭킹] 탭 줄 (가운데 정렬)
+   퀴즈 화면은 이 아래에 [맞춤법 | 문법] 작은 탭이 한 줄 더 있어서, 랭킹 화면은 아래 여백을 조금 더 줌 */
+.ranking-tabs-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 6px;
+}

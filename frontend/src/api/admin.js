@@ -109,3 +109,21 @@ export function fetchAdminRankings(token, category = "spelling") {
 export function deleteRanking(token, rankingId) {
   return request(`/api/admin/rankings/${rankingId}`, token, { method: "DELETE" });
 }
+
+// ===================== 4. 공지사항 관리 =====================
+// 목록은 누구나 쓰는 fetchNotices(api/notice.js)를 같이 씀 → 여기에는 바꾸는 기능만
+
+// 공지 등록 → notice: { title, content, is_pinned }
+export function createNotice(token, notice) {
+  return request("/api/admin/notices", token, { method: "POST", body: notice });
+}
+
+// 공지 수정 (등록과 같은 모양으로 보냄)
+export function updateNotice(token, noticeId, notice) {
+  return request(`/api/admin/notices/${noticeId}`, token, { method: "PUT", body: notice });
+}
+
+// 공지 삭제
+export function deleteNotice(token, noticeId) {
+  return request(`/api/admin/notices/${noticeId}`, token, { method: "DELETE" });
+}

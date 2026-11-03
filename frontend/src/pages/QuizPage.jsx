@@ -6,6 +6,10 @@
 //
 // ※ 여기는 "연습용" 퀴즈라서 점수가 랭킹에 저장되지 않음
 //   랭킹은 맞춤법 도전 모드(ChallengePage.jsx)에서만 기록됨
+//
+// 헤더 "퀴즈" 메뉴로 들어오는 화면
+//   맨 위 큰 탭 [퀴즈 | 랭킹] → 랭킹을 누르면 랭킹 화면으로
+//   그 아래 작은 탭 [맞춤법 | 문법] → 퀴즈 종류 바꾸기
 // =============================================================
 
 import { useState, useEffect } from "react";
@@ -21,7 +25,9 @@ import {
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
-// CategoryTabs: 맞춤법 | 문법 탭 버튼
+// QuizSectionTabs: 맨 위 큰 탭 [퀴즈 | 랭킹]
+import QuizSectionTabs from "../components/QuizSectionTabs";
+// CategoryTabs: 퀴즈 안의 작은 탭 [맞춤법 | 문법]
 import CategoryTabs from "../components/CategoryTabs";
 // getQuizCategory: 종류별 제목·설명 등 설정 꺼내기
 import { getQuizCategory } from "../data/quizCategories";
@@ -41,9 +47,10 @@ function shuffle(list) {
 
 // props
 //  - category: 퀴즈 종류 ("spelling" = 맞춤법, "grammar" = 문법), 기본값 맞춤법
-//  - onChangeCategory: 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
+//  - onChangeCategory: [맞춤법 | 문법] 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
+//  - onChangeSection: [퀴즈 | 랭킹] 탭을 눌렀을 때 실행 ("ranking"이면 랭킹 화면으로)
 //  - onGoChallenge: "도전 모드" 버튼을 눌렀을 때 실행 (랭킹에 기록이 남는 맞춤법 도전 모드로 이동)
-function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
+function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, onGoChallenge }) {
   // info: 지금 종류의 제목·설명·메모 문구 등 (data/quizCategories.js)
   const info = getQuizCategory(category);
 
@@ -82,7 +89,13 @@ function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
   }, [category]);
 
   // 맨 위 탭 (불러오는 중 / 문제 없음 / 문제 풀이 화면 모두에서 같이 보여주려고 변수로 만듦)
-  const tabs = <CategoryTabs value={category} onChange={onChangeCategory} />;
+  // 위: 큰 탭 [퀴즈 | 랭킹] (지금은 퀴즈 쪽) / 아래: 작은 탭 [맞춤법 | 문법]
+  const tabs = (
+    <div className="quiz-tabs-row">
+      <QuizSectionTabs value="quiz" onChange={onChangeSection} />
+      <CategoryTabs value={category} onChange={onChangeCategory} variant="sub" />
+    </div>
+  );
 
   if (loading) {
     return (
@@ -189,8 +202,8 @@ function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
           memoVariant="notebook"
         />
 
-        {/* 맞춤법 | 문법 탭 (가운데 정렬) */}
-        <div className="quiz-tabs-row">{tabs}</div>
+        {/* [퀴즈 | 랭킹] + [맞춤법 | 문법] 탭 (가운데 정렬) */}
+        {tabs}
 
         <section className="panel quiz-card">
           <div className="quiz-head">
@@ -245,12 +258,14 @@ function QuizPage({ category = "spelling", onChangeCategory, onGoChallenge }) {
             <div className="quiz-body">
               <span className="quiz-badge">문제 {current + 1}</span>
 
+              {/* 문제 문장 자체에 이미 '____' 따옴표가 들어 있어서 바깥 따옴표는 붙이지 않음
+                  (붙이면 ‘내일 다시 연락 ‘할게’.’ 처럼 따옴표가 겹쳐 보임) */}
               <h3 className="quiz-question">
-                ‘{before}
+                {before}
                 <span className={checked ? "quiz-blank filled" : "quiz-blank"}>
                   {checked ? question.answer : ""}
                 </span>
-                {after}’
+                {after}
                 <br />
                 빈칸에 들어갈 올바른 표현은 무엇일까요?
               </h3>

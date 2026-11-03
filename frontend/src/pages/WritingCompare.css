@@ -38,7 +38,8 @@
 
 /* 본문 제목 옆 복사 버튼 */
 .writing-body-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.writing-body-heading .field-label { margin: 0; }
+/* white-space: nowrap + flex-shrink: 0 → 오른쪽 버튼이 많아도 "본문" 글자가 세로로 쪼개지지 않음 */
+.writing-body-heading .field-label { margin: 0; white-space: nowrap; flex-shrink: 0; }
 .writing-compare-copy:disabled { opacity: .5; cursor: not-allowed; }
 
 /* 피드백 내용의 불필요한 상단 여백 제거 */

@@ -2,11 +2,14 @@
 // App.jsx — 앱 전체의 뼈대
 // -------------------------------------------------------------
 // 위에 Header(메뉴바), 가운데에 선택된 메뉴의 화면, 맨 아래에 Footer(정보 영역)를 보여줌.
-// 지금 만든 화면: 홈(LandingPage), 글쓰기 학습(WritingPage), 퀴즈(QuizPage),
+// 지금 만든 화면: 홈(LandingPage), 글쓰기(WritingPage), 퀴즈(QuizPage),
 //                랭킹(RankingPage), 맞춤법 도전 모드(ChallengePage),
 //                로그인(LoginPage), 회원가입(SignupPage),
-//                마이페이지(MyPage), 회원정보 수정(MyPageEdit)
-// 나머지 메뉴는 "준비 중" 화면이 나옴.
+//                마이페이지(MyPage), 회원정보 수정(MyPageEdit),
+//                서비스 소개(AboutPage), 관리자(AdminPage),
+//                공지사항(NoticePage), 이용약관·개인정보처리방침(PolicyPage),
+//                AI 초안 이용권 충전(PaymentPage), 오답노트(WrongNotePage, 준비 중)
+// 그 밖의 알 수 없는 메뉴 이름이 오면 "준비 중" 화면이 나옴.
 // (나중에 react-router를 배우면 주소(URL)로 페이지를 이동하는 방식으로 바꿀 예정)
 // =============================================================
 
@@ -16,6 +19,18 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import LandingPage from "./pages/LandingPage";
+// AboutPage: 헤더 "서비스 소개" 화면
+import AboutPage from "./pages/AboutPage";
+// 푸터 "고객지원" 화면들: 공지사항 / 이용약관·개인정보처리방침(같은 화면에 글만 다름)
+import NoticePage from "./pages/NoticePage";
+import PolicyPage from "./pages/PolicyPage";
+// 오답노트 (아직 "준비 중" 안내 화면)
+import WrongNotePage from "./pages/WrongNotePage";
+// AI 초안 이용권 충전(결제) 화면: 헤더 "이용권 충전"·마이페이지 "이용권 충전" 버튼으로 들어옴
+import PaymentPage from "./pages/PaymentPage";
+// 토스페이먼츠 결제창에서 돌아왔을 때 결과 화면 + 지금 주소가 "결제 후 돌아온 주소"인지 확인하는 함수
+import PaymentResultPage from "./pages/PaymentResultPage";
+import { readPaymentReturn } from "./utils/tossPayments";
 import WritingPage from "./pages/WritingPage";
 import QuizPage from "./pages/QuizPage";
 import LoginPage from "./pages/LoginPage";
@@ -113,12 +128,23 @@ function clearAuth() {
 
 function App() {
   // activeNav: 지금 보여줄 화면 이름
-  //  - 헤더 메뉴: "home"(홈), "about"(서비스 소개), "write"(글쓰기 학습), "quiz"(퀴즈), "ranking"(랭킹), "guide"(이용안내)
+  //  - 헤더 메뉴: "home"(홈), "about"(서비스 소개), "write"(글쓰기), "wrong-note"(오답노트), "quiz"(퀴즈)
+  //    ("ranking"(랭킹) 화면은 헤더 메뉴 대신 퀴즈 화면의 [퀴즈 | 랭킹] 탭으로 들어감)
   //  - 헤더 오른쪽 버튼: "login"(로그인), "signup"(회원가입)
   //  - 랭킹 화면 안의 버튼: "challenge"(맞춤법 도전 모드)
   //  - 푸터에만 있는 메뉴: "notice", "terms", "privacy"
   // 처음 들어오면 "home"
-  const [activeNav, setActiveNav] = useState("home");
+  //  - 단, 토스페이먼츠 결제창에서 돌아온 주소(/payment/success, /payment/fail)면 "payment-result"(결제 결과)
+  // useState(함수): 처음 한 번만 함수를 실행해서 시작 값을 정함
+  const [paymentReturn] = useState(() => readPaymentReturn());
+  const [activeNav, setActiveNav] = useState(() => (paymentReturn ? "payment-result" : "home"));
+
+  // 결제 결과 화면을 띄운 뒤 주소창을 "/"로 정리
+  // (?paymentKey=... 같은 값이 주소에 남아 있으면 새로고침할 때마다 결과 화면이 다시 뜨니까)
+  // history.replaceState: 페이지를 새로 불러오지 않고 주소창 글자만 바꿈 (뒤로가기 기록도 안 늘어남)
+  useEffect(() => {
+    if (paymentReturn) window.history.replaceState(null, "", "/");
+  }, [paymentReturn]);
 
   // idea: 메인 페이지 입력창에 적은 생각 → 글쓰기 페이지로 넘겨줌
   const [idea, setIdea] = useState("");
@@ -276,20 +302,27 @@ function App() {
   const handleNavigate = (key) => {
     const go = () => {
       if (key === "login" || key === "signup") setLoginNotice({ loginId: "", message: "" });
-      // 헤더·푸터의 "글쓰기 학습"을 누르면 마이페이지에서 열었던 글은 닫고 새 글쓰기로 시작
+      // 헤더·푸터의 "글쓰기"를 누르면 마이페이지에서 열었던 글은 닫고 새 글쓰기로 시작
       if (key === "write") setOpenedDocument(null);
       setActiveNav(key);
     };
 
     // 지금 쓰던 글을 떠나게 되는 경우
     //  1) 글쓰기(설정 화면 포함)에서 다른 메뉴로 갈 때
-    //  2) 마이페이지에서 연 글을 쓰다가 "글쓰기 학습"을 눌러 새 글 화면으로 바뀔 때
+    //  2) 마이페이지에서 연 글을 쓰다가 "글쓰기"를 눌러 새 글 화면으로 바뀔 때
     const inWriting = WRITING_PAGES.includes(activeNav);
     const leavesWriting =
       inWriting && (!WRITING_PAGES.includes(key) || (key === "write" && openedDocument !== null));
 
     if (leavesWriting) confirmLeaveWriting(go); // 잃을 게 있으면 경고창 → 확인하면 이동
     else go();
+  };
+
+  // ----- 퀴즈 화면 맨 위 큰 탭 [퀴즈 | 랭킹] -----
+  // key: "quiz"(퀴즈) / "ranking"(랭킹) → 그 화면으로 이동
+  // (퀴즈 안의 작은 탭 [맞춤법 | 문법]은 setQuizCategory로 종류만 바꿈)
+  const handleQuizSection = (key) => {
+    setActiveNav(key);
   };
 
   // ----- 글쓰기 화면의 "새 글 쓰기" 버튼 -----
@@ -313,7 +346,7 @@ function App() {
   const handleStart = (newIdea) => {
     setIdea(newIdea); // 입력한 생각 저장
     setOpenedDocument(null); // 새 생각으로 시작하니까 마이페이지에서 열었던 글은 닫음
-    setActiveNav("write"); // 글쓰기 학습 화면으로 이동 (헤더의 "글쓰기 학습"과 같은 화면)
+    setActiveNav("write"); // 글쓰기 화면으로 이동 (헤더의 "글쓰기"와 같은 화면)
     // TODO: 원래 흐름은 ① 생각 입력 → ② 구조화(AI) → ③ 글쓰기
   };
 
@@ -395,6 +428,28 @@ function App() {
     switch (activeNav) {
       case "home":
         return <LandingPage onStart={handleStart} />;
+      case "about":
+        // 서비스 소개: 기능 카드·버튼을 누르면 헤더 메뉴와 같은 함수(handleNavigate)로 이동
+        return <AboutPage onNavigate={handleNavigate} />;
+      case "payment":
+        return <PaymentPage auth={auth} onGoLogin={() => handleNavigate("login")} onNavigate={handleNavigate} />;
+      case "payment-result":
+        // 결제창에서 돌아온 주소에서 읽은 값(paymentReturn)이 있을 때만 결과 화면, 없으면 결제 화면으로
+        return paymentReturn ? (
+          <PaymentResultPage result={paymentReturn} auth={auth} onNavigate={handleNavigate} />
+        ) : (
+          <PaymentPage auth={auth} onGoLogin={() => handleNavigate("login")} onNavigate={handleNavigate} />
+        );
+      case "wrong-note":
+        return <WrongNotePage onNavigate={handleNavigate} />;
+      case "notice":
+        // 공지사항: 위쪽 고객지원 탭으로 이용약관·개인정보처리방침에 바로 갈 수 있음
+        return <NoticePage onNavigate={handleNavigate} />;
+      case "terms":
+      case "privacy":
+        // case 두 개를 붙여 쓰면 "terms 또는 privacy일 때" 같은 코드를 실행
+        // kind로 어떤 글을 보여줄지 알려줌 / key: 탭을 바꾸면 화면을 새로 만들어서 맨 위부터 보이게
+        return <PolicyPage key={activeNav} kind={activeNav} onNavigate={handleNavigate} />;
       case "write":
         return (
           <WritingPage
@@ -425,7 +480,10 @@ function App() {
             // key: 종류가 바뀌면 React가 화면을 새로 만들어서 문제·점수가 처음부터 시작됨
             key={quizCategory}
             category={quizCategory}
+            // [맞춤법 | 문법] 탭 → 종류만 바꿈 (key가 바뀌어서 퀴즈가 처음부터 새로 시작)
             onChangeCategory={setQuizCategory}
+            // [퀴즈 | 랭킹] 탭 → 랭킹을 누르면 랭킹 화면으로
+            onChangeSection={handleQuizSection}
             // 퀴즈는 연습용이라 랭킹 저장 없음 → 결과 화면에서 도전 모드로 안내
             onGoChallenge={() => setActiveNav("challenge")}
           />
@@ -435,6 +493,8 @@ function App() {
           <RankingPage
             user={auth?.user} // 내 순위 강조용
             onGoChallenge={() => setActiveNav("challenge")}
+            // 위쪽 [퀴즈 | 랭킹] 탭에서 퀴즈를 누르면 퀴즈 화면으로
+            onChangeTab={handleQuizSection}
           />
         );
       case "challenge":
@@ -451,6 +511,7 @@ function App() {
           <MyPage
             auth={auth}
             onEdit={() => setActiveNav("mypage-edit")}
+            onCharge={() => setActiveNav("payment")}
             onGoWrite={() => handleNavigate("write")}
             onOpenDocument={handleOpenDocument}
             onGoLogin={() => handleNavigate("login")}
@@ -511,8 +572,16 @@ function App() {
       */}
       <Header
         // 헤더 메뉴에 따로 없는 화면은 가까운 메뉴에 불이 들어오게 함
-        //  - 도전 모드 → "랭킹" / 회원정보 수정 → 헤더의 "○○님"(마이페이지)
-        activeNav={activeNav === "challenge" ? "ranking" : activeNav === "mypage-edit" ? "mypage" : activeNav}
+        //  - 랭킹·도전 모드 → "퀴즈" / 회원정보 수정 → 헤더의 "○○님"(마이페이지) / 결제 결과 → "이용권 충전"
+        activeNav={
+          activeNav === "challenge" || activeNav === "ranking"
+            ? "quiz"
+            : activeNav === "mypage-edit"
+              ? "mypage"
+              : activeNav === "payment-result"
+                ? "payment"
+                : activeNav
+        }
         onNavClick={handleNavigate}
         user={auth?.user}
         onLogout={handleLogout}

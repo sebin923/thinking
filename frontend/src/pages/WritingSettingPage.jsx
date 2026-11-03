@@ -1,7 +1,10 @@
 
 import { useEffect, useRef, useState } from "react";
 // CheckCircle2: 저장 완료 팝업에 쓰는 체크 아이콘
-import { CheckCircle2 } from "lucide-react";
+// ArrowLeft: 돌아가기 버튼 화살표, Check: 고른 보기에 표시하는 체크
+import { ArrowLeft, Check, CheckCircle2 } from "lucide-react";
+// PageHero: 다른 화면들과 똑같은 위쪽 제목 + 메모지 영역
+import PageHero from "../components/PageHero";
 // 저장 완료 팝업 스타일 (화면 전체를 살짝 어둡게 덮고 가운데에 하얀 상자)
 import "./WritingSettingPage.css";
 
@@ -180,121 +183,83 @@ function WritingSettingPage({ auth, onBack }) {
     };
 
     return (
-        <div
-            style={{
-                maxWidth: "800px",
-                margin: "0 auto",
-                padding: "100px 24px 60px",
-            }}
-        >
+        // sub-page / sub-page-inner / PageHero / panel / btn-primary:
+        // 마이페이지·퀴즈 등 다른 화면과 같은 공통 스타일을 그대로 써서 사이트 전체 느낌을 맞춤
+        <div className="sub-page">
+            <div className="sub-page-inner">
+                <PageHero
+                    eyebrow="개인 맞춤 설정"
+                    title="나의 글쓰기 설정"
+                    description={"나에게 맞는 AI 글쓰기 스타일을 골라 보세요.\n저장한 설정은 AI 초안 작성과 피드백에 활용돼요."}
+                    memoText={"나만의\n글쓰기\n스타일"}
+                    memoVariant="notebook"
+                />
 
-            <button
-                type="button"
-                onClick={onBack}
-                style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "10px 16px",
-                    marginBottom: "28px",
-                    border: "1px solid #c9dced",
-                    borderRadius: "8px",
-                    backgroundColor: "#ffffff",
-                    color: "#245780",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                }}
-            >
-                ← 글쓰기 화면으로 돌아가기
-            </button>
-
-
-            <h1 style={{ marginBottom: "10px" }}>
-                나의 글쓰기 설정
-            </h1>
-
-            <p style={{ color: "#667085", marginBottom: "32px" }}>
-                나에게 맞는 AI 글쓰기 스타일을 설정해 보세요.
-                저장한 설정은 AI 초안 작성과 피드백에 활용됩니다.
-            </p>
-
-            {loading ? (
-                <p>설정을 불러오는 중입니다...</p>
-            ) : (
-                <>
-                    {SETTINGS_FIELDS.map((field) => (
-                        <section
-                            key={field.key}
-                            style={{
-                                padding: "24px",
-                                marginBottom: "18px",
-                                background: "#ffffff",
-                                border: "1px solid #dbe7f3",
-                                borderRadius: "12px",
-                            }}
-                        >
-                            <h2
-                                style={{
-                                    fontSize: "18px",
-                                    marginBottom: "18px",
-                                }}
-                            >
-                                {field.title}
-                            </h2>
-
-                            {field.options.map((option) => (
-                                <label
-                                    key={option.value}
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "10px",
-                                        padding: "9px 0",
-                                        cursor: "pointer",
-                                    }}
-                                >
-                                    <input
-                                        type="radio"
-                                        name={field.key}
-                                        value={option.value}
-                                        checked={settings[field.key] === option.value}
-                                        onChange={() =>
-                                            handleChange(field.key, option.value)
-                                        }
-                                    />
-                                    {option.label}
-                                </label>
-                            ))}
-                        </section>
-                    ))}
-
-                    {message && (
-                        <p role="status" style={{ marginBottom: "18px" }}>
-                            {message}
-                        </p>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        // 팝업이 떠 있는 동안에도 막아서 두 번 저장되지 않게
-                        disabled={saving || showSavedPopup || !auth?.token}
-                        style={{
-                            width: "100%",
-                            padding: "15px",
-                            background: "#64b5f6",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: "10px",
-                            cursor: saving ? "wait" : "pointer",
-                            fontWeight: "bold",
-                        }}
-                    >
-                        {saving ? "저장 중..." : "설정 저장하기"}
+                <div className="setting-wrap">
+                    {/* 글쓰기 화면으로 돌아가기 (마이페이지 수정 화면의 "← 마이페이지로"와 같은 모양) */}
+                    <button type="button" className="setting-back" onClick={onBack}>
+                        <ArrowLeft size={16} /> 글쓰기 화면으로
                     </button>
-                </>
-            )}
+
+                    {loading ? (
+                        <section className="panel setting-card">
+                            <p className="setting-loading">설정을 불러오는 중이에요...</p>
+                        </section>
+                    ) : (
+                        <section className="panel setting-card">
+                            {SETTINGS_FIELDS.map((field) => (
+                                // fieldset + legend: "이 라디오 버튼들은 한 묶음"이라고 화면 읽기 프로그램에 알려줌
+                                <fieldset key={field.key} className="setting-group">
+                                    <legend className="setting-group-title">{field.title}</legend>
+
+                                    <div className="setting-options">
+                                        {field.options.map((option) => {
+                                            // 지금 고른 보기인지 → 골랐으면 파란 테두리 + 체크 아이콘
+                                            const checked = settings[field.key] === option.value;
+                                            return (
+                                                <label
+                                                    key={option.value}
+                                                    className={checked ? "setting-option checked" : "setting-option"}
+                                                >
+                                                    {/* 진짜 라디오 버튼은 눈에만 안 보이게 숨기고(키보드·화면 읽기는 그대로 됨),
+                                                        label 전체를 카드처럼 꾸며서 누르기 쉽게 함 */}
+                                                    <input
+                                                        type="radio"
+                                                        name={field.key}
+                                                        value={option.value}
+                                                        checked={checked}
+                                                        onChange={() => handleChange(field.key, option.value)}
+                                                    />
+                                                    <span className="setting-option-mark" aria-hidden="true">
+                                                        {checked && <Check size={13} strokeWidth={3} />}
+                                                    </span>
+                                                    {option.label}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </fieldset>
+                            ))}
+
+                            {message && (
+                                <p role="status" className="setting-message">
+                                    {message}
+                                </p>
+                            )}
+
+                            <button
+                                type="button"
+                                className="btn-primary setting-save"
+                                onClick={handleSave}
+                                // 팝업이 떠 있는 동안에도 막아서 두 번 저장되지 않게
+                                disabled={saving || showSavedPopup || !auth?.token}
+                            >
+                                {saving ? "저장 중..." : "설정 저장하기"}
+                            </button>
+                        </section>
+                    )}
+                </div>
+            </div>
 
             {/*
               ===== 저장 완료 팝업 =====

@@ -123,6 +123,14 @@
 }
 
 /* 오른쪽 위 "마이페이지 수정" 버튼 */
+/* 오른쪽 위 버튼 두 개를 세로로 쌓는 상자 (이용권 충전 위, 마이페이지 수정 아래) */
+.mypage-profile-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .mypage-edit-button {
   flex-shrink: 0;
   gap: 6px;
@@ -759,9 +767,16 @@
     font-size: 24px;
   }
 
-  .mypage-edit-button {
+  /* 버튼 묶음을 정보 아래로 내리고, 두 버튼을 반씩 나란히 */
+  .mypage-profile-actions {
     width: 100%;
     order: 3;                /* 순서를 맨 뒤로 → 정보 아래에 보임 */
+    flex-direction: row;
+  }
+
+  .mypage-edit-button {
+    flex: 1;
+    padding: 10px 8px;
   }
 
   .mypage-name {

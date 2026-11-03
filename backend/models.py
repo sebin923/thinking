@@ -231,3 +231,19 @@ class Post(Base):
     title = Column(String(200), nullable=True)
     content = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notice(Base):
+    """공지사항 (관리자가 등록·수정·삭제하고, 누구나 푸터 "공지사항"에서 볼 수 있음)"""
+    __tablename__ = "notices"
+
+    notice_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String(100), nullable=False)    # 제목
+    content = Column(Text, nullable=False)          # 내용 (줄바꿈 그대로 저장)
+    # is_pinned: True면 목록 맨 위에 "중요"로 고정
+    is_pinned = Column(Boolean, nullable=False, default=False, server_default="false")
+    # author_id: 쓴 관리자 번호
+    # ForeignKey(외래키)는 일부러 안 걸었음 → 관리자 계정을 지워도 공지는 그대로 남게
+    author_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)                         # 처음 등록한 시각
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # 마지막 수정 시각
