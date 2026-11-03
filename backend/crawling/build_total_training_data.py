@@ -60,23 +60,47 @@ TYPES = {
         "request": "제공한 내용만 활용하여 청중 앞에서 말하듯 자연스러운 발표문을 작성해 줘. 없는 내용은 추가하지 마.",
         "max_chars": 2000,  # 연설문은 길어서 앞부분을 문장 단위로 이만큼까지만 사용
     },
+    "cover_letter": {
+        "label": "자기소개서",
+        "request": "제공한 사실만 활용하여 직무 역량과 경험이 돋보이는 자연스러운 자기소개서 본문을 작성해 줘. 없는 내용은 추가하지 마.",
+        "max_chars": 1600,
+    },
 }
 
 
-def category_of(source: str) -> str | None:
-    """출처 이름 → category (모르는 출처면 None = 건너뜀)"""
+def category_of(source_or_row) -> str | None:
+    """출처 이름 또는 row → category (모르는 출처면 None = 건너뜀)"""
+    if isinstance(source_or_row, dict):
+        row = source_or_row
+        source = row["출처"]
+        title = row.get("제목", "")
+        if source.startswith("한국어 위키백과"):
+            if "자기소개서" in title or "자소서" in title or "자기소개서 소스" in source:
+                return "cover_letter"
+            return "report"
+        if source.startswith("한국어 위키문헌"):
+            return "free_writing"
+        if source.startswith("대한민국 정책브리핑"):
+            return "speech"
+        if source.startswith("자기소개서") or source.startswith("자소서"):
+            return "cover_letter"
+        return None
+    
+    source = source_or_row
     if source.startswith("한국어 위키백과"):
         return "report"
     if source.startswith("한국어 위키문헌"):
         return "free_writing"
     if source.startswith("대한민국 정책브리핑"):
         return "speech"
+    if source.startswith("자기소개서") or source.startswith("자소서"):
+        return "cover_letter"
     return None
 
 
 # ===================== 정리 규칙 =====================
 
-HANJA_CHAR = re.compile("[㐀-䶿一-鿿豈-﫿]")  # 한자 한 글자
+HANJA_CHAR = re.compile("[㐀-䶿一-鿿豈-﫿]")  # 한자 한 글자
 QUOTE_CHARS = re.compile(r"[\"'“”‘’「」『』｢｣＂＇]")  # 지울 따옴표 기호 (반각·전각 낫표, 전각 따옴표 포함)
 
 
@@ -221,12 +245,35 @@ def nominalize(memo: str) -> str:
     return memo
 
 
+# 기술 용어 및 개발 스택은 허용하고, 불필요한 일반 영어 노이즈(common 등)만 정밀 차단
+ALLOWED_TECH_TERMS = {
+    "java", "spring", "springboot", "react", "native", "mysql", "postgresql", 
+    "redis", "aws", "s3", "ec2", "docker", "compose", "api", "rest", "sql", 
+    "git", "json", "jsonl", "csv", "html", "css", "javascript"
+}
+
+def has_unwanted_mixed_english(sentence: str) -> bool:
+    """기술 용어는 제외하고, 문맥에 어울리지 않는 일반 소문자 영단어가 섞여 있는지 판별"""
+    words = sentence.split()
+    for word in words:
+        clean_word = re.sub(r'[^a-zA-Z]', '', word).lower()
+        if len(clean_word) >= 3 and not clean_word.isupper():
+            if clean_word not in ALLOWED_TECH_TERMS:
+                return True
+    return False
+
+
 def split_sentences(text: str) -> list[str]:
     """글 → 문장 목록 (마침표·물음표·느낌표 뒤 공백 기준)"""
     sentences = []
     for paragraph in text.split("\n"):
         for sentence in re.split(r"(?<=[.!?])\s+", paragraph.strip()):
             if len(sentence) >= 5:
+                eng_chars = sum(1 for c in sentence if "a" <= c.lower() <= "z")
+                if len(sentence.strip()) > 0 and (eng_chars / len(sentence.strip())) > 0.5:
+                    continue
+                if has_unwanted_mixed_english(sentence):
+                    continue
                 sentences.append(sentence)
     return sentences
 
@@ -259,7 +306,7 @@ def cut_by_sentence(sentences: list[str], max_chars: int) -> list[str]:
 
 
 def build_record(row: dict) -> tuple[dict, str] | None:
-    category = category_of(row["출처"])
+    category = category_of(row)
     if category is None:
         return None
     setting = TYPES[category]
