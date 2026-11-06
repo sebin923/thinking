@@ -40,6 +40,9 @@ class User(Base):
     # 이메일 인증을 마쳤는지 (가입은 인증해야만 되니까 가입하면 항상 True)
     email_verified = Column(Boolean, nullable=False, default=False)
 
+    # AI 초안 잔여 횟수
+    ai_credits = Column(Integer, default=3)
+
     # 관계 설정
     quiz_results = relationship("QuizResult", back_populates="user")
     rankings = relationship("Ranking", back_populates="user")
@@ -245,5 +248,21 @@ class Notice(Base):
     # author_id: 쓴 관리자 번호
     # ForeignKey(외래키)는 일부러 안 걸었음 → 관리자 계정을 지워도 공지는 그대로 남게
     author_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)                         # 처음 등록한 시각
+    created_at = Column(DateTime, default=datetime.utcnow)                              # 처음 등록한 시각
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # 마지막 수정 시각
+
+
+class Payment(Base):
+    """결제 및 이용권 충전 이력 테이블"""
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    payment_key = Column(String(255), nullable=False)
+    order_id = Column(String(100), unique=True, nullable=False)
+    amount = Column(Integer, nullable=False)
+    draft_count = Column(Integer, nullable=False)
+    status = Column(String(50), nullable=False, default="DONE")
+    created_at = Column(DateTime, server_default=func.now())
+
+    user = relationship("User")
