@@ -25,7 +25,7 @@ import AboutPage from "./pages/AboutPage";
 import NoticePage from "./pages/NoticePage";
 import PolicyPage from "./pages/PolicyPage";
 // 오답노트 (아직 "준비 중" 안내 화면)
-import WrongNotePage from "./pages/WrongNotePage";
+//import WrongNotePage from "./pages/WrongNotePage";
 // AI 초안 이용권 충전(결제) 화면: 헤더 "이용권 충전"·마이페이지 "이용권 충전" 버튼으로 들어옴
 import PaymentPage from "./pages/PaymentPage";
 // 토스페이먼츠 결제창에서 돌아왔을 때 결과 화면 + 지금 주소가 "결제 후 돌아온 주소"인지 확인하는 함수

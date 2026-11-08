@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User, Payment
 
+# 만약 프로젝트 내에 로그인 유저를 가져오는 인증 함수가 있다면 아래 경로에 맞춰서 임포트하세요.
+# 예시: from routers.auth import get_current_user (프로젝트 구조에 맞게 수정)
+from routers.auth import get_current_user  # <-- 프로젝트에 있는 실제 인증 함수 임포트
+
 router = APIRouter(prefix="/api/payments", tags=["Payment"])
 
 class PaymentConfirmRequest(BaseModel):
@@ -15,24 +19,27 @@ class PaymentConfirmRequest(BaseModel):
     amount: int
 
 def calculate_draft_count(amount: int) -> int:
+    # 새로운 상품 가격표 반영 (1000원 -> 5회, 5000원 -> 30회, 8000원 -> 50회)
     if amount == 1000:
-        return 10
-    elif amount == 2500:
+        return 5
+    elif amount == 5000:
         return 30
-    elif amount == 7000:
-        return 100
+    elif amount == 8000:
+        return 50
     return 0
 
 @router.post("/confirm")
 def confirm_payment(
     request: PaymentConfirmRequest,
     authorization: str = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # <-- 토큰으로 로그인된 유저를 바로 가져오는 의존성 주입
 ):
     if not authorization:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
 
-    user = db.query(User).first() 
+    # 1. 엉뚱한 사람(.first()) 대신 의존성으로 주입받은 현재 로그인한 사용자를 사용
+    user = current_user 
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
@@ -76,7 +83,8 @@ def confirm_payment(
         db.add(new_payment)
 
         if hasattr(user, "ai_credits"):
-            user.ai_credits = (user.ai_credits or 3) + added_count
+            # 3. ai_credits 기본값 오류 수정: or 3 대신 or 0을 사용하도록 변경
+            user.ai_credits = (user.ai_credits or 0) + added_count
         
         db.commit()
     except Exception as e:
