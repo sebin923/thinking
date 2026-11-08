@@ -153,7 +153,22 @@
 
 /* 독립형 AI 글쓰기 도구: 팀원 원본 WritingPage.css 수정 없이 추가 */
 .writing-ai-tools { margin-top: 28px; padding-top: 22px; border-top: 1px solid #e8eff6; }
-.writing-ai-tools-title { margin: 0 0 6px; font-size: 17px; color: #233f56; }
+.writing-ai-tools-title { margin: 0; font-size: 17px; color: #233f56; }
+/* 제목 + 오늘 남은 무료 횟수 한 줄 */
+.writing-ai-tools-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-bottom: 6px; }
+.writing-ai-quota { padding: 4px 10px; border-radius: 999px; background: #eaf5fd; color: #276f9d; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.writing-ai-quota strong { font-size: 14px; }
+.writing-ai-quota.empty { background: #fdeeed; color: #c4473f; }   /* 다 썼으면 빨간색 */
+/* 무료 횟수 + 보유 이용권을 위아래로 (오른쪽 정렬) */
+.writing-ai-quota-group { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.writing-ai-credits { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; color: #6e8296; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.writing-ai-credits svg { color: #e39a2d; }
+.writing-ai-credits strong { color: #233f56; font-size: 14px; }
+/* 무료 횟수를 다 썼을 때 안내 상자 */
+.writing-ai-limit { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #f3d3cf; border-radius: 11px; background: #fff7f6; }
+.writing-ai-limit p { display: flex; flex-direction: column; gap: 3px; margin: 0; font-size: 13px; color: #6e8296; word-break: keep-all; }
+.writing-ai-limit strong { font-size: 14px; color: #c4473f; }
+.writing-ai-limit-button { padding: 9px 16px; font-size: 14px; }
 .writing-ai-tools-subtitle { margin: 0 0 16px; font-size: 13px; color: #6e8296; }
 /* 카드가 4개라 3칸이면 마지막 하나만 혼자 떨어짐 → 2칸(2x2)으로 */
 .writing-ai-tool-buttons { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }

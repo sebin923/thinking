@@ -1,5 +1,5 @@
 // =============================================================
-// PaymentPage.jsx — AI 초안 이용권 충전(결제) 화면
+// PaymentPage.jsx — 글쓰기 AI 이용권 충전(결제) 화면
 // -------------------------------------------------------------
 // 들어오는 곳: 헤더 "이용권 충전" 버튼, 마이페이지 프로필 카드의 "이용권 충전" 버튼
 //
@@ -25,7 +25,7 @@ import { useState } from "react";
 import { Sparkles, Gift, CreditCard, Check, LogIn, Info, Loader2 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
-import { CREDIT_PACKAGES, FREE_DAILY_DRAFTS, formatWon, pricePerDraft } from "../data/aiCredits";
+import { CREDIT_PACKAGES, FREE_DAILY_AI_USES, formatWon, pricePerDraft } from "../data/aiCredits";
 import {
   TOSS_CLIENT_KEY,
   PAYMENT_SUCCESS_PATH,
@@ -44,7 +44,7 @@ import "./PaymentPage.css";
 //  - onNavigate: 다른 화면으로 이동 (이용약관 링크 등, App의 handleNavigate)
 function PaymentPage({ auth, onGoLogin, onNavigate }) {
   // 고른 상품 id (처음엔 "인기" 상품을 골라 둠 → 바로 결제 흐름을 볼 수 있게)
-  const [packageId, setPackageId] = useState("draft_30");
+  const [packageId, setPackageId] = useState("ai_30");
   // paying: 결제창을 여는 중인지 (true면 버튼을 막아서 두 번 눌리지 않게)
   const [paying, setPaying] = useState(false);
   // 주문 내용 확인·동의 체크
@@ -55,8 +55,8 @@ function PaymentPage({ auth, onGoLogin, onNavigate }) {
   const hero = (
     <PageHero
       eyebrow="AI 이용권"
-      title="AI 초안 이용권 충전"
-      description={`AI 초안은 하루 ${FREE_DAILY_DRAFTS}회까지 무료로 쓸 수 있어요.\n더 필요하면 이용권을 충전해서 횟수를 늘릴 수 있어요.`}
+      title="AI 이용권 충전"
+      description={`글쓰기 AI는 하루 ${FREE_DAILY_AI_USES}회까지 무료로 쓸 수 있어요.\n더 필요하면 이용권을 충전해서 횟수를 늘릴 수 있어요.`}
       memoText={"마음껏\n더 써 보기"}
     />
   );
@@ -119,7 +119,7 @@ function PaymentPage({ auth, onGoLogin, onNavigate }) {
         method: "CARD",
         amount: { currency: "KRW", value: selected.price },
         orderId,
-        orderName: `생각한줄 AI 초안 이용권 ${selected.count}회`, // 결제창·영수증에 보이는 상품 이름 (100자 이하)
+        orderName: `생각한줄 AI 이용권 ${selected.count}회`, // 결제창·영수증에 보이는 상품 이름 (100자 이하)
         successUrl: window.location.origin + PAYMENT_SUCCESS_PATH,
         failUrl: window.location.origin + PAYMENT_FAIL_PATH,
         customerName: auth.user?.name || undefined,
@@ -153,8 +153,8 @@ function PaymentPage({ auth, onGoLogin, onNavigate }) {
             <section className="panel pay-free">
               <Gift size={22} strokeWidth={1.8} />
               <p>
-                <strong>{auth.user?.name}님</strong>, AI 초안은 매일 <strong>{FREE_DAILY_DRAFTS}회 무료</strong>예요.
-                충전한 이용권은 무료 횟수를 다 쓴 뒤에 하나씩 차감돼요.
+                <strong>{auth.user?.name}님</strong>, 글쓰기 AI(초안 작성·피드백)는 매일{" "}
+                <strong>{FREE_DAILY_AI_USES}회 무료</strong>예요. 충전한 이용권은 무료 횟수를 다 쓴 뒤에 하나씩 차감돼요.
               </p>
             </section>
 
@@ -183,7 +183,7 @@ function PaymentPage({ auth, onGoLogin, onNavigate }) {
                       />
                       {item.badge && <span className="pay-badge">{item.badge}</span>}
                       <span className="pay-package-count">
-                        AI 초안 <strong>{item.count}회</strong>
+                        AI 이용 <strong>{item.count}회</strong>
                       </span>
                       <span className="pay-package-price">{formatWon(item.price)}</span>
                       <span className="pay-package-unit">1회 {pricePerDraft(item)}</span>
@@ -218,7 +218,7 @@ function PaymentPage({ auth, onGoLogin, onNavigate }) {
             <dl>
               <div>
                 <dt>상품</dt>
-                <dd>AI 초안 {selected.count}회</dd>
+                <dd>AI 이용 {selected.count}회</dd>
               </div>
               <div>
                 <dt>결제 수단</dt>

@@ -1,0 +1,159 @@
+/* =============================================================
+   AiRating.css — AI 결과 별점 평가 상자 (AiRating.jsx)
+   ============================================================= */
+
+.ai-rating {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #f1e3bf;
+  border-radius: 14px;
+  background: #fffbf1;
+}
+
+.ai-rating-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.ai-rating-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-rating-stars {
+  display: flex;
+  gap: 2px;
+}
+
+/* 별 버튼 (버튼 기본 모양을 없애고 별만 보이게) */
+.ai-rating-star {
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #d5dce4;            /* 꺼진 별: 회색 */
+  transition: color 0.1s;
+}
+
+.ai-rating-star.on {
+  color: #f2b01e;            /* 켜진 별: 노란색 */
+}
+
+.ai-rating-star:focus-visible {
+  outline: 2px solid #f2b01e;
+  outline-offset: 1px;
+}
+
+.ai-rating-label {
+  /* 설명 글자 길이가 바뀌어도 줄바꿈 위치가 흔들리지 않게 자리를 넉넉히 잡아 둠
+     (흔들리면 마우스 아래 별이 움직여서 깜빡거릴 수 있음) */
+  min-width: 11em;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8a6418;
+}
+
+/* 별을 고른 뒤: 의견 칸 + 보내기 버튼 한 줄 */
+.ai-rating-extra {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-rating-comment {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #e9dcb8;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.ai-rating-comment:focus {
+  outline: none;
+  border-color: #f2b01e;
+  box-shadow: 0 0 0 3px rgba(242, 176, 30, 0.18);
+}
+
+/* 보내기 버튼: 공통 btn-primary보다 작게 */
+.ai-rating-submit {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  font-size: 14px;
+}
+
+.ai-rating-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #c4473f;
+}
+
+/* 보낸 뒤 고맙다는 안내 */
+.ai-rating.done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-color: #cfeadb;
+  background: #f2fbf6;
+  color: #2c8a5c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ai-rating.done svg {
+  flex-shrink: 0;
+}
+
+.ai-rating.done b {
+  color: #f2b01e;
+  letter-spacing: 1px;
+}
+
+.ai-rating.done small {
+  display: block;
+  font-weight: 400;
+  color: var(--text-sub);
+}
+
+.ai-rating-again {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  /* 좁은 화면: 별 아래 줄에 설명 */
+  .ai-rating-label {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .ai-rating-extra {
+    flex-direction: column;
+  }
+
+  .ai-rating-submit {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-rating-star {
+    transition: none;
+  }
+}

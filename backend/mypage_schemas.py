@@ -123,6 +123,9 @@ class ProfileOut(BaseModel):
     document_count: int = 0  # 내가 쓴 글 수
     completed_count: int = 0  # 그중 "완료"된 글 수
     best_challenge_score: int = 0  # 맞춤법 도전 모드 최고 기록 (연속 정답 수)
+    # 보유한 AI 이용권 횟수 (users.ai_credits, 결제하면 늘어남)
+    # ★ 이 칸이 있어야 routers/mypage.py의 build_profile이 값을 채워서 프론트로 보내 줌
+    ai_credits: int = 0
 
 
 class MyVersionOut(BaseModel):

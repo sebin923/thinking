@@ -19,8 +19,15 @@ import {
   CheckCircle2,
   Settings2,
   Sparkles,
+  Ticket, // 보유 이용권 아이콘
 } from "lucide-react";
 import PageHero from "../components/PageHero";
+// AI 초안·피드백 결과 아래에 붙는 별점 평가 상자
+import AiRating from "../components/AiRating";
+// 글쓰기 AI 하루 무료 횟수(3회) 세기
+import { getAiUsage, recordAiUse } from "../api/aiUsage";
+// 내 프로필 가져오기 (보유 이용권 개수 ai_credits가 들어 있음)
+import { fetchMyProfile } from "../api/mypage";
 import "./WritingPage.css";
 import "./WritingPageCustom.css";
 import "./WritingCompare.css";
@@ -185,9 +192,58 @@ function WritingPage({
   initialDocument = null,
   onNewWriting,
   onWritingStateChange,
+  onCharge, // 무료 횟수를 다 썼을 때 "이용권 충전" 버튼 → 결제 화면으로
 }) {
+  // ----- 하루 무료 AI 횟수 -----
+  // aiUsage: { used(오늘 쓴 횟수), limit(3), remaining(남은 횟수), unlimited(관리자) }
+  const [aiUsage, setAiUsage] = useState(() => getAiUsage(auth?.user));
+  const aiLimitReached = aiUsage.remaining <= 0; // 오늘 무료 횟수를 다 썼는지
+  // AI 요청 전에 부름: 남은 횟수가 없으면 안내하고 false (요청을 안 보냄)
+  // (다른 탭에서 쓴 횟수나 날짜 변경도 반영되게 저장소에서 다시 읽음)
+  const checkAiQuota = () => {
+    const usage = getAiUsage(auth?.user);
+    setAiUsage(usage);
+    if (usage.remaining <= 0) {
+      showToast(`오늘 무료 AI ${usage.limit}회를 모두 썼어요. 내일 다시 쓸 수 있어요.`);
+      return false;
+    }
+    return true;
+  };
+  // AI 요청이 성공한 뒤에 부름: 1회 사용으로 기록
+  const markAiUsed = () => setAiUsage(recordAiUse(auth?.user));
+
+  // ----- 보유 이용권 개수 (결제로 충전한 횟수, 서버 users.ai_credits) -----
+  // null = 아직 불러오는 중(또는 로그인 안 함) → 화면에 안 보여줌 / "error" = 불러오기 실패 → "확인 불가"
+  const [aiCredits, setAiCredits] = useState(null);
+  useEffect(() => {
+    if (!auth?.token) return; // 로그인 안 했으면 물어볼 수 없음
+    let cancelled = false; // 화면이 먼저 닫히면 결과를 무시하려고 (닫힌 화면 state를 바꾸면 경고가 남)
+    fetchMyProfile(auth.token)
+      .then((profile) => {
+        if (cancelled) return;
+        // 서버가 ai_credits를 안 보내 주면(백엔드 재시작 전 등) 이용권이 없는 것으로 보고 0회로 표시
+        setAiCredits(typeof profile?.ai_credits === "number" ? profile.ai_credits : 0);
+      })
+      .catch(() => {
+        // 불러오지 못해도 글쓰기는 계속 쓸 수 있어야 해서 조용히 넘어감
+        // (서버 연결 실패 등 → "확인 불가"로 표시)
+        if (!cancelled) setAiCredits("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth?.token]);
+
   const [pendingAiDraft, setPendingAiDraft] = useState(null);
   const [pendingAiOriginal, setPendingAiOriginal] = useState("");
+  // ----- 별점 평가용 -----
+  // pendingAiModel: 지금 보이는 AI 초안을 만든 AI ("clova" / "common" 공통 LLM / "personal" 개인화 LLM)
+  const [pendingAiModel, setPendingAiModel] = useState("clova");
+  // aiResultCount: AI 결과(초안·피드백)가 새로 나올 때마다 +1
+  //   → 별점 상자의 key로 써서, 새 결과가 나오면 별점 상자가 처음부터 다시 시작되게 함
+  const [aiResultCount, setAiResultCount] = useState(0);
+  // feedbackRequestText: AI 피드백을 요청할 때 보낸 본문 (평가 저장 때 같이 남김)
+  const [feedbackRequestText, setFeedbackRequestText] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
   const [commonDraftLoading, setCommonDraftLoading] = useState(false);
   const [personalDraftLoading, setPersonalDraftLoading] = useState(false);
@@ -431,6 +487,7 @@ function WritingPage({
   // AI 초안 요청
   const handleAiDraft = async () => {
     if (draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
+    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
     const originalAtRequest = getBodyText();
     setDraftLoading(true);
     try {
@@ -453,6 +510,9 @@ function WritingPage({
       const data = await response.json();
       setPendingAiOriginal(originalAtRequest);
       setPendingAiDraft(data.content || "");
+      setPendingAiModel("clova"); // 별점 평가용: CLOVA가 만든 초안
+      setAiResultCount((n) => n + 1);
+      markAiUsed(); // 성공했을 때만 1회 차감
       setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
       showToast("AI 초안 작성 완료");
     } catch (error) {
@@ -473,6 +533,7 @@ function WritingPage({
       showToast("로그인이 필요합니다.");
       return;
     }
+    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
     const originalAtRequest = getBodyText();
     setCommonDraftLoading(true);
     try {
@@ -492,6 +553,9 @@ function WritingPage({
       }
       setPendingAiOriginal(originalAtRequest);
       setPendingAiDraft(data.content);
+      setPendingAiModel("common"); // 별점 평가용: 공통 LLM이 만든 초안
+      setAiResultCount((n) => n + 1);
+      markAiUsed(); // 성공했을 때만 1회 차감
       setApiMessage("");
     } catch (error) {
       console.error("공통 LLM 초안 오류:", error);
@@ -511,6 +575,7 @@ function WritingPage({
       showToast("로그인이 필요합니다.");
       return;
     }
+    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
     const originalAtRequest = getBodyText();
     setPersonalDraftLoading(true);
     try {
@@ -536,6 +601,9 @@ function WritingPage({
       }
       setPendingAiOriginal(originalAtRequest);
       setPendingAiDraft(data.content);
+      setPendingAiModel("personal"); // 별점 평가용: 개인화 LLM이 만든 초안
+      setAiResultCount((n) => n + 1);
+      markAiUsed(); // 성공했을 때만 1회 차감
       setApiMessage("");
     } catch (error) {
       console.error("개인화 LLM 초안 오류:", error);
@@ -599,6 +667,7 @@ function WritingPage({
       showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
       return;
     }
+    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
     setFeedbackLoading(true);
     setFeedback(null);
     try {
@@ -630,6 +699,9 @@ function WritingPage({
       }
       const result = await feedbackResponse.json();
       setFeedback(result.feedback);
+      setFeedbackRequestText(bodyText); // 별점 평가용: 피드백을 요청한 본문
+      setAiResultCount((n) => n + 1);
+      markAiUsed(); // 성공했을 때만 1회 차감
       setApiMessage("");
       showToast("AI 피드백이 완료되었습니다.");
     } catch (error) {
@@ -867,14 +939,56 @@ function WritingPage({
               </div>
             </div>
             <div className="writing-ai-tools">
-              <h3 className="writing-ai-tools-title">AI 글쓰기 도구</h3>
-              <p className="writing-ai-tools-subtitle">필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다.</p>
+              <div className="writing-ai-tools-head">
+                <h3 className="writing-ai-tools-title">AI 글쓰기 도구</h3>
+                {/* 오늘 남은 무료 횟수 (관리자는 제한 없음) */}
+                {!aiUsage.unlimited && (
+                  // 위: 오늘 남은 무료 횟수 / 아래: 내가 가진 이용권 개수
+                  <div className="writing-ai-quota-group">
+                    <span className={aiLimitReached ? "writing-ai-quota empty" : "writing-ai-quota"}>
+                      오늘 무료 <strong>{aiUsage.remaining}</strong>/{aiUsage.limit}회 남음
+                    </span>
+                    {aiCredits !== null && (
+                      <span className="writing-ai-credits">
+                        <Ticket size={14} aria-hidden="true" />
+                        {/* 글자를 span 하나로 묶어야 숫자와 "회" 사이가 안 벌어짐 (아이콘과의 간격만 gap 적용) */}
+                        <span>
+                          {aiCredits === "error" ? (
+                            "보유 이용권 확인 불가"
+                          ) : (
+                            <>
+                              보유 이용권 <strong>{aiCredits.toLocaleString("ko-KR")}</strong>회
+                            </>
+                          )}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="writing-ai-tools-subtitle">
+                필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다. (AI 기능은 종류와 상관없이 하루 {aiUsage.limit}회까지 무료)
+              </p>
+              {/* 무료 횟수를 다 썼을 때 안내 + 이용권 충전 */}
+              {aiLimitReached && (
+                <div className="writing-ai-limit" role="status">
+                  <p>
+                    <strong>오늘 무료 AI {aiUsage.limit}회를 모두 썼어요.</strong>
+                    <span>내일 다시 {aiUsage.limit}회가 생겨요. 지금 더 쓰려면 이용권을 충전해 주세요.</span>
+                  </p>
+                  {onCharge && (
+                    <button type="button" className="btn-primary writing-ai-limit-button" onClick={onCharge}>
+                      <Sparkles size={15} /> 이용권 충전
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="writing-ai-tool-buttons">
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
                   <FileText size={19} />
                   <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
                 </button>
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
                   <Lightbulb size={19} />
                   <span><strong>{feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}</strong><small>문제점 분석과 개선 방향 확인</small></span>
                 </button>
@@ -882,7 +996,7 @@ function WritingPage({
                   type="button"
                   className="writing-ai-tool-button"
                   onClick={handleCommonAiDraft}
-                  disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
+                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
                   title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
                 >
                   <Sparkles size={19} />
@@ -892,7 +1006,7 @@ function WritingPage({
                   type="button"
                   className="writing-ai-tool-button"
                   onClick={handlePersonalAiDraft}
-                  disabled={draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
+                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
                   title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
                 >
                   <Sparkles size={19} />
@@ -925,6 +1039,17 @@ function WritingPage({
                     if (pendingAiDraft.length <= BODY_MAX) setPendingAiDraft(null);
                   }}>AI 초안 본문에 적용</button>
                 </div>
+                {/* 이 초안에 대한 별점 평가 (새 초안이 나오면 key가 바뀌어 처음부터) */}
+                <AiRating
+                  key={`draft-${aiResultCount}`}
+                  title="이 AI 초안은 어땠나요?"
+                  user={auth?.user}
+                  kind="draft"
+                  model={pendingAiModel}
+                  documentId={documentId}
+                  resultText={pendingAiDraft}
+                  requestText={pendingAiOriginal}
+                />
               </section>
             )}
             <div className="writing-actions writing-save-actions">
@@ -1009,6 +1134,17 @@ function WritingPage({
                 ) : (
                   <p>수정이 필요한 문장이 발견되지 않았습니다.</p>
                 )}
+                {/* 이 피드백에 대한 별점 평가 (새 피드백이 나오면 key가 바뀌어 처음부터) */}
+                <AiRating
+                  key={`feedback-${aiResultCount}`}
+                  title="이 AI 피드백은 도움이 됐나요?"
+                  user={auth?.user}
+                  kind="feedback"
+                  model="clova"
+                  documentId={documentId}
+                  resultText={feedback.overall_feedback || ""}
+                  requestText={feedbackRequestText}
+                />
               </div>
             ) : (
               <>
