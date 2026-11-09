@@ -1,0 +1,1632 @@
+/* =============================================================
+   LearnPage.css — "학습" 화면 전체 (학습 탭, 단원 학습, O/X, 글쓰기 연습, 오답노트)
+   sub-page, panel, btn-primary, btn-outline 같은 공통 스타일은 PageHero.css에 있음
+   색은 App.css의 변수(--sky, --navy, --sky-soft, --text, --text-sub)를 씀
+   ============================================================= */
+
+/* ===================== 공통 ===================== */
+.learn-tabs-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+/* 오답노트 탭 옆 빨간 숫자 (미해결 오답 수) */
+.learn-tab-badge {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e0605a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+}
+
+.learn-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--text-sub);
+}
+
+.learn-error {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fdeeed;
+  color: #c4473f;
+  font-size: 14px;
+}
+
+.learn-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eaf7f0;
+  color: #2c8a5c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 글자처럼 보이는 작은 버튼 ("그만 풀기", "한 번 더 풀기") */
+.learn-text-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.learn-text-button:hover {
+  color: var(--navy);
+}
+
+/* 로그인 안내 카드 */
+.learn-login {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-sub);
+}
+
+.learn-login svg {
+  color: var(--sky);
+}
+
+.learn-login p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.learn-login .learn-login-sub {
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text-sub);
+}
+
+/* ===================== 학습 탭: 유형 고르기 카드 3개 ===================== */
+.learn-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0 22px;
+}
+
+.learn-type {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  border: 1.5px solid #dbe8f3;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.learn-type:hover {
+  border-color: #9cc8ea;
+}
+
+/* 고른 유형: 파란 테두리 + 그림자 */
+.learn-type.active {
+  border-color: var(--sky);
+  background: #fff;
+  box-shadow: 0 12px 26px rgba(43, 91, 136, 0.12);
+}
+
+.learn-type-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--sky-soft);
+  color: var(--sky);
+}
+
+.learn-type.active .learn-type-icon {
+  background: var(--sky);
+  color: #fff;
+}
+
+.learn-type-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.learn-type-body strong {
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.learn-type-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* 진도 막대 + "3/10" */
+.learn-type-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.learn-type-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5eef7;
+  overflow: hidden;
+}
+
+.learn-type-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6fb2e6, #3d8bc7);
+  transition: width 0.3s;
+}
+
+.learn-type-progress em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===================== 단원 목록 ===================== */
+.unit-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 칸(li)이 안의 긴 글자 때문에 넓어지지 않게 (없으면 모바일에서 카드가 화면 밖으로 넘침) */
+.unit-list > li {
+  min-width: 0;
+}
+
+.unit-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  padding: 16px 18px;
+  border: 1px solid #e1ebf4;
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.unit-card:not(:disabled):hover {
+  transform: translateY(-2px);
+  border-color: #b9d8f1;
+  box-shadow: 0 12px 24px rgba(43, 91, 136, 0.1);
+}
+
+.unit-card:focus-visible {
+  outline: 3px solid #b9dcf7;
+  outline-offset: 2px;
+}
+
+/* 잠긴 단원: 흐리게 */
+.unit-card.is-locked {
+  background: #f6f9fc;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.unit-card-number {
+  flex-shrink: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #b8d2e8;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit-card.is-open .unit-card-number {
+  color: var(--sky);
+}
+
+.unit-card.is-completed .unit-card-number {
+  color: #3aa476;
+}
+
+/* O/X 만점 → 글쓰기만 남은 단원: 주황색 */
+.unit-card.is-writing .unit-card-number {
+  color: #e39a2d;
+}
+
+.unit-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.unit-card-body strong {
+  font-size: 15px;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.unit-card-summary {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  text-overflow: ellipsis;   /* 요약이 길면 한 줄에서 "..." */
+  white-space: nowrap;
+}
+
+/* 오른쪽 상태 표시 */
+.unit-card-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  min-width: 64px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  text-align: center;
+  word-break: keep-all;
+}
+
+.unit-card-status em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.unit-card.is-open .unit-card-status {
+  color: var(--sky);
+}
+
+.unit-card.is-completed .unit-card-status {
+  color: #3aa476;
+}
+
+.unit-card.is-writing .unit-card-status {
+  color: #c97e14;
+}
+
+/* 참고 자료 */
+.learn-sources {
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+.learn-sources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 10px;
+  color: var(--text-sub);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ===================== 단원 학습 화면 ===================== */
+.unit-view {
+  max-width: 860px;
+  margin: 18px auto 0;
+  padding: 26px 30px 30px;
+}
+
+.learn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.learn-back:hover {
+  color: var(--navy);
+}
+
+.unit-view-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sky);
+}
+
+/* 완료한 단원 표시 (초록 이름표) */
+.unit-view-done {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eaf7f0;
+  color: #2c8a5c;
+  font-size: 12px;
+}
+
+.unit-view-title {
+  margin: 0 0 18px;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+/* 단계 탭 ① ② ③ */
+.unit-steps {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #e6eef6;
+  list-style: none;
+}
+
+.unit-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.unit-step-number {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #eef4fa;
+  font-size: 11px;
+}
+
+.unit-step.active {
+  border-color: var(--sky);
+  background: var(--sky);
+  color: #fff;
+}
+
+.unit-step.active .unit-step-number {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.unit-step:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.unit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* ----- ① 개념 ----- */
+.concept-summary {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border-left: 4px solid var(--sky);
+  border-radius: 4px 12px 12px 4px;
+  background: #f3f8fd;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.concept-heading {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.concept-points {
+  margin: 0 0 20px;
+  padding-left: 20px;
+}
+
+.concept-points li {
+  margin: 6px 0;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.concept-points li::marker {
+  color: var(--sky);
+}
+
+/* 좋은 예 / 고칠 예 */
+.concept-examples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.concept-example {
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid;
+}
+
+.concept-example.good {
+  border-color: #cfeadb;
+  background: #f2fbf6;
+}
+
+.concept-example.bad {
+  border-color: #f3d6d4;
+  background: #fdf5f4;
+}
+
+.concept-example-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.concept-example.good .concept-example-label {
+  color: #2c8a5c;
+}
+
+.concept-example.bad .concept-example-label {
+  color: #c4473f;
+}
+
+.concept-example-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-line;     /* \n 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.concept-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff8e6;
+  color: #8a6418;
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.concept-tip svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ----- ② O/X 퀴즈 ----- */
+.ox-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.ox-count {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.ox-progress {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #e5eef7;
+  overflow: hidden;
+}
+
+.ox-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sky);
+  transition: width 0.25s;
+}
+
+.ox-question {
+  margin: 0 0 22px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.ox-question-number {
+  color: var(--sky);
+}
+
+.ox-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ox-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 12px 18px;
+  border: 2px solid #dbe7f2;
+  border-radius: 18px;
+  background: #fff;
+  color: #6b8299;
+  font-size: 14px;
+  font-weight: 700;
+  transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+}
+
+.ox-button:first-child svg {
+  color: #3d8bc7;            /* O는 파랑 */
+}
+
+.ox-button:last-child svg {
+  color: #e0605a;            /* X는 빨강 */
+}
+
+.ox-button:not(:disabled):hover {
+  border-color: #9cc8ea;
+  transform: translateY(-2px);
+}
+
+/* 고른 뒤: 정답 버튼은 초록 테두리, 내가 고른 오답은 빨강 테두리, 나머지는 흐리게 */
+.ox-button.correct {
+  border-color: #3aa476;
+  background: #f0faf4;
+}
+
+.ox-button.wrong {
+  border-color: #e0605a;
+  background: #fdf3f2;
+}
+
+.ox-button.dim {
+  opacity: 0.45;
+}
+
+.ox-button:disabled {
+  cursor: default;
+}
+
+.ox-feedback {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 14px;
+}
+
+.ox-feedback.correct {
+  background: #f0faf4;
+}
+
+.ox-feedback.wrong {
+  background: #fdf3f2;
+}
+
+.ox-feedback-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ox-feedback.correct .ox-feedback-title {
+  color: #2c8a5c;
+}
+
+.ox-feedback.wrong .ox-feedback-title {
+  color: #c4473f;
+}
+
+.ox-feedback-explain {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.ox-next {
+  display: flex;
+  margin: 14px 0 0 auto;     /* 오른쪽 끝으로 */
+}
+
+/* ----- ② 결과 ----- */
+.unit-result {
+  padding: 10px 0;
+  text-align: center;
+}
+
+.unit-result-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #e0a23a;
+}
+
+.unit-result-score strong {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.unit-result.passed .unit-result-score strong {
+  color: #3aa476;
+}
+
+.unit-result-title {
+  margin: 8px 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.unit-result-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+.learn-locked-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 30px 0;
+  color: var(--text-sub);
+}
+
+/* ----- ③ 글쓰기 연습 ----- */
+.wp-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--sky-soft);
+  color: var(--navy);
+}
+
+.wp-task svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.wp-task p {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.wp-material {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e3edf6;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.wp-material-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.wp-material ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.wp-material li {
+  margin: 4px 0;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.wp-question {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.wp-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--text-sub);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.wp-editor {
+  position: relative;
+  display: block;
+}
+
+.wp-editor-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.wp-editor textarea {
+  width: 100%;
+  padding: 14px 16px 30px;   /* 아래쪽은 글자 수 표시 자리 */
+  border: 1px solid #d6e3ef;
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text);
+  resize: vertical;
+}
+
+.wp-editor textarea:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(90, 165, 220, 0.18);
+}
+
+.wp-editor textarea[readonly] {
+  background: #f8fbfe;
+}
+
+/* 글자 수 (입력 칸 오른쪽 아래) */
+.wp-length {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+.wp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.wp-hint {
+  margin-right: auto;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+/* 글자 수가 너무 많을 때 빨간색 */
+.wp-length.over {
+  color: #c4473f;
+  font-weight: 700;
+}
+
+/* 채점 기준 미리 보기 (쓰기 전에 무엇을 보는지 알려줌) */
+.wp-criteria-preview {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px dashed #c9dcec;
+  border-radius: 12px;
+}
+
+.wp-criteria-preview p {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--navy);
+}
+
+.wp-criteria-preview p span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sub);
+}
+
+.wp-criteria-preview ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.wp-criteria-preview li {
+  margin: 3px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+/* ----- AI 채점 결과 상자 ----- */
+.wp-score {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #f1dcb6;
+  border-radius: 14px;
+  background: #fffaf1;          /* 통과 전: 연한 주황 */
+}
+
+.wp-score.passed {
+  border-color: #cfeadb;
+  background: #f2fbf6;          /* 통과: 연한 초록 */
+}
+
+.wp-score-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.wp-score-number {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+  color: #c97e14;
+}
+
+.wp-score.passed .wp-score-number {
+  color: #2c8a5c;
+}
+
+.wp-score-number svg {
+  align-self: center;
+  margin-right: 4px;
+}
+
+.wp-score-number strong {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.wp-score-number span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wp-score-title {
+  margin: 0 0 3px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.wp-score-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* 점수 막대 + 90점 기준선 */
+.wp-score-bar {
+  position: relative;
+  height: 10px;
+  margin: 16px 0 6px;
+  border-radius: 999px;
+  background: #ece6da;
+}
+
+.wp-score-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: #f0a83a;
+}
+
+.wp-score.passed .wp-score-fill {
+  background: #3aa476;
+}
+
+.wp-score-line {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--navy);
+}
+
+.wp-score-best {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-sub);
+  text-align: right;
+}
+
+.wp-score-overall {
+  margin: 0 0 14px;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+/* 기준별 점수 목록 */
+.wp-criteria {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wp-criterion {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.wp-criterion-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wp-criterion-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.wp-criterion-score {
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.wp-criterion-score small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-sub);
+}
+
+.wp-criterion.good .wp-criterion-score { color: #2c8a5c; }
+.wp-criterion.mid .wp-criterion-score { color: #c97e14; }
+.wp-criterion.low .wp-criterion-score { color: #c4473f; }
+
+.wp-criterion-bar {
+  display: block;
+  height: 5px;
+  margin: 8px 0 0;
+  border-radius: 999px;
+  background: #eef2f6;
+  overflow: hidden;
+}
+
+.wp-criterion-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.wp-criterion.good .wp-criterion-bar span { background: #3aa476; }
+.wp-criterion.mid .wp-criterion-bar span { background: #f0a83a; }
+.wp-criterion.low .wp-criterion-bar span { background: #e0675f; }
+
+.wp-criterion-comment {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-sub);
+  word-break: keep-all;
+}
+
+/* 다음에 고칠 점 */
+.wp-next-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--sky-soft);
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.wp-next-step svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--sky);
+}
+
+.wp-next-step strong {
+  display: block;
+  color: var(--navy);
+}
+
+/* 비교 자료 (완료한 단원만, 눌러서 펼침) */
+.wp-compare {
+  margin-top: 18px;
+  border: 1px solid #e3edf6;
+  border-radius: 12px;
+}
+
+.wp-compare summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.wp-compare[open] summary {
+  border-bottom: 1px solid #e3edf6;
+}
+
+.wp-compare-text {
+  max-height: 280px;         /* 원문이 길면 상자 안에서 스크롤 */
+  overflow-y: auto;
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #f5f9fd;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text);
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.wp-compare-note {
+  margin: 6px 16px 14px;
+  font-size: 12px;
+  color: var(--text-sub);
+}
+
+@media (max-width: 640px) {
+  .wp-score {
+    padding: 16px;
+  }
+
+  /* 좁은 화면: 점수 아래에 안내 문구 */
+  .wp-score-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .wp-score-number strong {
+    font-size: 34px;
+  }
+
+  .wp-actions .wp-hint {
+    flex-basis: 100%;
+  }
+
+  .wp-actions .btn-primary {
+    width: 100%;
+  }
+}
+
+/* ===================== 오답노트 탭 ===================== */
+.wrong-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 16px;
+}
+
+.learn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.learn-chip.active {
+  border-color: var(--sky);
+  background: var(--sky);
+  color: #fff;
+}
+
+.learn-chip-count {
+  font-size: 11.5px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.wrong-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+
+.wrong-toggle input {
+  accent-color: var(--sky);
+}
+
+.learn-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-sub);
+}
+
+.learn-empty svg {
+  color: var(--sky);
+}
+
+.learn-empty p {
+  margin: 0;
+  font-size: 14.5px;
+  word-break: keep-all;
+}
+
+.wrong-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wrong-card {
+  padding: 18px 20px;
+}
+
+.wrong-card.resolved {
+  opacity: 0.85;
+}
+
+.wrong-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+.wrong-type {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--sky-soft);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.wrong-resolved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #eaf7f0;
+  color: #2c8a5c;
+  font-weight: 700;
+}
+
+.wrong-question {
+  margin: 0 0 12px;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--navy);
+  word-break: keep-all;
+}
+
+.wrong-retry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+.wrong-ox {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 38px;
+  border: 1.5px solid #dbe7f2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.wrong-ox:first-of-type svg {
+  color: #3d8bc7;
+}
+
+.wrong-ox:last-of-type svg {
+  color: #e0605a;
+}
+
+.wrong-ox:hover {
+  border-color: #9cc8ea;
+}
+
+.wrong-answer {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f0faf4;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text);
+  word-break: keep-all;
+}
+
+.wrong-answer.again {
+  background: #fdf3f2;
+}
+
+.wrong-answer strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--navy);
+}
+
+.wrong-answer p {
+  margin: 0;
+}
+
+.wrong-explain {
+  margin-top: 4px !important;
+  color: var(--text-sub);
+}
+
+.wrong-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 12.5px;
+}
+
+.wrong-delete:hover {
+  color: #c4473f;
+}
+
+/* ===================== 반응형 ===================== */
+@media (max-width: 900px) {
+  /* 유형 카드 3개: 태블릿에서는 세로로 길게 쌓지 않고 3칸 그대로, 아이콘을 위로 올려 가운데 정렬 */
+  .learn-types {
+    gap: 10px;
+  }
+
+  .learn-type {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 12px;
+    text-align: center;
+  }
+
+  .learn-type-body {
+    width: 100%;
+    align-items: center;
+  }
+
+  .learn-type-progress {
+    width: 100%;
+  }
+
+  .unit-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  /* 유형 카드 3개: 모바일에서는 한 줄에 작게 3칸 (설명은 숨기고 아이콘·이름·진도만) */
+  .learn-types {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .learn-type {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  .learn-type-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .learn-type-body {
+    width: 100%;
+    align-items: center;
+  }
+
+  .learn-type-body strong {
+    font-size: 14px;
+  }
+
+  .learn-type-desc {
+    display: none;
+  }
+
+  .learn-type-progress {
+    width: 100%;
+    gap: 5px;
+  }
+
+  .unit-view {
+    padding: 20px 16px 22px;
+  }
+
+  .unit-view-title {
+    font-size: 20px;
+  }
+
+  /* 단계 탭: 좁은 화면에서는 세 개가 너비를 똑같이 나눠 씀 (번호 동그라미는 숨겨서 자리 확보) */
+  .unit-steps {
+    gap: 6px;
+  }
+
+  .unit-steps li {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .unit-step {
+    width: 100%;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
+    font-size: 12.5px;
+  }
+
+  .unit-step-number {
+    display: none;
+  }
+
+  .concept-examples {
+    grid-template-columns: 1fr;
+  }
+
+  .ox-question {
+    font-size: 16px;
+  }
+
+  .ox-button {
+    padding: 16px 8px 14px;
+  }
+
+  .unit-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .unit-card-status {
+    min-width: 52px;
+  }
+
+  .wrong-card {
+    padding: 16px;
+  }
+}
+
+/* 움직임 줄이기 설정을 켠 사용자에게는 떠오르는 효과 끄기 */
+@media (prefers-reduced-motion: reduce) {
+  .unit-card,
+  .ox-button {
+    transition: none;
+  }
+
+  .unit-card:not(:disabled):hover,
+  .ox-button:not(:disabled):hover {
+    transform: none;
+  }
+}
+
+/* ===== 오답노트: 퀴즈(맞춤법·문법 객관식)에서 온 오답 ===== */
+/* 이름표 색을 학습 유형(하늘색)과 다르게 → 어디서 틀린 문제인지 한눈에 */
+.wrong-type.quiz {
+  background: #fff1d6;
+  color: #9a6a12;
+}
+
+/* 객관식 다시 풀기: 보기 버튼들 */
+.wrong-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wrong-option {
+  padding: 10px 12px;
+  border: 1.5px solid #dbe7f2;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  word-break: keep-all;
+}
+
+.wrong-option:hover {
+  border-color: #9cc8ea;
+  background: #f5f9fd;
+}
+
+@media (max-width: 640px) {
+  .wrong-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 오답노트 페이지 번호 (마이페이지·관리자 페이지와 같은 동그란 모양) ===== */
+.learn-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.learn-page,
+.learn-page-arrow {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #dbe7f2;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f6378;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.learn-page-arrow {
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: none;
+}
+
+.learn-page:hover:not(.active) {
+  border-color: #9cc6ea;
+  color: var(--navy);
+}
+
+.learn-page.active {
+  border-color: var(--sky);
+  background: var(--sky);
+  color: #fff;
+}
+
+.learn-page-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
