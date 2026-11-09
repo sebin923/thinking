@@ -338,7 +338,7 @@
     padding: 26px 20px;
   }
 
-  .about-features,
+  /* 약속 카드 3개는 한 줄에 하나 (기능 카드는 아래 560px부터 한 줄에 하나) */
   .about-promises {
     grid-template-columns: 1fr;
   }
@@ -352,10 +352,36 @@
   }
 }
 
-/* 아주 좁은 폰: 4단계도 한 줄에 하나 */
+/* 폰 (560px 이하): 기능 카드는 한 줄에 하나 */
+@media (max-width: 560px) {
+  .about-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 아주 좁은 폰: 4단계는 한 줄에 하나씩 쌓으면 너무 길어져서 2칸(2x2)을 유지하고 작게 */
 @media (max-width: 480px) {
   .about-flow {
-    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .about-flow-step {
+    padding: 18px 10px 16px;
+  }
+
+  .about-flow-icon {
+    width: 46px;
+    height: 46px;
+    margin: 10px 0 12px;
+  }
+
+  .about-flow-step strong {
+    font-size: 15px;
+  }
+
+  .about-flow-step p {
+    font-size: 12.5px;
+    white-space: normal;     /* 좁은 칸에서는 정해 둔 줄바꿈 대신 칸에 맞게 자연스럽게 */
   }
 }
 

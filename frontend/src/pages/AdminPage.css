@@ -726,12 +726,21 @@
     padding: 16px;
   }
 
+  /* 탭 5개를 화면 너비에 딱 맞게 5칸으로 나눔 (예전엔 마지막 "학습 관리"가 화면 밖으로 잘림) */
+  .admin-tabs {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
   .admin-tab {
-    flex-direction: column;  /* 아이콘 위, 글자 아래 → 네 탭이 한 줄에 들어가게 */
+    flex-direction: column;  /* 아이콘 위, 글자 아래 → 다섯 탭이 한 줄에 들어가게 */
     gap: 4px;
-    padding: 10px 4px;
-    font-size: 12.5px;
+    min-width: 0;
+    padding: 10px 2px;
+    font-size: 12px;
     text-align: center;
+    white-space: normal;     /* PC용 "한 줄 고정"을 풀어서 */
     word-break: keep-all;    /* "공지사항 관리"가 넘치면 띄어쓰기에서만 두 줄로 */
     line-height: 1.3;
   }
@@ -826,4 +835,190 @@
 .admin-page-arrow:focus-visible {
   outline: 2px solid #4a98d3;
   outline-offset: 2px;
+}
+
+/* =============================================================
+   학습 관리 탭 (admin/LearnManager.jsx)
+   ============================================================= */
+
+/* "이 브라우저에만 저장돼요" 안내 */
+.admin-learn-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff8e6;
+  color: #8a6418;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.admin-learn-info svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 단원 고르는 목록 상자 */
+.admin-learn-select {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 12px;
+  border: 1px solid #d6e3ef;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.admin-learn-select:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px #e6f1fb;
+}
+
+/* "수정됨" 이름표 */
+.admin-learn-edited {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fff1d6;
+  color: #9a6a12;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* 좋은 예 / 고칠 예 나란히 */
+.admin-learn-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* O/X 문제 목록 */
+.admin-learn-quiz {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-learn-q {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #dfeaf4;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-learn-q-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.admin-learn-q-number {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--sky-soft);
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-learn-q textarea,
+.admin-learn-explain {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #d6e3ef;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.admin-learn-explain {
+  margin-left: 34px;         /* 번호 동그라미만큼 들여쓰기 */
+  font-size: 13px;
+  color: #4f6378;
+}
+
+.admin-learn-q textarea:focus,
+.admin-learn-explain:focus {
+  outline: none;
+  border-color: var(--sky);
+}
+
+/* 정답 O/X 버튼 */
+.admin-learn-ox {
+  display: flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 1px solid #d6e3ef;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-learn-ox button {
+  width: 36px;
+  height: 34px;
+  border: none;
+  background: #fff;
+  color: #9aabbd;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.admin-learn-ox button + button {
+  border-left: 1px solid #d6e3ef;
+}
+
+.admin-learn-ox button.active.o {
+  background: #3d8bc7;
+  color: #fff;
+}
+
+.admin-learn-ox button.active.x {
+  background: #e0605a;
+  color: #fff;
+}
+
+.admin-learn-add {
+  align-self: flex-start;
+}
+
+.admin-learn-actions {
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .admin-learn-two {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-learn-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .admin-learn-explain {
+    margin-left: 0;
+  }
 }

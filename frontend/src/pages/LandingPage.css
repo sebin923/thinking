@@ -433,3 +433,48 @@
     display: none;
   }
 }
+
+/* ===================== 반응형 보강 ===================== */
+
+/* 태블릿 (641~960px): 3단계 카드가 3칸이면 글자가 "메모\n를"처럼 쪼개짐
+   → 아이콘을 글 위로 올리고 가운데 정렬해서 칸이 좁아도 읽기 좋게 */
+@media (min-width: 641px) and (max-width: 960px) {
+  .steps-card {
+    gap: 16px;
+    padding: 24px 20px;
+  }
+
+  .step {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+    padding-left: 0;
+  }
+
+  .step-icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .step-text {
+    align-items: center;
+  }
+
+  /* 화살표는 아이콘 높이(60px)의 가운데쯤, 칸 사이에 */
+  .step-arrow {
+    top: 30px;
+    right: -14px;
+  }
+}
+
+/* 좁은 폰: 제목이 "곳,"만 혼자 다음 줄로 떨어지지 않게 글자 크기를 화면 너비에 맞춰 줄임
+   clamp(최소, 화면 너비 비율, 최대): 화면이 좁을수록 작아지되 최소~최대 사이로만 */
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: clamp(30px, 9.4vw, 40px);
+  }
+
+  .hero-title strong {
+    font-size: clamp(46px, 14vw, 58px);
+  }
+}

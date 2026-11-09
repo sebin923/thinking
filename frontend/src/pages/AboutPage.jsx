@@ -22,7 +22,7 @@ import {
   SlidersHorizontal,
   SpellCheck,
   Trophy,
-  FolderOpen,
+  GraduationCap,
   ShieldCheck,
   Hand,
   FileCheck2,
@@ -104,11 +104,11 @@ const FEATURES = [
     target: "ranking",
   },
   {
-    icon: FolderOpen,
-    tag: "기록",
-    title: "마이페이지",
-    description: "내가 쓴 글을 종류별로 모아 보고, 저장한 버전을 열어 이어 쓸 수 있어요.",
-    target: "mypage",
+    icon: GraduationCap,
+    tag: "스터디",
+    title: "글쓰기 기본기 스터디",
+    description: "보고서·자기소개서·발표문의 작성 규칙을 단원별 O/X 문제와 글쓰기 연습으로 익혀요.",
+    target: "learn",
   },
 ];
 

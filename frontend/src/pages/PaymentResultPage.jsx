@@ -97,7 +97,7 @@ function PaymentResultPage({ result, auth, onNavigate }) {
         setState({
           status: "done",
           title: "충전이 완료됐어요",
-          detail: data.message || `AI 초안 ${state.order.count}회가 추가됐어요.`,
+          detail: data.message || `AI 이용 ${state.order.count}회가 추가됐어요.`,
           order: state.order,
         });
       })
@@ -144,7 +144,7 @@ function PaymentResultPage({ result, auth, onNavigate }) {
             <dl className="pay-result-order">
               <div>
                 <dt>상품</dt>
-                <dd>AI 초안 {state.order.count}회</dd>
+                <dd>AI 이용 {state.order.count}회</dd>
               </div>
               <div>
                 <dt>결제 금액</dt>

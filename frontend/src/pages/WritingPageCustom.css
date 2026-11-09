@@ -187,5 +187,21 @@
 .writing-ai-draft-preview p { margin: 0 0 12px; font-size: 12px; color: #627c90; }
 .writing-ai-preview-text { max-height: 330px; overflow: auto; padding: 14px; border: 1px solid #e0ebf4; border-radius: 8px; background: white; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
 .writing-ai-preview-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+/* AI 도구 카드: 오른쪽에 작성 팁이 같이 있어서 좁아지는 구간(901~1100px)만 한 줄에 하나,
+   작성 팁이 아래로 내려가는 900px 이하에서는 다시 2칸, 폰(560px 이하)에서는 한 줄에 하나 */
 @media (max-width: 1100px) { .writing-ai-tool-buttons { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .writing-ai-tool-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .writing-ai-tool-buttons { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .writing-save-actions { flex-wrap: wrap; } .writing-ai-preview-actions > button { flex: 1; } }
+
+/* ===== 모바일 반응형 보강 (640px 이하) ===== */
+@media (max-width: 640px) {
+  /* 글 유형 버튼 5개: 3칸 격자로 줄 맞춤 (3개 + 2개), 버전 저장은 그 아래 한 줄 전체 */
+  .writing-type-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .writing-type-option { padding: 11px 6px; white-space: nowrap; }
+  /* "본문" 제목 옆 버튼 3개(실행 취소·다시 실행·본문 복사): 두 줄로 어긋나지 않게 제목 아래 한 줄에 똑같은 너비로 */
+  .writing-body-heading { flex-wrap: wrap; }
+  /* (.writing-body-heading을 앞에 붙인 이유: WritingCompare.css가 이 파일보다 늦게 불러와져서 덮어쓰기 때문에 더 구체적으로 지정) */
+  .writing-body-heading .writing-body-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .writing-body-heading .writing-body-actions .writing-compare-copy { justify-content: center; padding: 7px 4px; white-space: nowrap; }
+}

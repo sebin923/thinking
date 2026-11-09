@@ -8,7 +8,7 @@
 //                마이페이지(MyPage), 회원정보 수정(MyPageEdit),
 //                서비스 소개(AboutPage), 관리자(AdminPage),
 //                공지사항(NoticePage), 이용약관·개인정보처리방침(PolicyPage),
-//                AI 초안 이용권 충전(PaymentPage), 오답노트(WrongNotePage, 준비 중)
+//                AI 초안 이용권 충전(PaymentPage), 학습(LearnPage, 오답노트 탭 포함)
 // 그 밖의 알 수 없는 메뉴 이름이 오면 "준비 중" 화면이 나옴.
 // (나중에 react-router를 배우면 주소(URL)로 페이지를 이동하는 방식으로 바꿀 예정)
 // =============================================================
@@ -24,8 +24,8 @@ import AboutPage from "./pages/AboutPage";
 // 푸터 "고객지원" 화면들: 공지사항 / 이용약관·개인정보처리방침(같은 화면에 글만 다름)
 import NoticePage from "./pages/NoticePage";
 import PolicyPage from "./pages/PolicyPage";
-// 오답노트 (아직 "준비 중" 안내 화면)
-//import WrongNotePage from "./pages/WrongNotePage";
+// 학습: 글 유형별 작성 규칙 단원 + 오답노트 탭
+import LearnPage from "./pages/LearnPage";
 // AI 초안 이용권 충전(결제) 화면: 헤더 "이용권 충전"·마이페이지 "이용권 충전" 버튼으로 들어옴
 import PaymentPage from "./pages/PaymentPage";
 // 토스페이먼츠 결제창에서 돌아왔을 때 결과 화면 + 지금 주소가 "결제 후 돌아온 주소"인지 확인하는 함수
@@ -128,7 +128,7 @@ function clearAuth() {
 
 function App() {
   // activeNav: 지금 보여줄 화면 이름
-  //  - 헤더 메뉴: "home"(홈), "about"(서비스 소개), "write"(글쓰기), "wrong-note"(오답노트), "quiz"(퀴즈)
+  //  - 헤더 메뉴: "home"(홈), "about"(서비스 소개), "learn"(학습), "write"(글쓰기), "quiz"(퀴즈)
   //    ("ranking"(랭킹) 화면은 헤더 메뉴 대신 퀴즈 화면의 [퀴즈 | 랭킹] 탭으로 들어감)
   //  - 헤더 오른쪽 버튼: "login"(로그인), "signup"(회원가입)
   //  - 랭킹 화면 안의 버튼: "challenge"(맞춤법 도전 모드)
@@ -177,6 +177,12 @@ function App() {
   // App에 두는 이유: 다른 메뉴에 갔다 와도 마지막으로 보던 종류가 그대로 남게 하려고
   // (랭킹은 맞춤법 도전 모드만 있어서 이 값과 상관없음)
   const [quizCategory, setQuizCategory] = useState("spelling");
+
+  // 학습 화면을 열 때 처음 보여줄 탭 ("learn" 학습 / "wrong" 오답노트)
+  // 헤더로 들어가면 "learn", 퀴즈 결과의 "오답노트 보기"로 들어가면 "wrong"
+  const [learnTab, setLearnTab] = useState("learn");
+  // 학습 화면을 "오답노트로 열기"할 때마다 +1 → LearnPage를 새로 만들어서 initialTab이 다시 적용되게
+  const [learnOpenCount, setLearnOpenCount] = useState(0);
 
   // loginNotice: 회원가입 직후 로그인 화면에 보여줄 안내 + 미리 채울 아이디
   const [loginNotice, setLoginNotice] = useState({ loginId: "", message: "" });
@@ -227,6 +233,9 @@ function App() {
       discardUnsavedDocument(auth.token, state.documentId);
     }
     writingStateRef.current = null;
+    // 메인에서 적은 생각도 이 글과 함께 버림
+    // (안 지우면 나중에 헤더의 "글쓰기"로 새 글을 열 때 예전 생각이 본문에 또 들어감)
+    setIdea("");
     try {
       localStorage.removeItem(writingDraftKey(auth?.user?.user_id));
     } catch {
@@ -304,6 +313,12 @@ function App() {
       if (key === "login" || key === "signup") setLoginNotice({ loginId: "", message: "" });
       // 헤더·푸터의 "글쓰기"를 누르면 마이페이지에서 열었던 글은 닫고 새 글쓰기로 시작
       if (key === "write") setOpenedDocument(null);
+      // 헤더·푸터·마이페이지에서 "학습"으로 갈 때는 항상 학습 탭부터
+      // (이미 학습 화면에 있어도 +1로 화면을 새로 만들어서 학습 탭·유형 목록으로 돌아가게)
+      if (key === "learn") {
+        setLearnTab("learn");
+        setLearnOpenCount((n) => n + 1);
+      }
       setActiveNav(key);
     };
 
@@ -323,6 +338,13 @@ function App() {
   // (퀴즈 안의 작은 탭 [맞춤법 | 문법]은 setQuizCategory로 종류만 바꿈)
   const handleQuizSection = (key) => {
     setActiveNav(key);
+  };
+
+  // ----- 퀴즈 결과 화면의 "오답노트 보기" → 학습 화면을 오답노트 탭으로 열기 -----
+  const openWrongNotes = () => {
+    setLearnTab("wrong");
+    setLearnOpenCount((n) => n + 1); // LearnPage의 key가 바뀌어서 오답노트 탭으로 새로 열림
+    setActiveNav("learn");
   };
 
   // ----- 글쓰기 화면의 "새 글 쓰기" 버튼 -----
@@ -440,8 +462,16 @@ function App() {
         ) : (
           <PaymentPage auth={auth} onGoLogin={() => handleNavigate("login")} onNavigate={handleNavigate} />
         );
-      case "wrong-note":
-        return <WrongNotePage onNavigate={handleNavigate} />;
+      case "learn":
+        // 학습 (로그인해야 쓸 수 있음 → 로그인 안 했으면 화면 안에서 로그인 안내)
+        return (
+          <LearnPage
+            key={learnOpenCount}
+            auth={auth}
+            initialTab={learnTab}
+            onGoLogin={() => handleNavigate("login")}
+          />
+        );
       case "notice":
         // 공지사항: 위쪽 고객지원 탭으로 이용약관·개인정보처리방침에 바로 갈 수 있음
         return <NoticePage onNavigate={handleNavigate} />;
@@ -462,6 +492,8 @@ function App() {
             initialDocument={openedDocument}
             onNewWriting={handleNewWriting}
             onWritingStateChange={handleWritingStateChange}
+            // 하루 무료 AI 횟수를 다 썼을 때 "이용권 충전" 버튼 → 결제 화면
+            onCharge={() => handleNavigate("payment")}
             // 설정 화면에 다녀와도 openedDocument는 그대로라서 같은 글로 돌아옴
             onOpenSettings={() => setActiveNav("writing-settings")}
           />
@@ -486,6 +518,9 @@ function App() {
             onChangeSection={handleQuizSection}
             // 퀴즈는 연습용이라 랭킹 저장 없음 → 결과 화면에서 도전 모드로 안내
             onGoChallenge={() => setActiveNav("challenge")}
+            // 로그인했으면 틀린 문제를 오답노트에 담음 + 결과 화면에서 오답노트로 바로 가기
+            auth={auth}
+            onGoWrongNotes={openWrongNotes}
           />
         );
       case "ranking":
@@ -512,6 +547,7 @@ function App() {
             auth={auth}
             onEdit={() => setActiveNav("mypage-edit")}
             onCharge={() => setActiveNav("payment")}
+            onGoLearn={() => handleNavigate("learn")}
             onGoWrite={() => handleNavigate("write")}
             onOpenDocument={handleOpenDocument}
             onGoLogin={() => handleNavigate("login")}

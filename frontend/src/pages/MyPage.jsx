@@ -46,8 +46,12 @@ import {
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
+// 창만 스크롤하는 도구 (scrollIntoView를 쓰면 overflow: hidden 상자 안 내용이 밀려 올라가는 문제가 있어서)
+import scrollToElement from "../utils/scrollToElement";
 // 글 삭제 확인창
 import DeleteDocumentModal from "../components/DeleteDocumentModal";
+// 학습 진도 카드 (보고서·자기소개서·발표문 단원 완료 수)
+import LearnProgressCard from "../components/LearnProgressCard";
 import { fetchMyProfile, fetchMyDocuments, fetchDocumentDrafts, deleteDocument } from "../api/mypage";
 import { formatPhone } from "../utils/validation";
 // 로딩 아이콘이 빙글빙글 도는 .spin 클래스가 들어 있는 파일 (로그인·회원가입과 같이 씀)
@@ -114,12 +118,13 @@ function entryKey(documentId, version) {
 //  - auth: 로그인 정보 { token, user } (로그인 안 했으면 null)
 //  - onEdit: "마이페이지 수정" 버튼을 눌렀을 때 실행 (수정 화면으로 이동)
 //  - onCharge: "이용권 충전" 버튼을 눌렀을 때 실행 (결제 화면으로 이동)
+//  - onGoLearn: 학습 진도 카드의 "학습 이어 하기" 버튼 (학습 화면으로 이동)
 //  - onGoWrite: 쓴 글이 없을 때 "글쓰기 시작하기" 버튼
 //  - onGoLogin: 로그인 안 했을 때 "로그인하기" 버튼
 //  - onSessionExpired: 토큰이 만료됐을 때 (App이 로그아웃시키고 로그인 화면으로 보냄)
 //  - onOpenDocument: 글을 눌렀을 때 실행 → { id, title, document_type, status, content }를 넘기면
 //                    App이 그 글이 들어간 글쓰기 페이지로 이동시킴
-function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLogin, onSessionExpired, onOpenDocument }) {
+function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLearn, onGoLogin, onSessionExpired, onOpenDocument }) {
   const token = auth?.token;
 
   // ----- 상태값 -----
@@ -413,8 +418,8 @@ function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLogin, onSessionExpired
     if (next < 1 || next > totalPages || next === currentPage) return;
     setPage(next);
     setOpenKey(null);
-    // scrollIntoView: 그 요소가 화면 맨 위에 오도록 스크롤 (behavior: "smooth" → 부드럽게)
-    document.getElementById("mypage-docs-title")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // 그 요소가 화면 맨 위(헤더 아래)에 오도록 부드럽게 스크롤
+    scrollToElement(document.getElementById("mypage-docs-title"));
   };
 
   // 버튼 옆에 보여줄 개수
@@ -519,6 +524,9 @@ function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLogin, onSessionExpired
             </li>
           </ul>
         </section>
+
+        {/* ===================== 1-2. 학습 진도 ===================== */}
+        <LearnProgressCard user={auth.user} onGoLearn={onGoLearn} />
 
         {/* ===================== 2. 내가 쓴 글 ===================== */}
         <section className="panel mypage-docs" aria-labelledby="mypage-docs-title">

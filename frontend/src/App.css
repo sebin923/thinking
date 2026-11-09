@@ -50,6 +50,7 @@
   font-weight: 400;         /* 손글씨 폰트는 굵기가 하나뿐 */
   color: var(--navy);
   line-height: 1;
+  white-space: nowrap;      /* 화면이 좁아도 "생각한줄"이 세로로 쪼개지지 않게 */
 }
 
 /* 가운데 메뉴 묶음 */
@@ -64,6 +65,7 @@
   padding: 6px 2px;
   font-size: 15px;
   color: var(--text-sub);
+  white-space: nowrap;      /* "서비스 소개"가 두 줄로 쪼개지지 않게 */
   transition: color 0.15s;  /* 색이 바뀔 때 0.15초 동안 부드럽게 */
 }
 
@@ -107,6 +109,7 @@
   background: none;
   font-size: 15px;
   color: var(--text-sub);
+  white-space: nowrap;      /* "로그아웃"이 "로그아/웃"으로 쪼개지지 않게 */
 }
 
 .login-button:hover,
@@ -131,6 +134,7 @@
   background: none;
   padding: 6px 4px;
   border-radius: 8px;
+  white-space: nowrap;      /* "한세빈님"이 세로로 쪼개지지 않게 */
 }
 
 /* 마우스를 올리거나 마이페이지에 있을 때: 밑줄로 "누를 수 있음"을 알려줌 */
@@ -216,9 +220,29 @@
   color: var(--navy);
 }
 
-/* ===================== 반응형: 모바일 (768px 이하) ===================== */
+/* ===================== 반응형: 좁은 PC·가로 태블릿 (961~1180px) ===================== */
+/* 메뉴와 오른쪽 버튼(이용권 충전·이름·로그아웃)이 같이 들어가기 빠듯한 너비
+   → 간격을 줄이고, 가운데 메뉴는 남는 자리 가운데에 둠 (왼쪽·오른쪽 칸 너비를 똑같이 맞추지 않음) */
+@media (max-width: 1180px) {
+  .header {
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    padding: 22px 32px;
+  }
 
-@media (max-width: 768px) {
+  .header-nav {
+    justify-self: center;
+    gap: 26px;
+  }
+
+  .header-auth {
+    gap: 12px;
+  }
+}
+
+/* ===================== 반응형: 태블릿·모바일 (960px 이하) → 햄버거 메뉴 ===================== */
+/* (예전엔 768px부터였는데, 769~960px에서 이름·로그아웃이 세로로 쪼개져서 햄버거 메뉴를 더 일찍 씀) */
+@media (max-width: 960px) {
   .header {
     display: flex;
     justify-content: space-between;
@@ -282,11 +306,30 @@
   /* 펼친 메뉴 안의 로그인/회원가입 */
   .header-nav.open .header-nav-auth {
     display: flex;
+    flex-wrap: wrap;          /* 아주 좁은 폰에서 넘치면 다음 줄로 */
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     border-top: 1px solid #e8eef5;
     margin-top: 6px;
     padding-top: 12px;
+  }
+}
+
+/* 태블릿(641~960px): 펼친 메뉴를 화면 전체가 아니라 오른쪽 위 작은 상자로 (햄버거 버튼 바로 아래) */
+@media (min-width: 641px) and (max-width: 960px) {
+  .header-nav.open {
+    left: auto;
+    width: 340px;
+  }
+}
+
+/* 아주 좁은 폰(400px 이하): 이용권 충전 버튼은 한 줄 전체, 이름·로그아웃은 그 아래 줄 */
+@media (max-width: 400px) {
+  .header-nav.open .header-charge {
+    flex-basis: 100%;
+    justify-content: center;
+    padding: 9px 13px;
   }
 }
 

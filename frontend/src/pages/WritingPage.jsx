@@ -249,7 +249,15 @@ function WritingPage({
   const [personalDraftLoading, setPersonalDraftLoading] = useState(false);
   const [draft] = useState(() => {
     const saved = loadDraft(auth?.user?.user_id);
-    if (!initialDocument) return saved ? { ...saved, resumedFromSettings: true } : null;
+    if (!initialDocument) {
+      // 1순위: 설정 화면에 다녀온 경우 → 쓰던 글(임시저장본) 그대로
+      if (saved) return { ...saved, resumedFromSettings: true };
+      // 2순위: 메인 화면 입력창에 적은 생각(idea)이 있으면 → 그 글을 본문에 넣고 시작
+      //   textToHtml: 글자 속 <, > 같은 기호를 안전하게 바꾸고 줄바꿈을 살려서 HTML로 만듦
+      //   dirty: true → 아직 저장 안 한 내용이 있다는 표시 (다른 메뉴로 나가면 "저장 안 하고 나갈까요?" 경고)
+      if (idea.trim()) return { html: textToHtml(idea.trim()), dirty: true, fromIdea: true };
+      return null;
+    }
     if (saved?.documentId === initialDocument.id) return { ...saved, resumedFromSettings: true };
     return documentToDraft(initialDocument);
   });
@@ -265,6 +273,7 @@ function WritingPage({
   const [bodyLength, setBodyLength] = useState(() => countText(draft?.html));
   const [toast, setToast] = useState(() => {
     if (!draft) return "";
+    if (draft.fromIdea) return "메인에서 적은 생각을 본문에 넣어 두었어요.";
     if (draft.fromServer) return `"${draft.title}" 글을 불러왔어요.`;
     return "임시저장된 글을 불러왔어요.";
   });
@@ -799,7 +808,8 @@ function WritingPage({
             "필요한 AI 기능을 자유롭게 선택해 글을 완성해보세요.\n" +
             "AI를 사용하지 않고 바로 저장할 수도 있습니다."
           }
-          memoText={"당신의\n생각이\n글이 되는 곳"}
+          // 메모지 폭이 좁아서 "글이 되는 곳"을 한 줄에 쓰면 "곳"만 혼자 떨어짐 → 줄을 미리 나눠 둠
+          memoText={"당신의\n생각이\n글이\n되는 곳"}
           memoVariant="note"
         />
         <div className={`writing-layout ${feedback ? "writing-layout-feedback" : ""}`}>

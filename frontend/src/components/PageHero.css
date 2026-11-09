@@ -8,7 +8,10 @@
 
 .sub-page {
   position: relative;
-  overflow: hidden;
+  overflow: hidden;          /* 옛날 브라우저용 (아래 clip을 모르면 이 줄을 씀) */
+  /* clip: 넘치는 장식을 잘라내는 건 hidden과 같지만, 코드나 포커스 이동으로도 "안쪽 스크롤"이 생기지 않음
+     (hidden이면 버튼을 누르거나 스크롤할 때 상자 안 내용이 옆·위로 밀려서 화면이 잘려 보이는 일이 있었음) */
+  overflow: clip;
   min-height: 100vh;
   padding: 120px 24px 72px;  /* 위쪽은 헤더 높이만큼 */
   /* 위는 연한 하늘색, 아래로 갈수록 더 밝게 */

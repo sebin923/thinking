@@ -22,6 +22,7 @@ import {
   XCircle,
   RotateCcw,
   Flame, // "도전 모드" 버튼 아이콘
+  NotebookPen, // "오답노트" 안내·버튼 아이콘
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
@@ -31,6 +32,8 @@ import QuizSectionTabs from "../components/QuizSectionTabs";
 import CategoryTabs from "../components/CategoryTabs";
 // getQuizCategory: 종류별 제목·설명 등 설정 꺼내기
 import { getQuizCategory } from "../data/quizCategories";
+// 틀린 문제를 학습 화면의 오답노트에 담는 함수 (로그인했을 때만)
+import { recordQuizAnswer } from "../api/learn";
 import "./QuizPage.css";
 
 const POINT_PER_QUESTION = 10;
@@ -50,7 +53,10 @@ function shuffle(list) {
 //  - onChangeCategory: [맞춤법 | 문법] 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
 //  - onChangeSection: [퀴즈 | 랭킹] 탭을 눌렀을 때 실행 ("ranking"이면 랭킹 화면으로)
 //  - onGoChallenge: "도전 모드" 버튼을 눌렀을 때 실행 (랭킹에 기록이 남는 맞춤법 도전 모드로 이동)
-function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, onGoChallenge }) {
+//  - auth: 로그인 정보 → 로그인했으면 틀린 문제를 오답노트(학습 화면)에 담음 (안 했으면 담지 않음)
+//  - onGoWrongNotes: 결과 화면 "오답노트 보기" 버튼 (학습 화면의 오답노트 탭으로)
+function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, onGoChallenge, auth, onGoWrongNotes }) {
+  const user = auth?.user; // 로그인한 회원 (없으면 undefined)
   // info: 지금 종류의 제목·설명·메모 문구 등 (data/quizCategories.js)
   const info = getQuizCategory(category);
 
@@ -139,6 +145,17 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
     const next = [...results];
     next[current] = isCorrect;
     setResults(next);
+
+    // 로그인했으면 오답노트에 반영 (틀리면 담고, 예전에 틀린 문제를 맞히면 해결 처리)
+    // 저장이 실패해도 퀴즈는 계속 풀 수 있게 에러는 조용히 넘김
+    if (user) {
+      recordQuizAnswer(user, {
+        quiz: question,
+        category,
+        categoryLabel: info.label,
+        chosen: question.options[selected],
+      }).catch(() => {});
+    }
   };
 
   const handleNext = () => {
@@ -239,12 +256,27 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
               <p className="quiz-result-note">
                 연습 퀴즈 점수는 랭킹에 남지 않아요. 랭킹은 맞춤법 도전 모드 기록으로 정해져요.
               </p>
+              {/* 틀린 문제 안내: 로그인했으면 오답노트에 담겼고, 안 했으면 로그인하면 담긴다고 알려줌 */}
+              {results.some((result) => result === false) && (
+                <p className="quiz-result-note">
+                  {user
+                    ? "틀린 문제는 학습 → 오답노트에 담아 두었어요."
+                    : "로그인하면 틀린 문제가 오답노트에 담겨요."}
+                </p>
+              )}
 
               <div className="quiz-result-actions">
                 <button type="button" className="btn-outline" onClick={handleRestart}>
                   <RotateCcw size={18} />
                   다시 풀기
                 </button>
+                {/* 로그인했고 틀린 문제가 있으면 오답노트로 바로 가기 */}
+                {user && onGoWrongNotes && results.some((result) => result === false) && (
+                  <button type="button" className="btn-outline" onClick={onGoWrongNotes}>
+                    <NotebookPen size={18} />
+                    오답노트 보기
+                  </button>
+                )}
                 {/* onGoChallenge가 있을 때만 버튼 표시 */}
                 {onGoChallenge && (
                   <button type="button" className="btn-primary" onClick={onGoChallenge}>
@@ -315,6 +347,12 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
                     )}
                   </strong>
                   <p>{question.explanation}</p>
+                  {/* 틀렸고 로그인했으면: 오답노트에 담았다는 안내 */}
+                  {!isCorrect && user && (
+                    <p className="quiz-wrong-saved">
+                      <NotebookPen size={14} /> 오답노트에 담았어요
+                    </p>
+                  )}
                 </div>
               )}
 

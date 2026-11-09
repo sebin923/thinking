@@ -21,6 +21,8 @@ from routers import mypage
 from routers import admin
 # 공지사항 보기 API (누구나 사용 가능, 주소는 /api/notices)
 from routers import notice
+# 학습 글쓰기 연습 AI 채점 API (로그인 필요, 주소는 /api/learn/...)
+from routers import learn
 
 from routers import payment
 
@@ -70,6 +72,9 @@ app.include_router(admin.router)
 app.include_router(notice.router)
 
 app.include_router(payment.router)
+
+# 학습 글쓰기 연습 AI 채점 API를 서버에 붙이기
+app.include_router(learn.router)
 
 # @app.get("/"): "http://127.0.0.1:8000/" 주소로 GET 요청이 오면
 # 바로 아래 함수를 실행하라는 뜻 (서버가 살아있는지 확인하는 용도)

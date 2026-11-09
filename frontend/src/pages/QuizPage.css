@@ -90,7 +90,7 @@
 /* 빈칸: 밑줄 박스 */
 .quiz-blank {
   display: inline-block;
-  min-width: 72px;
+  min-width: 56px;          /* 폰에서 빈칸이 너무 길어 혼자 줄바꿈되지 않게 조금 짧게 */
   margin: 0 4px;
   border-bottom: 2.5px solid #5aa5dc;
   text-align: center;
@@ -474,4 +474,33 @@
   justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* 좁은 폰: 버튼 두 개가 줄바꿈되면서 너비가 들쭉날쭉해지는 대신, 한 줄에 반씩 똑같이 나눔 */
+@media (max-width: 420px) {
+  .quiz-result-actions {
+    flex-wrap: nowrap;
+  }
+
+  .quiz-result-actions > button {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 14px;
+    white-space: nowrap;     /* "랭킹 보기"가 두 줄로 쪼개지지 않게 */
+  }
+}
+
+/* 틀렸을 때 "오답노트에 담았어요" 작은 안내 (로그인했을 때만 보임) */
+.quiz-wrong-saved {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9a6a12;
 }

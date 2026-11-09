@@ -6,6 +6,7 @@
 //   2. 회원 관리: 회원 조회(검색·상태 필터) + 이용 상태 관리(정상 ↔ 정지)
 //   3. 랭킹 관리: 도전 점수·기록 조회 / 삭제
 //   4. 공지사항 관리: 공지 등록 / 수정 / 삭제 (+ 중요 공지 고정)
+//   5. 학습 관리: 학습 단원의 개념·O/X 문제 수정 (admin/LearnManager.jsx)
 //
 // 들어올 수 있는 사람: 로그인한 관리자(role = "admin")만
 //   - 화면에서도 막고(헤더에 버튼이 안 보이고, 들어와도 안내만 보임)
@@ -34,10 +35,15 @@ import {
   CheckCircle2,
   Megaphone,
   Pin,
+  GraduationCap,
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
+// 창만 스크롤하는 도구 (scrollIntoView를 쓰면 overflow: hidden 상자 안 내용이 밀려 올라가는 문제가 있어서)
+import scrollToElement from "../utils/scrollToElement";
 import ConfirmModal from "../components/ConfirmModal";
+// 학습 관리 탭 (내용이 길어서 파일을 따로 나눔)
+import LearnManager from "./admin/LearnManager";
 import {
   fetchAdminQuizzes,
   createQuiz,
@@ -65,6 +71,7 @@ const TABS = [
   { key: "users", label: "회원 관리", icon: Users },
   { key: "rankings", label: "랭킹 관리", icon: Trophy },
   { key: "notices", label: "공지사항 관리", icon: Megaphone },
+  { key: "learn", label: "학습 관리", icon: GraduationCap },
 ];
 
 // 보기 개수 제한 (서버 admin_schemas.py의 QuizIn과 똑같이 맞춤)
@@ -183,6 +190,7 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
           )}
           {tab === "rankings" && <RankingManager token={auth.token} onSessionExpired={onSessionExpired} />}
           {tab === "notices" && <NoticeManager token={auth.token} onSessionExpired={onSessionExpired} />}
+          {tab === "learn" && <LearnManager />}
         </section>
       </div>
     </div>
@@ -1279,7 +1287,7 @@ function Pagination({ page, totalPages, onChange, label }) {
   const go = (next) => {
     if (next < 1 || next > totalPages || next === page) return;
     onChange(next);
-    document.querySelector(".admin-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToElement(".admin-tabs");
   };
 
   return (

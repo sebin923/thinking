@@ -1,7 +1,7 @@
 // =============================================================
 // Header.jsx — 맨 위 상단 메뉴바
 // -------------------------------------------------------------
-// 왼쪽: 로고 / 가운데: 홈(아이콘)·서비스 소개·글쓰기·오답노트·퀴즈
+// 왼쪽: 로고 / 가운데: 홈(아이콘)·서비스 소개·스터디·글쓰기·퀴즈
 // 오른쪽: 로그인 전 → 로그인·회원가입 / 로그인 후 → ("관리자") + "이용권 충전" + "OOO님" + 로그아웃
 //         ("관리자" 버튼은 관리자 계정(role = "admin")으로 로그인했을 때만 보임)
 // 여러 페이지에서 같이 쓸 거라서 컴포넌트로 따로 분리함
@@ -13,7 +13,7 @@ import { useState } from "react";
 
 // 아이콘 (lucide-react): Menu = 햄버거(≡) 아이콘, X = 닫기 아이콘, Home = 집 모양 아이콘
 // UserRound = 사람 아이콘 (로그인한 사용자 이름 옆), ShieldCheck = 방패 아이콘 (관리자 버튼)
-// Sparkles = 반짝이 아이콘 (AI 초안 이용권 충전 버튼)
+// Sparkles = 반짝이 아이콘 (AI 이용권 충전 버튼)
 import { Menu, X, Home, UserRound, ShieldCheck, Sparkles } from "lucide-react";
 
 // 가운데 메뉴 목록
@@ -23,8 +23,10 @@ import { Menu, X, Home, UserRound, ShieldCheck, Sparkles } from "lucide-react";
 const NAV_ITEMS = [
   { key: "home", label: "홈", icon: Home },
   { key: "about", label: "서비스 소개" },
+  // 스터디: 글 유형별 작성 규칙 단원 + 오답노트 (오답노트는 스터디 화면 안의 탭)
+  // (key는 "learn" 그대로 → 화면 이동 코드는 안 바꿔도 됨, 보이는 글자만 "스터디")
+  { key: "learn", label: "스터디" },
   { key: "write", label: "글쓰기" }, // 글쓰기 페이지
-  { key: "wrong-note", label: "오답노트" }, // 퀴즈에서 틀린 문제 모아 보기 (아직 준비 중 화면)
   // 퀴즈와 랭킹은 메뉴 하나로 합침 → 화면 안의 [퀴즈 | 랭킹] 탭으로 오감
   { key: "quiz", label: "퀴즈" },
 ];
@@ -40,7 +42,7 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
   // 처음에는 닫혀 있으니까 false
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // 관리자 페이지에서는 가운데 메뉴(홈·서비스 소개·글쓰기·오답노트·퀴즈)를 숨김
+  // 관리자 페이지에서는 가운데 메뉴(홈·서비스 소개·학습·글쓰기·퀴즈)를 숨김
   // → 관리 업무에 필요 없는 메뉴라 화면을 깔끔하게 (로고를 누르면 홈으로 가서 메뉴가 다시 보임)
   const hideMenu = activeNav === "admin";
 
@@ -74,13 +76,13 @@ function Header({ activeNav, onNavClick, user, onLogout }) {
           관리자
         </button>
       )}
-      {/* AI 초안 이용권 충전 (결제 화면으로) — 관리자 계정은 충전할 일이 없어서 안 보여줌 */}
+      {/* AI 이용권 충전 (결제 화면으로) — 관리자 계정은 충전할 일이 없어서 안 보여줌 */}
       {user.role !== "admin" && (
         <button
           type="button"
           className={activeNav === "payment" ? "header-charge active" : "header-charge"}
           onClick={() => handleNavClick("payment")}
-          title="AI 초안 이용권 충전하기"
+          title="AI 이용권 충전하기"
         >
           <Sparkles size={15} />
           이용권 충전

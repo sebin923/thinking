@@ -906,3 +906,122 @@
   outline: 2px solid #4a98d3;
   outline-offset: 2px;
 }
+
+/* ===================== 1-2. 학습 진도 카드 (LearnProgressCard.jsx) ===================== */
+.mypage-learn {
+  max-width: 900px;          /* 위아래 카드(.mypage-profile, .mypage-docs)와 같은 너비·간격 */
+  margin: 0 auto 22px;
+  padding: 24px 30px;
+}
+
+.mypage-learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.mypage-learn-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  color: var(--navy);
+}
+
+.mypage-learn-head h2 svg {
+  color: #4a98d3;
+}
+
+.mypage-learn-total {
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+
+.mypage-learn-total strong {
+  color: var(--navy);
+  font-size: 16px;
+}
+
+/* 유형별 줄: 이름 | 막대 | 3/10 */
+.mypage-learn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mypage-learn-list li {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+}
+
+.mypage-learn-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mypage-learn-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e5eef7;
+  overflow: hidden;
+}
+
+.mypage-learn-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6fb2e6, #3d8bc7);
+}
+
+.mypage-learn-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mypage-learn-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #e8eff6;
+}
+
+.mypage-learn-wrong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--text-sub);
+}
+
+.mypage-learn-button {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .mypage-learn {
+    padding: 20px 16px;
+  }
+
+  .mypage-learn-list li {
+    grid-template-columns: 70px minmax(0, 1fr) 40px;
+    gap: 8px;
+  }
+}

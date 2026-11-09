@@ -15,6 +15,8 @@ import { useEffect, useState } from "react";
 import { Megaphone, Pin, ArrowLeft, ChevronLeft, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 
 import PageHero from "../components/PageHero";
+// 창만 스크롤하는 도구 (scrollIntoView를 쓰면 overflow: hidden 상자 안 내용이 밀려 올라가는 문제가 있어서)
+import scrollToElement from "../utils/scrollToElement";
 import SupportTabs from "../components/SupportTabs";
 import { fetchNotices } from "../api/notice";
 // 로딩 아이콘이 도는 .spin 클래스가 들어 있는 파일
@@ -83,7 +85,7 @@ function NoticePage({ onNavigate }) {
 
   // 화면 위쪽(탭 위치)으로 부드럽게 올리기 → 상세·페이지를 바꿨을 때 처음부터 보이게
   const scrollToTop = () => {
-    document.querySelector(".support-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToElement(".support-tabs");
   };
 
   const openNotice = (noticeId) => {
