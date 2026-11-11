@@ -19,3 +19,46 @@ dist/
 # Editor
 .vscode/
 .idea/
+# Local secrets and EC2 private keys
+.thinking_llm_token
+*.pem
+*.key
+
+# Local backup files
+*.backup_*
+
+# Python environments and generated files
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+
+# LLM model artifacts
+llm_training/outputs/
+llm_training/checkpoints/
+llm_training/data/
+*.safetensors
+*.pt
+*.pth
+*.gguf
+
+# LLM secrets
+.thinking_llm_token
+*.pem
+
+# LLM environments and model outputs
+llm_training/.venv/
+llm_training/.venv-qwen35/
+llm_training/data/
+llm_training/outputs/
+llm_training/__pycache__/
+llm_training/*.jsonl
+llm_training/*.backup_*
+
+# Personalization generated data
+backend/personalization_setup/data/
+backend/personalization_setup/export_*/
+backend/personalization_setup/setup_result.json
+
+# Local backup files
+*.backup_*

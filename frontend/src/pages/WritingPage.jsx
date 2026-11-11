@@ -534,10 +534,6 @@ function WritingPage({
   // 공통 Qwen SFT 초안 요청 (기존 CLOVA 기능은 유지)
   const handleCommonAiDraft = async () => {
     if (commonDraftLoading || draftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
-    if (!["보고서", "자기소개서"].includes(selectedDocumentType)) {
-      showToast("공통 LLM은 보고서와 자기소개서만 지원합니다.");
-      return;
-    }
     if (!auth?.token) {
       showToast("로그인이 필요합니다.");
       return;
@@ -576,7 +572,7 @@ function WritingPage({
   // 사용자별 LoRA 초안 요청: 기존 본문을 변경하지 않고 비교 패널에만 표시
   const handlePersonalAiDraft = async () => {
     if (personalDraftLoading || commonDraftLoading || draftLoading || feedbackLoading || isComplete) return;
-    if (!["보고서", "자기소개서"].includes(selectedDocumentType)) {
+    if (!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)) {
       showToast("개인화 LLM은 보고서와 자기소개서만 지원합니다.");
       return;
     }
@@ -1006,8 +1002,8 @@ function WritingPage({
                   type="button"
                   className="writing-ai-tool-button"
                   onClick={handleCommonAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
+                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
+                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
                 >
                   <Sparkles size={19} />
                   <span><strong>{commonDraftLoading ? "공통 LLM 생성 중..." : "공통 LLM 초안 작성"}</strong><small> 실험용 </small></span>
@@ -1016,8 +1012,8 @@ function WritingPage({
                   type="button"
                   className="writing-ai-tool-button"
                   onClick={handlePersonalAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서"].includes(selectedDocumentType) ? "보고서·자기소개서에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
+                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
+                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
                 >
                   <Sparkles size={19} />
                   <span><strong>{personalDraftLoading ? "개인화 LLM 생성 중..." : "개인화 LLM 초안 작성"}</strong><small>실험용</small></span>

@@ -622,199 +622,66 @@ import os
 COMMON_LLM_URL = os.getenv('COMMON_LLM_URL', 'http://127.0.0.1:8001').rstrip('/')
 
 
-def _common_llm_tone(preferences):
-    raw = str(
-        (preferences or {}).get("preferred_tone") or ""
-    ).strip()
+def _qwen_draft(document_id, db, current_user, mode):
+    document = get_owned_document(db, document_id, current_user.user_id)
+    kind = str(document.document_type).strip()
+    kind = {'자유글쓰기':'자유 글쓰기'}.get(kind, kind)
+    if kind not in ('보고서', '발표문', '자유 글쓰기', '자기소개서'):
+        raise HTTPException(400, '지원하지 않는 글 유형입니다.')
+    thoughts = db.query(models.Thought).filter(
+        models.Thought.document_id == document_id
+    ).order_by(models.Thought.id.asc()).all()
+    facts = [x.content.strip() for x in thoughts if x.content and x.content.strip()]
+    if not facts:
+        latest = db.query(models.Draft).filter(
+            models.Draft.document_id == document_id
+        ).order_by(models.Draft.version.desc(), models.Draft.id.desc()).first()
+        if latest and latest.content and latest.content.strip():
+            facts = [latest.content.strip()]
+        else:
+            raise HTTPException(400, '생각 또는 저장된 글이 없습니다.')
+    if len(facts) > 100 or sum(map(len, facts)) > 10000:
+        raise HTTPException(422, '메모가 너무 많습니다. 100개, 총 10000자 이내로 정리해 주세요.')
+    preferences = get_user_preferences(db, current_user.user_id)
+    raw_tone = (preferences or {}).get('preferred_tone', '기본')
+    tone = {'natural':'친근','formal':'격식','confident':'격식',
+            '기본':'기본','담백':'담백','격식':'격식','친근':'친근'}.get(raw_tone, '기본')
+    target = {'short':160, 'normal':350, 'long':500}.get(
+        (preferences or {}).get('sentence_length'), 350)
+    token = os.getenv('THINKING_LLM_TOKEN', '')
+    if not token:
+        raise HTTPException(503, '백엔드에 THINKING_LLM_TOKEN 설정이 필요합니다.')
+    payload = {'document_type':kind, 'topic':(document.title or kind).strip(),
+               'facts':facts, 'tone':tone, 'target_chars':target,
+               'mode':mode, 'user_id':current_user.user_id}
+    try:
+        response = requests.post(COMMON_LLM_URL + '/draft', json=payload,
+                                 headers={'X-LLM-Token':token}, timeout=(10,180))
+        if response.status_code == 404 and mode == 'personal':
+            raise HTTPException(404, '이 계정의 개인 모델이 없습니다. 개인화 학습 후 연결해 주세요.')
+        if response.status_code == 422:
+            raise HTTPException(422, 'LLM 입력 또는 어댑터 설정을 확인해 주세요.')
+        response.raise_for_status()
+        result = response.json()
+        if not isinstance(result, dict) or not isinstance(result.get('content'), str) or not result['content'].strip():
+            raise ValueError('Invalid response')
+        if mode == 'personal' and result.get('personalized') is not True:
+            raise ValueError('Personal adapter was not applied')
+    except requests.Timeout as exc:
+        raise HTTPException(504, 'LLM 응답 시간이 초과되었습니다.') from exc
+    except (requests.RequestException, ValueError) as exc:
+        raise HTTPException(502, 'LLM 연결 또는 응답 오류입니다. 서버 콘솔을 확인해 주세요.') from exc
+    return {**result, 'tone':tone,
+            'personalization_type':'adapter' if mode == 'personal' else 'preference_prompt'}
 
-    tone_map = {
-        # 기존 생각한줄 설정값
-        "natural": "친근",
-        "formal": "격식",
-        "confident": "격식",
-
-        # 공통 LLM 설정값
-        "기본": "기본",
-        "담백": "담백",
-        "격식": "격식",
-        "친근": "친근",
-    }
-
-    return tone_map.get(raw, "기본")
 
 @router.post('/documents/{document_id}/draft-common-ai')
-def create_common_ai_draft(
-    document_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    document = get_owned_document(db, document_id, current_user.user_id)
-    document_type = str(document.document_type).strip()
-    if document_type not in ('보고서', '자기소개서'):
-        raise HTTPException(status_code=400, detail='공통 LLM은 현재 보고서와 자기소개서만 지원합니다.')
+def create_common_ai_draft(document_id: int, db: Session = Depends(get_db),
+                          current_user: models.User = Depends(get_current_user)):
+    return _qwen_draft(document_id, db, current_user, 'common')
 
-    thoughts = db.query(models.Thought).filter(
-        models.Thought.document_id == document_id
-    ).order_by(models.Thought.id.asc()).all()
-    facts = [str(x.content).strip() for x in thoughts if str(x.content).strip()]
-    if not facts:
-        latest_draft = (
-            db.query(models.Draft)
-            .filter(models.Draft.document_id == document_id)
-            .order_by(
-                models.Draft.version.desc(),
-                models.Draft.id.desc()
-            )
-            .first()
-        )
 
-        if latest_draft and latest_draft.content.strip():
-            facts = [latest_draft.content.strip()]
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="생각 또는 저장된 글이 없습니다."
-            )
-
-    # Current LLM accepts at most 15 facts, each should be concise.
-    facts = facts[:15]
-    preferences = get_user_preferences(db, current_user.user_id)
-    tone = _common_llm_tone(preferences)
-    sentence_length = (preferences or {}).get("sentence_length", "normal")
-    length_targets = {
-        "short": {"보고서": 160, "자기소개서": 160},
-        "normal": {"보고서": 250, "자기소개서": 220},
-        "long": {"보고서": 450, "자기소개서": 400},
-    }
-    target_chars = length_targets.get(
-        sentence_length, length_targets["normal"]
-    )[document_type]
-
-    payload = {
-        'document_type': document_type,
-        'topic': (document.title or document_type).strip(),
-        'facts': facts,
-        'tone': tone,
-        'target_chars': target_chars,
-        'mode': 'common',
-    }
-    try:
-        response = requests.post(
-            f'{COMMON_LLM_URL}/draft', json=payload, timeout=(10, 180)
-        )
-        response.raise_for_status()
-        result = response.json()
-    except requests.Timeout as exc:
-        raise HTTPException(status_code=504, detail='공통 LLM 응답 시간이 초과되었습니다.') from exc
-    except (requests.RequestException, ValueError) as exc:
-        raise HTTPException(status_code=502, detail='공통 LLM 서비스 호출에 실패했습니다.') from exc
-
-    content = result.get('content')
-    if not isinstance(content, str) or not content.strip():
-        raise HTTPException(status_code=502, detail='공통 LLM이 유효한 초안을 반환하지 않았습니다.')
-
-    return {
-        'content': content,
-        'document_type': document_type,
-        'tone': tone,
-        'model': result.get('model'),
-        'checks': result.get('checks', []),
-        'personalization_type': 'preference_prompt' if tone != '기본' else 'none',
-    }
-
-@router.post("/documents/{document_id}/draft-personal-ai")
-def create_personal_ai_draft(
-    document_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    document = get_owned_document(db, document_id, current_user.user_id)
-
-    document_type = str(document.document_type).strip()
-    if document_type not in ("보고서", "자기소개서"):
-        raise HTTPException(
-            status_code=400,
-            detail="개인화 LLM은 현재 보고서와 자기소개서만 지원합니다."
-        )
-
-    thoughts = db.query(models.Thought).filter(
-        models.Thought.document_id == document_id
-    ).order_by(models.Thought.id.asc()).all()
-
-    facts = [
-        str(t.content).strip()
-        for t in thoughts
-        if t.content and str(t.content).strip()
-    ]
-
-    if not facts:
-        latest_draft = (
-            db.query(models.Draft)
-            .filter(models.Draft.document_id == document_id)
-            .order_by(models.Draft.version.desc(), models.Draft.id.desc())
-            .first()
-        )
-        if latest_draft and latest_draft.content and latest_draft.content.strip():
-            facts = [latest_draft.content.strip()]
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="생각 또는 저장된 글이 없습니다."
-            )
-
-    preferences = get_user_preferences(db, current_user.user_id)
-    tone = _common_llm_tone(preferences)
-
-    length = (preferences or {}).get("sentence_length", "normal")
-    targets = {
-        "short": {"보고서": 160, "자기소개서": 160},
-        "normal": {"보고서": 250, "자기소개서": 220},
-        "long": {"보고서": 450, "자기소개서": 400},
-    }
-
-    target_chars = targets.get(
-        length, targets["normal"]
-    )[document_type]
-
-    payload = {
-        "document_type": document_type,
-        "topic": (document.title or document_type).strip(),
-        "facts": facts[:15],
-        "tone": tone,
-        "target_chars": target_chars,
-        "user_id": current_user.user_id,
-        "mode": "personal",
-    }
-
-    try:
-        response = requests.post(
-            f"{COMMON_LLM_URL}/draft",
-            json=payload,
-            timeout=(10, 180),
-        )
-        if response.status_code == 404:
-            raise HTTPException(
-                status_code=404,
-                detail="개인화 모델이 없습니다. 먼저 개인화 학습을 진행해 주세요."
-            )
-        response.raise_for_status()
-        result = response.json()
-
-    except requests.Timeout as exc:
-        raise HTTPException(
-            status_code=504,
-            detail="개인화 LLM 응답 시간 초과"
-        ) from exc
-    except (requests.RequestException, ValueError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail="개인화 LLM 연결 실패"
-        ) from exc
-
-    return {
-        "content": result["content"],
-        "model": result.get("model"),
-        "personalized": result.get("personalized", False),
-        "tone": tone,
-        "checks": result.get("checks", []),
-    }
+@router.post('/documents/{document_id}/draft-personal-ai')
+def create_personal_ai_draft(document_id: int, db: Session = Depends(get_db),
+                            current_user: models.User = Depends(get_current_user)):
+    return _qwen_draft(document_id, db, current_user, 'personal')
