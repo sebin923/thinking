@@ -31,7 +31,8 @@ import { fetchMyProfile } from "../api/mypage";
 import "./WritingPage.css";
 import "./WritingPageCustom.css";
 import "./WritingCompare.css";
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "")).replace(/\/+$/, "");
+const AI_DOCUMENT_TYPES = ["보고서", "자기소개서", "발표문", "자유 글쓰기"];
 const TITLE_MAX = 50;
 const BODY_MAX = 2000;
 const DRAFT_KEY_PREFIX = "saenggak-hanjul-draft";
@@ -237,16 +238,15 @@ function WritingPage({
   const [pendingAiDraft, setPendingAiDraft] = useState(null);
   const [pendingAiOriginal, setPendingAiOriginal] = useState("");
   // ----- 별점 평가용 -----
-  // pendingAiModel: 지금 보이는 AI 초안을 만든 AI ("clova" / "common" 공통 LLM / "personal" 개인화 LLM)
-  const [pendingAiModel, setPendingAiModel] = useState("clova");
+  // 실제 응답의 공통/개인 모델을 별점 평가에 기록한다.
+  const [pendingAiModel, setPendingAiModel] = useState("common");
   // aiResultCount: AI 결과(초안·피드백)가 새로 나올 때마다 +1
   //   → 별점 상자의 key로 써서, 새 결과가 나오면 별점 상자가 처음부터 다시 시작되게 함
   const [aiResultCount, setAiResultCount] = useState(0);
   // feedbackRequestText: AI 피드백을 요청할 때 보낸 본문 (평가 저장 때 같이 남김)
   const [feedbackRequestText, setFeedbackRequestText] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
-  const [commonDraftLoading, setCommonDraftLoading] = useState(false);
-  const [personalDraftLoading, setPersonalDraftLoading] = useState(false);
+  const aiRequestRef = useRef(false);
   const [draft] = useState(() => {
     const saved = loadDraft(auth?.user?.user_id);
     if (!initialDocument) {
@@ -413,8 +413,7 @@ function WritingPage({
     setCreatedHere(true);
     return data.id;
   };
-  const saveThoughtFromIdea = async (targetDocumentId) => {
-    const thoughtText = idea || getBodyText();
+  const saveThoughtFromIdea = async (targetDocumentId, thoughtText) => {
     if (!thoughtText.trim()) {
       showToast("AI 초안을 만들 생각이나 본문이 필요해요.");
       throw new Error("생각 없음");
@@ -493,128 +492,46 @@ function WritingPage({
     }
     applyAiText(updated);
   };
-  // AI 초안 요청
+  // 생성 버튼 하나: 인증된 사용자 기준으로 서버가 모델을 선택한다.
   const handleAiDraft = async () => {
-    if (draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
-    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
+    if (aiRequestRef.current || draftLoading || feedbackLoading || isComplete) return;
+    if (!auth?.token) { showToast("로그인이 필요합니다."); return; }
+    if (!AI_DOCUMENT_TYPES.includes(selectedDocumentType)) {
+      showToast("보고서·자기소개서·발표문·자유 글쓰기에서 사용할 수 있어요."); return;
+    }
     const originalAtRequest = getBodyText();
+    const sourceText = originalAtRequest.trim() || idea.trim();
+    if (!sourceText) { showToast("생각이나 본문을 먼저 입력해 주세요."); return; }
+    if (sourceText.length > BODY_MAX) { showToast("본문은 " + BODY_MAX + "자 이하로 입력해 주세요."); return; }
+    if (!checkAiQuota()) return;
+    aiRequestRef.current = true;
     setDraftLoading(true);
     try {
+      setApiMessage("");
       showToast("AI가 초안을 작성하고 있어요.");
       const targetDocumentId = await createDocumentIfNeeded();
-      await saveThoughtFromIdea(targetDocumentId);
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-ai`,
-        {
-          method: "POST",
-          headers: getAuthHeaders()
-        }
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.detail || "AI 초안 작성 실패"
-        );
+      await saveThoughtFromIdea(targetDocumentId, sourceText);
+      const response = await fetch(API_BASE_URL + "/api/documents/" + targetDocumentId + "/draft-ai", {
+        method: "POST", headers: getAuthHeaders(), body: JSON.stringify({content: sourceText}),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "AI 초안 생성에 실패했습니다.");
+      if (typeof data.content !== "string" || !data.content.trim() || data.content.length > BODY_MAX) {
+        throw new Error("AI가 사용할 수 있는 초안을 반환하지 않았습니다.");
       }
-      const data = await response.json();
-      setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content || "");
-      setPendingAiModel("clova"); // 별점 평가용: CLOVA가 만든 초안
+      setPendingAiOriginal(originalAtRequest || sourceText);
+      setPendingAiDraft(data.content);
+      setPendingAiModel(data.personalized === true ? "personal" : "common");
       setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 차감
-      setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
-      showToast("AI 초안 작성 완료");
+      markAiUsed();
+      setApiMessage(Array.isArray(data.checks) ? data.checks.filter((v) => typeof v === "string").join(" · ") : "");
+      showToast("AI 초안이 생성됐어요. 내용을 확인한 뒤 적용해 주세요.");
     } catch (error) {
-      console.error(error);
-      showToast(error.message || "AI 초안 작성 실패");
+      console.error("AI 초안 오류:", error);
+      showToast(error.message || "AI 초안 생성에 실패했습니다.");
     } finally {
+      aiRequestRef.current = false;
       setDraftLoading(false);
-    }
-  };
-  // 공통 Qwen SFT 초안 요청 (기존 CLOVA 기능은 유지)
-  const handleCommonAiDraft = async () => {
-    if (commonDraftLoading || draftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
-    if (!auth?.token) {
-      showToast("로그인이 필요합니다.");
-      return;
-    }
-    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
-    const originalAtRequest = getBodyText();
-    setCommonDraftLoading(true);
-    try {
-      setApiMessage("");
-      const targetDocumentId = await createDocumentIfNeeded();
-      await saveThoughtFromIdea(targetDocumentId);
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-common-ai`,
-        { method: "POST", headers: getAuthHeaders() }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(typeof data.detail === "string" ? data.detail : "공통 LLM 초안 생성 실패");
-      }
-      if (typeof data.content !== "string" || !data.content.trim()) {
-        throw new Error("공통 LLM이 빈 초안을 반환했습니다.");
-      }
-      setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content);
-      setPendingAiModel("common"); // 별점 평가용: 공통 LLM이 만든 초안
-      setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 차감
-      setApiMessage("");
-    } catch (error) {
-      console.error("공통 LLM 초안 오류:", error);
-      showToast(error.message || "공통 LLM 호출 실패");
-    } finally {
-      setCommonDraftLoading(false);
-    }
-  };
-  // 사용자별 LoRA 초안 요청: 기존 본문을 변경하지 않고 비교 패널에만 표시
-  const handlePersonalAiDraft = async () => {
-    if (personalDraftLoading || commonDraftLoading || draftLoading || feedbackLoading || isComplete) return;
-    if (!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)) {
-      showToast("개인화 LLM은 보고서와 자기소개서만 지원합니다.");
-      return;
-    }
-    if (!auth?.token) {
-      showToast("로그인이 필요합니다.");
-      return;
-    }
-    if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
-    const originalAtRequest = getBodyText();
-    setPersonalDraftLoading(true);
-    try {
-      setApiMessage("");
-      const targetDocumentId = await createDocumentIfNeeded();
-      // 본문이나 초기 생각이 있는 경우 기존 공통 LLM과 동일하게 전달
-      if ((idea || originalAtRequest).trim()) {
-        await saveThoughtFromIdea(targetDocumentId);
-      }
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-personal-ai`,
-        { method: "POST", headers: getAuthHeaders() }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(typeof data.detail === "string" ? data.detail : "개인화 LLM 초안 생성 실패");
-      }
-      if (!data.personalized) {
-        throw new Error("개인화 모델이 적용되지 않았습니다.");
-      }
-      if (typeof data.content !== "string" || !data.content.trim()) {
-        throw new Error("개인화 LLM이 빈 초안을 반환했습니다.");
-      }
-      setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content);
-      setPendingAiModel("personal"); // 별점 평가용: 개인화 LLM이 만든 초안
-      setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 차감
-      setApiMessage("");
-    } catch (error) {
-      console.error("개인화 LLM 초안 오류:", error);
-      showToast(error.message || "개인화 LLM 호출 실패");
-    } finally {
-      setPersonalDraftLoading(false);
     }
   };
   // 글 버전 저장
@@ -662,7 +579,8 @@ function WritingPage({
   };
   // AI 피드백 요청
   const handleAiFeedback = async () => {
-    if (feedbackLoading || draftLoading || commonDraftLoading || isComplete) return;
+    if (aiRequestRef.current || feedbackLoading || draftLoading || isComplete) return;
+    if (!auth?.token) { showToast("로그인이 필요합니다."); return; }
     const bodyText = getBodyText();
     if (!title.trim() || !bodyText) {
       showToast("제목과 본문을 먼저 작성해 주세요.");
@@ -673,6 +591,7 @@ function WritingPage({
       return;
     }
     if (!checkAiQuota()) return; // 오늘 무료 횟수를 다 썼으면 멈춤
+    aiRequestRef.current = true;
     setFeedbackLoading(true);
     setFeedback(null);
     try {
@@ -703,6 +622,9 @@ function WritingPage({
         throw new Error(errorData.detail || "AI 피드백 요청에 실패했습니다.");
       }
       const result = await feedbackResponse.json();
+      if (!result.feedback || typeof result.feedback.overall_feedback !== "string" || !Array.isArray(result.feedback.highlights)) {
+        throw new Error("AI 피드백 형식이 올바르지 않습니다.");
+      }
       setFeedback(result.feedback);
       setFeedbackRequestText(bodyText); // 별점 평가용: 피드백을 요청한 본문
       setAiResultCount((n) => n + 1);
@@ -713,6 +635,7 @@ function WritingPage({
       console.error("AI 피드백 오류:", error);
       showToast(error.message || "AI 피드백 요청 실패");
     } finally {
+      aiRequestRef.current = false;
       setFeedbackLoading(false);
     }
   };
@@ -853,7 +776,7 @@ function WritingPage({
                   type="button"
                   className="writing-settings-button writing-version-button"
                   onClick={handleSaveVersion}
-                  disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}
+                  disabled={feedbackLoading || draftLoading || isComplete}
                 >
                   <FileText size={16} /> 버전 저장
                 </button>
@@ -990,33 +913,13 @@ function WritingPage({
                 </div>
               )}
               <div className="writing-ai-tool-buttons">
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={aiLimitReached || draftLoading || feedbackLoading || isComplete || !AI_DOCUMENT_TYPES.includes(selectedDocumentType)} title={AI_DOCUMENT_TYPES.includes(selectedDocumentType) ? "입력한 내용으로 글을 작성합니다." : "보고서·자기소개서·발표문·자유 글쓰기에서 사용할 수 있습니다."}>
                   <FileText size={19} />
-                  <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
+                  <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 생성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
                 </button>
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={aiLimitReached || draftLoading || feedbackLoading || isComplete}>
                   <Lightbulb size={19} />
                   <span><strong>{feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}</strong><small>문제점 분석과 개선 방향 확인</small></span>
-                </button>
-                <button
-                  type="button"
-                  className="writing-ai-tool-button"
-                  onClick={handleCommonAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
-                >
-                  <Sparkles size={19} />
-                  <span><strong>{commonDraftLoading ? "공통 LLM 생성 중..." : "공통 LLM 초안 작성"}</strong><small> 실험용 </small></span>
-                </button>
-                <button
-                  type="button"
-                  className="writing-ai-tool-button"
-                  onClick={handlePersonalAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
-                >
-                  <Sparkles size={19} />
-                  <span><strong>{personalDraftLoading ? "개인화 LLM 생성 중..." : "개인화 LLM 초안 작성"}</strong><small>실험용</small></span>
                 </button>
               </div>
             </div>
@@ -1059,7 +962,7 @@ function WritingPage({
               </section>
             )}
             <div className="writing-actions writing-save-actions">
-              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}>
+              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || isComplete}>
                 <Check size={18} /> {isComplete ? "저장 완료" : "최종 저장"}
               </button>
             </div>
@@ -1138,7 +1041,7 @@ function WritingPage({
                     );
                   })
                 ) : (
-                  <p>수정이 필요한 문장이 발견되지 않았습니다.</p>
+                  <p>표시할 수 있는 구체적인 수정 제안이 없습니다.</p>
                 )}
                 {/* 이 피드백에 대한 별점 평가 (새 피드백이 나오면 key가 바뀌어 처음부터) */}
                 <AiRating
@@ -1146,7 +1049,7 @@ function WritingPage({
                   title="이 AI 피드백은 도움이 됐나요?"
                   user={auth?.user}
                   kind="feedback"
-                  model="clova"
+                  model="common"
                   documentId={documentId}
                   resultText={feedback.overall_feedback || ""}
                   requestText={feedbackRequestText}

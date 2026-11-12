@@ -1,0 +1,21 @@
+{
+  "files": {
+    "frontend/src/pages/WritingPage.jsx": {
+      "new_sha256": "b989374fcccf930cf7e6bc80e97b410acb625704a805037ffbdeeea781d25202",
+      "old_sha256": "375ef5e384c008319fb48b7e2128beb3e93784255bbe1b4e4d15d725e54185a1"
+    },
+    "backend/routers/writing.py": {
+      "new_sha256": "0765f97995fab2dcdd43e5bf46ac6d4bd51b00ceb66c0022f2477a71244544e6",
+      "old_sha256": "70d83bea23a3edbdfe3f4a26322ee0ec5d383f9970e9bfc6403c524bdf2b0711"
+    },
+    "llm_training/common_llm.py": {
+      "new_sha256": "3aa4800cd3a4caf74be03738bf15f15a17ab838ceeae312ca69190d4f5b5b4bd",
+      "old_sha256": "0bff440e662fcd2efe41ba2b76a02952c08a7cee7b20f873829b94414af825e6"
+    },
+    "backend/qwen_client.py": {
+      "new_sha256": "d0955575f560c5cb8c9c02a371c8a20d088ea9e815998ad1a6d9bafe495c1a9a",
+      "old_sha256": null
+    }
+  },
+  "clova_old_sha256": "06691c31f9382daf1f2273f2d1670f3dcf0280b3a39e55930ff6b8be1663968b"
+}
