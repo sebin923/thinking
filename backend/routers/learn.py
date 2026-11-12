@@ -1,7 +1,7 @@
 # =============================================================
 # routers/learn.py — 학습 "글쓰기 연습" AI 채점 API (로그인 필요)
 # -------------------------------------------------------------
-#  POST /api/learn/writing-score   내가 쓴 글을 단원 규칙 기준으로 AI(CLOVA)가 채점
+#   POST /api/learn/writing-score   내가 쓴 글을 단원 규칙 기준으로 AI(CLOVA)가 채점
 #
 # 학습 흐름 (팀에서 정한 규칙)
 #   ① 단원 O/X 10문제를 전부 맞히면 → 글쓰기 연습이 열림
@@ -21,10 +21,12 @@
 import json
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 import models
+from database import get_db
 from routers.auth import get_current_user
 # _call_clova: clova.py에 있는 "CLOVA에 요청 보내고 답 글자 받아오기" 함수 (같은 설정을 그대로 씀)
 from clova import _call_clova
@@ -203,7 +205,7 @@ def score_writing(
 ):
     """학습 글쓰기 연습 AI 채점
     돌려주는 값: { score(0~100), pass_score(90), passed, on_task,
-                  criteria: [{ label, score, max, comment }], overall_feedback, next_step }
+                    criteria: [{ label, score, max, comment }], overall_feedback, next_step }
     """
     try:
         return score_learning_writing(data)
@@ -213,3 +215,35 @@ def score_writing(
     except (requests.RequestException, KeyError, TypeError) as exc:
         # CLOVA 서버에 연결이 안 되거나 시간이 너무 오래 걸렸을 때
         raise HTTPException(status_code=502, detail="AI 채점 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
+
+
+# -------------------------------------------------------------
+# 단원별 O/X 퀴즈 조회 API (수정된 부분: 404 대신 빈 배열 반환)
+# -------------------------------------------------------------
+@router.get("/quizzes")
+def get_ox_quizzes(
+    category: str = Query(..., description="카테고리 (예: report)"),
+    unit_id: int = Query(..., description="단원 번호 (예: 1)"),
+    db: Session = Depends(get_db)
+):
+    """
+    특정 카테고리와 단원 번호에 해당하는 O/X 퀴즈 목록을 조회합니다.
+    프론트엔드 OxQuiz 컴포넌트 규격에 맞춰 q(질문), a(정답), e(해설) 형태로 반환합니다.
+    """
+    quizzes = db.query(models.OxQuiz).filter(
+        models.OxQuiz.category == category,
+        models.OxQuiz.unit_id == unit_id
+    ).all()
+
+    # 데이터가 없어도 404 에러를 내지 않고 빈 배열을 반환하여 콘솔 에러 방지
+    if not quizzes:
+        return []
+
+    return [
+        {
+            "q": quiz.question,
+            "a": quiz.answer,
+            "e": quiz.explanation
+        }
+        for quiz in quizzes
+    ]

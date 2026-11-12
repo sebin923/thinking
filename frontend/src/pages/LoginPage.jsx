@@ -53,6 +53,13 @@ function LoginPage({ onLogin, onGoSignup, initialLoginId = "", notice = "" }) {
     setServerError("");
     try {
       const result = await login(loginId.trim(), password);
+      
+      // ★ 추가된 안전장치: 로그인 성공 시 서버가 준 토큰을 브라우저에 저장하여 관리자 페이지 API 연동 지원
+      const token = result?.token || result?.access_token;
+      if (token) {
+        localStorage.setItem("token", token);
+      }
+
       // 3. 성공 → App이 사용자 정보를 저장하고 화면을 바꿈
       onLogin(result, remember);
     } catch (error) {

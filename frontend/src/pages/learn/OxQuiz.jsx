@@ -28,6 +28,7 @@ function OxQuiz({ questions, onFinish, onCancel }) {
   const choose = (value) => {
     if (answered) return;
     setChosen(value);
+    // 현재 문제의 배열 인덱스 그대로 전달
     setAnswers((prev) => [...prev, { index: current, chosen: value }]);
   };
 

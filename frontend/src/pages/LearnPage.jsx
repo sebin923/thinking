@@ -134,8 +134,9 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
   const openWrong = countOpenWrong(progress); // 미해결 오답 수
 
   // ----- 저장 함수들 (저장 후 새 진도로 화면 갱신) -----
-  const handleSubmitQuiz = async (answers) => {
-    const unit = type.units[unitIndex];
+  const handleSubmitQuiz = async (answers, quizToSubmit) => {
+    // UnitView에서 넘겨준 실제 푼 10문제(quizToSubmit)가 있으면 우선 사용
+    const unit = quizToSubmit || type.units[unitIndex];
     const saved = await saveQuizAttempt(user, { typeKey: type.key, unit, answers });
     setProgress(saved.progress);
     return saved;

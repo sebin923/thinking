@@ -241,14 +241,14 @@ class Notice(Base):
     __tablename__ = "notices"
 
     notice_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    title = Column(String(100), nullable=False)    # 제목
-    content = Column(Text, nullable=False)          # 내용 (줄바꿈 그대로 저장)
+    title = Column(String(100), nullable=False)     # 제목
+    content = Column(Text, nullable=False)             # 내용 (줄바꿈 그대로 저장)
     # is_pinned: True면 목록 맨 위에 "중요"로 고정
     is_pinned = Column(Boolean, nullable=False, default=False, server_default="false")
     # author_id: 쓴 관리자 번호
     # ForeignKey(외래키)는 일부러 안 걸었음 → 관리자 계정을 지워도 공지는 그대로 남게
     author_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)                              # 처음 등록한 시각
+    created_at = Column(DateTime, default=datetime.utcnow)                                      # 처음 등록한 시각
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)  # 마지막 수정 시각
 
 
@@ -266,3 +266,31 @@ class Payment(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User")
+
+
+class OxQuiz(Base):
+    """학습 스터디 O/X 퀴즈 테이블 (보고서, 자기소개서, 발표문 단원별 퀴즈)"""
+    __tablename__ = "ox_quizzes"
+
+    quiz_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    category = Column(String(50), nullable=False)   # 카테고리 (예: 'report')
+    unit_id = Column(Integer, nullable=False)        # 단원 번호 (예: 1)
+    question = Column(Text, nullable=False)          # O/X 문제 내용
+    answer = Column(Boolean, nullable=False)         # 정답 (True: O, False: X)
+    explanation = Column(Text, nullable=True)        # 정답 및 해설
+
+
+class AiRating(Base):
+    """AI 결과(초안·피드백) 별점 평가 저장 테이블"""
+    __tablename__ = "ai_ratings"
+
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), nullable=True, index=True)
+    kind = Column(String(20), nullable=False)
+    model = Column(String(30), nullable=False)
+    rating = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=True)
+    document_id = Column(String(50), nullable=True)
+    result_text = Column(Text, nullable=True)
+    request_text = Column(Text, nullable=True)
+    created_at = Column(String(50), nullable=False)

@@ -21,8 +21,8 @@ class UserResponse(UserBase):
 
 # --- 퀴즈 관련 스키마 ---
 class QuizBase(BaseModel):
-    category: str         # 'spelling' 또는 'grammar'
-    question: str         # 문제 내용
+    category: str        # 'spelling' 또는 'grammar'
+    question: str        # 문제 내용
     options: List[Any]    # 보기 목록
     answer: str           # 정답
     explanation: Optional[str] = None # 정답 및 해설
@@ -81,6 +81,31 @@ class RankingResponse(BaseModel):
     score: int
     elapsed_time: float
     challenged_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# --- AI 결과 별점 평가 스키마 ---
+class AiRatingCreate(BaseModel):
+    kind: str           # "draft" 또는 "feedback"
+    model: str          # "clova", "common", "personal"
+    rating: int         # 별점 (1~5)
+    comment: Optional[str] = ""
+    documentId: Optional[Any] = None
+    resultText: Optional[str] = ""
+    requestText: Optional[str] = ""
+
+class AiRatingResponse(BaseModel):
+    id: str
+    kind: str
+    model: str
+    rating: int
+    comment: Optional[str] = ""
+    documentId: Optional[Any] = None
+    resultText: Optional[str] = ""
+    requestText: Optional[str] = ""
+    createdAt: str
 
     class Config:
         from_attributes = True

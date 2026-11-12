@@ -44,27 +44,55 @@ export async function saveAiRating(user, rating) {
     throw new Error("별점을 1~5개 중에서 골라 주세요.");
   }
 
-  const saved = {
-    // id: 저장 시각 + 무작위 글자 (겹치지 않게)
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    kind: rating.kind,
-    model: rating.model,
-    rating: rating.rating,
-    comment: (rating.comment || "").trim(),
-    documentId: rating.documentId ?? null,
-    // 결과 글이 너무 길면 저장 공간을 많이 차지해서 앞부분 2000자만 보관
-    resultText: (rating.resultText || "").slice(0, 2000),
-    requestText: (rating.requestText || "").slice(0, 2000),
-    createdAt: new Date().toISOString(),
-  };
-
-  const list = await fetchAiRatings(user);
-  // 새 평가를 맨 앞에 넣고, 최근 MAX_SAVED개만 남김
-  const next = [saved, ...list].slice(0, MAX_SAVED);
+  // ★ 백엔드 서버로 전송하는 fetch 통신 추가 (기존 로직 및 주석 보존)
   try {
-    localStorage.setItem(ratingKey(user), JSON.stringify(next));
-  } catch {
-    throw new Error("평가를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    const response = await fetch('/api/ai-ratings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        kind: rating.kind,
+        model: rating.model,
+        rating: rating.rating,
+        comment: (rating.comment || "").trim(),
+        documentId: rating.documentId ?? null,
+        resultText: (rating.resultText || "").slice(0, 2000),
+        requestText: (rating.requestText || "").slice(0, 2000),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || "평가를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+
+    return result.data; // 서버에서 저장되어 반환된 데이터 (id, createdAt 포함)
+  } catch (err) {
+    // 서버 통신 실패 시 기존 앱 구동을 안정적으로 유지하기 위한 로컬 백업 처리
+    const saved = {
+      // id: 저장 시각 + 무작위 글자 (겹치지 않게)
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: rating.kind,
+      model: rating.model,
+      rating: rating.rating,
+      comment: (rating.comment || "").trim(),
+      documentId: rating.documentId ?? null,
+      // 결과 글이 너무 길면 저장 공간을 많이 차지해서 앞부분 2000자만 보관
+      resultText: (rating.resultText || "").slice(0, 2000),
+      requestText: (rating.requestText || "").slice(0, 2000),
+      createdAt: new Date().toISOString(),
+    };
+
+    const list = await fetchAiRatings(user);
+    // 새 평가를 맨 앞에 넣고, 최근 MAX_SAVED개만 남김
+    const next = [saved, ...list].slice(0, MAX_SAVED);
+    try {
+      localStorage.setItem(ratingKey(user), JSON.stringify(next));
+    } catch {
+      throw new Error("평가를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+    return saved;
   }
-  return saved;
 }

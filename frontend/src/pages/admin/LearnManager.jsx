@@ -2,14 +2,14 @@
 // admin/LearnManager.jsx — 관리자 페이지 "학습 관리" 탭
 // -------------------------------------------------------------
 // 학습 단원의 개념(제목·요약·핵심 내용·예시·팁·글쓰기 할 일)과 O/X 문제를 고치는 곳
-//   1) 글 유형(보고서·자기소개서·발표문) 고르기
-//   2) 단원 고르기 (목록 상자)
-//   3) 내용 고치기 → "저장하기"
-//   - O/X 문제는 추가·삭제·정답(O/X) 바꾸기 가능
-//   - "기본 내용으로 되돌리기": 고친 내용을 지우고 처음 내용(data/learn)으로
+//  1) 글 유형(보고서·자기소개서·발표문) 고르기
+//  2) 단원 고르기 (목록 상자)
+//  3) 내용 고치기 → "저장하기"
+//  - O/X 문제는 추가·삭제·정답(O/X) 바꾸기 가능
+//  - "기본 내용으로 되돌리기": 고친 내용을 지우고 처음 내용(data/learn)으로
 //
 // ★ 지금은 백엔드가 없어서 고친 내용이 이 브라우저에만 저장됨 (api/learn.js)
-//   → 다른 사람 컴퓨터에는 반영되지 않음. 백엔드 API가 생기면 api/learn.js만 바꾸면 모두에게 반영됨
+//  → 다른 사람 컴퓨터에는 반영되지 않음. 백엔드 API가 생기면 api/learn.js만 바꾸면 모두에게 반영됨
 // 스타일: AdminPage.css (admin-* 공통 + 맨 아래 "학습 관리" 부분)
 // =============================================================
 
@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, RotateCcw, Save, Info, Loader2, CheckCircle2 } from "lucide-react";
 
 import ConfirmModal from "../../components/ConfirmModal";
-import { fetchLearnContent, saveLearnUnit, resetLearnUnit } from "../../api/learn";
+import { fetchLearnContent, saveLearnUnit, resetLearnUnit, fetchOxQuizzes } from "../../api/learn";
 
 // 단원 → 입력 폼에 넣을 모양으로 바꾸기
 // points(배열)는 textarea에서 고치기 쉽게 "한 줄에 하나" 글자로 바꿈
@@ -55,7 +55,7 @@ function fromForm(id, form) {
   };
 }
 
-function LearnManager() {
+function LearnManager({ token, onSessionExpired }) {
   const [content, setContent] = useState(null); // 학습 내용 전체
   const [typeKey, setTypeKey] = useState("report"); // 고른 유형
   const [unitIndex, setUnitIndex] = useState(0); // 고른 단원 순서
@@ -66,12 +66,33 @@ function LearnManager() {
   const [confirmReset, setConfirmReset] = useState(false); // 되돌리기 확인창
   const [reloadKey, setReloadKey] = useState(0); // +1 하면 다시 불러오기
 
-  // ----- 학습 내용 불러오기 -----
+  // ----- 학습 내용 기본 뼈대 불러오기 + 즉시 DB 30문제로 오버라이드 -----
   useEffect(() => {
     let ignore = false;
-    fetchLearnContent().then((data) => {
-      if (!ignore) setContent(data);
-    });
+    async function loadAllData() {
+      try {
+        const data = await fetchLearnContent();
+        if (ignore) return;
+
+        // 각 유형별 모든 단원의 퀴즈를 백엔드 DB에서 가져온 30문제로 즉시 채워넣기
+        for (const typeItem of data) {
+          for (let i = 0; i < typeItem.units.length; i++) {
+            const unitNum = i + 1;
+            const dbQuizzes = await fetchOxQuizzes(typeItem.key, unitNum);
+            if (Array.isArray(dbQuizzes) && dbQuizzes.length > 0) {
+              typeItem.units[i].quiz = dbQuizzes;
+            }
+          }
+        }
+
+        if (!ignore) {
+          setContent(data);
+        }
+      } catch (err) {
+        console.error("관리자 데이터 로드 실패:", err);
+      }
+    }
+    loadAllData();
     return () => {
       ignore = true;
     };
@@ -80,13 +101,10 @@ function LearnManager() {
   const type = content?.find((item) => item.key === typeKey);
   const unit = type?.units[unitIndex];
 
-  // ----- 단원이 바뀌거나 다시 불러오면 폼을 그 단원 내용으로 채우기 -----
-  // (unit 객체는 불러올 때마다 새로 만들어지니까 id + edited + 불러온 횟수로 바뀜을 확인)
-  const unitKey = unit ? `${unit.id}:${reloadKey}` : "";
+  // ----- 단원이 바뀌거나 데이터가 갱신되면 폼을 해당 단원의 DB 30문제 내용으로 확실히 채우기 -----
+  const unitKey = unit ? `${unit.id}:${reloadKey}:${unit.quiz?.length}` : "";
   const [loadedKey, setLoadedKey] = useState("");
   if (unit && loadedKey !== unitKey) {
-    // 렌더링 중에 상태를 맞추는 React 권장 방식 (useEffect 안에서 setState 하지 않기 위해)
-    // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
     setLoadedKey(unitKey);
     setForm(toForm(unit));
   }
@@ -94,7 +112,7 @@ function LearnManager() {
   if (!content || !form || !unit) {
     return (
       <p className="admin-state">
-        <Loader2 size={18} className="spin" /> 학습 내용을 불러오는 중...
+        <Loader2 size={18} className="spin" /> 불러오는 중이에요...
       </p>
     );
   }
@@ -124,10 +142,13 @@ function LearnManager() {
     setSaving(true);
     setError("");
     try {
-      await saveLearnUnit(fromForm(unit.id, form));
+      await saveLearnUnit(fromForm(unit.id, form), token);
       setMessage("저장했어요.");
       setReloadKey((n) => n + 1); // 저장한 내용으로 다시 불러오기 ("수정됨" 표시 갱신)
     } catch (err) {
+      if (err.message && err.message.includes("401")) {
+        if (onSessionExpired) onSessionExpired();
+      }
       setError(err.message);
     } finally {
       setSaving(false);
@@ -135,10 +156,18 @@ function LearnManager() {
   };
 
   const handleReset = async () => {
-    await resetLearnUnit(unit.id);
-    setConfirmReset(false);
-    setMessage("기본 내용으로 되돌렸어요.");
-    setReloadKey((n) => n + 1);
+    try {
+      await resetLearnUnit(unit.id, token);
+      setConfirmReset(false);
+      setMessage("기본 내용으로 되돌렸어요.");
+      setReloadKey((n) => n + 1);
+    } catch (err) {
+      if (err.message && err.message.includes("401")) {
+        if (onSessionExpired) onSessionExpired();
+      }
+      setError(err.message);
+      setConfirmReset(false);
+    }
   };
 
   return (
