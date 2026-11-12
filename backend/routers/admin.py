@@ -12,7 +12,7 @@
 #
 #  [회원 관리]
 #  GET    /api/admin/users?q=검색어&status=active   회원 목록 (글 수·도전 기록 포함)
-#  PATCH  /api/admin/users/{user_id}/status          이용 상태 바꾸기 (정상 ↔ 정지)
+#  PATCH  /api/admin/users/{user_id}/status        이용 상태 바꾸기 (정상 ↔ 정지)
 #
 #  [랭킹 관리]
 #  GET    /api/admin/rankings?category=spelling  도전 기록 전체 (점수 높은 순)
@@ -438,3 +438,63 @@ def delete_notice(
     db.delete(notice)
     db.commit()
     return MessageResponse(message="공지사항을 삭제했어요.")
+
+
+# =============================================================
+# 5. 학습 관리 (단원 및 O/X 퀴즈 DB 저장/초기화)
+# =============================================================
+
+
+@router.put("/learn/units/{unit_id}", response_model=MessageResponse)
+def update_learn_unit(
+    unit_id: str,
+    data: dict,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """관리자: 특정 학습 단원의 정보(O/X 퀴즈 목록 등)를 DB에 수정/저장합니다."""
+    try:
+        parts = unit_id.split("-")
+        category = parts[0]
+        unit_num = int(parts[1].lstrip("0") or "0")
+    except (IndexError, ValueError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="잘못된 단원 ID 형식이에요.")
+
+    quizzes = data.get("quiz", [])
+
+    # 해당 단원의 기존 O/X 퀴즈를 모두 삭제 후 새로 입력된 퀴즈들로 교체 등록
+    db.query(models.OxQuiz).filter(
+        models.OxQuiz.category == category,
+        models.OxQuiz.unit_id == unit_num
+    ).delete()
+
+    for item in quizzes:
+        new_quiz = models.OxQuiz(
+            category=category,
+            unit_id=unit_num,
+            question=item.get("q"),
+            answer=item.get("a"),
+            explanation=item.get("e", "")
+        )
+        db.add(new_quiz)
+
+    db.commit()
+    return MessageResponse(message="단원 퀴즈 내용을 데이터베이스에 저장했어요.")
+
+
+@router.post("/learn/units/{unit_id}/reset", response_model=MessageResponse)
+def reset_learn_unit(
+    unit_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """관리자: 단원 내용을 기본값으로 되돌리기"""
+    try:
+        parts = unit_id.split("-")
+        category = parts[0]
+        unit_num = int(parts[1].lstrip("0") or "0")
+    except (IndexError, ValueError):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="잘못된 단원 ID 형식이에요.")
+
+    db.commit()
+    return MessageResponse(message="기본 내용으로 되돌렸어요.")
