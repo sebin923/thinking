@@ -62,3 +62,7 @@ backend/personalization_setup/setup_result.json
 
 # Local backup files
 *.backup_*
+
+.thinking_llm_token
+
+*.backup_*
