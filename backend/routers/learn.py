@@ -1,7 +1,7 @@
 # =============================================================
 # routers/learn.py — 학습 "글쓰기 연습" AI 채점 API (로그인 필요)
 # -------------------------------------------------------------
-#   POST /api/learn/writing-score   내가 쓴 글을 단원 규칙 기준으로 AI(CLOVA)가 채점
+#  POST /api/learn/writing-score   내가 쓴 글을 단원 규칙 기준으로 AI(CLOVA)가 채점
 #
 # 학습 흐름 (팀에서 정한 규칙)
 #   ① 단원 O/X 10문제를 전부 맞히면 → 글쓰기 연습이 열림
@@ -19,14 +19,16 @@
 # =============================================================
 
 import json
+from copy import deepcopy
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy.orm import Session
+from database import get_db
+from training_collection import collect
 
 import models
-from database import get_db
 from routers.auth import get_current_user
 # _call_clova: clova.py에 있는 "CLOVA에 요청 보내고 답 글자 받아오기" 함수 (같은 설정을 그대로 씀)
 from clova import _call_clova
@@ -48,6 +50,9 @@ class LearnScoreIn(BaseModel):
     """프론트가 보내는 값
     Field(...): 꼭 보내야 하는 값 / max_length: 글자 수(목록이면 개수) 제한 → 너무 긴 요청 막기
     """
+
+    unit_id: str = Field("", max_length=100)
+    training_consent: StrictBool = False
 
     type_label: str = Field(..., max_length=20)  # 글 유형 (보고서 / 자기소개서 / 발표문)
     unit_title: str = Field(..., max_length=100)  # 단원 제목
@@ -85,6 +90,49 @@ _SCORE_SCHEMA = {
 }
 
 
+def _score_schema(criteria):
+    """항목별 필수 키를 지정해 목록의 누락·추가 가능성을 줄인다."""
+    schema = deepcopy(_SCORE_SCHEMA)
+    properties = {}
+    for i, criterion in enumerate(criteria, 1):
+        properties[f"criterion_{i}"] = {
+            "type": "object",
+            "description": criterion["desc"],
+            "properties": {
+                "score": {"type": "integer"},
+                "comment": {"type": "string"},
+            },
+            "required": ["score", "comment"],
+        }
+    schema["properties"]["criteria"] = {
+        "type": "object", "properties": properties, "required": list(properties)
+    }
+    return schema
+
+
+def _normalize_score_result(raw, count):
+    try:
+        result = json.loads(raw)
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ValueError("AI 채점 결과를 읽지 못했어요. 다시 시도해 주세요.") from exc
+    if not isinstance(result, dict) or not isinstance(result.get("criteria"), dict):
+        raise ValueError("AI가 항목별 채점 형식을 지키지 않았어요. 다시 시도해 주세요.")
+    values = result["criteria"]
+    expected = {f"criterion_{i}" for i in range(1, count + 1)}
+    if set(values) != expected:
+        missing = len(expected - set(values))
+        extra = len(set(values) - expected)
+        raise ValueError(f"AI 채점 항목이 맞지 않아요(필요 {count}개, 누락 {missing}개, 추가 {extra}개). 다시 시도해 주세요.")
+    rows = []
+    for i in range(1, count + 1):
+        item = values[f"criterion_{i}"]
+        if not isinstance(item, dict) or set(item) != {"score", "comment"}:
+            raise ValueError("AI 기준별 점수·근거 형식이 올바르지 않아요.")
+        rows.append({"index": i, "score": item["score"], "comment": item["comment"]})
+    result["criteria"] = rows
+    return result
+
+
 def _build_criteria(rules: list[str], task: str) -> list[dict]:
     """채점 기준 목록 만들기 → [{ "label": 화면에 보일 이름, "desc": AI에게 줄 설명 }, ...]"""
     criteria = [{"label": rule.strip(), "desc": rule.strip()} for rule in rules if rule.strip()]
@@ -113,6 +161,9 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
     system = (
         "당신은 한국어 글쓰기 학습 채점자입니다. "
         f"학습자가 '{data.type_label}' 글쓰기 단원 '{data.unit_title}'을(를) 공부한 뒤 쓴 연습 글을 채점합니다. "
+        f"채점 기준은 총 {len(criteria)}개입니다. criteria 객체의 "
+        + ", ".join(f"criterion_{i}" for i in range(1, len(criteria) + 1))
+        + " 각 키에 해당 번호의 score와 comment를 빠짐없이 한 번씩 작성하세요. 기준을 합치거나 추가하지 마세요. "
         f"채점 기준 각각에 0~{CRITERION_MAX}점의 정수 점수를 주세요. "
         f"{CRITERION_MAX}점은 그 기준을 완벽히 지킨 경우, 7~9점은 대체로 지켰지만 아쉬운 점이 있는 경우, "
         "4~6점은 절반 정도 지킨 경우, 0~3점은 거의 지키지 않은 경우입니다. "
@@ -137,35 +188,32 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         ],
         max_tokens=1200,
         temperature=0.1,  # 낮을수록 같은 글에 비슷한 점수가 나옴
-        schema=_SCORE_SCHEMA,
+        schema=_score_schema(criteria),
     )
 
-    # ----- AI 답 검사 (모양이 틀리면 점수를 믿을 수 없으니 에러) -----
-    try:
-        result = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError("AI 채점 결과 형식이 올바르지 않아요. 다시 시도해 주세요.") from exc
-    if not isinstance(result, dict) or not isinstance(result.get("criteria"), list):
-        raise ValueError("AI 채점 결과 형식이 올바르지 않아요. 다시 시도해 주세요.")
+    # 항목별 응답을 기존 화면/저장 형식으로 변환한 후 점수와 근거를 검사한다.
+    result = _normalize_score_result(raw, len(criteria))
 
-    # 번호 → AI가 준 점수·이유 (번호가 이상하거나 겹치면 무시)
+    # 점수가 후보 등록의 근거이므로 누락/중복/범위 밖 값은 보정하지 않는다.
+    if type(result.get("on_task")) is not bool:
+        raise ValueError("AI가 과제 수행 여부를 올바르게 반환하지 않았어요.")
+    if any(not isinstance(result.get(key), str) or not result[key].strip()
+           for key in ("overall_feedback", "next_step")):
+        raise ValueError("AI 평가 설명이 누락되었어요.")
+    if len(result["criteria"]) != len(criteria):
+        raise ValueError("AI가 채점 기준 수를 올바르게 반환하지 않았어요.")
     by_index = {}
     for item in result["criteria"]:
         if not isinstance(item, dict):
-            continue
-        index = item.get("index")
-        score = item.get("score")
-        if type(index) is not int or type(score) is not int or index in by_index:
-            continue
-        by_index[index] = {
-            # 0~10 밖의 점수가 오면 범위 안으로 잘라냄
-            "score": max(0, min(CRITERION_MAX, score)),
-            "comment": str(item.get("comment") or "").strip(),
-        }
-
-    # 기준 하나라도 점수가 빠지면 믿을 수 없는 결과 → 에러
-    if any(i not in by_index for i in range(1, len(criteria) + 1)):
-        raise ValueError("AI가 일부 기준을 채점하지 않았어요. 다시 시도해 주세요.")
+            raise ValueError("AI 기준별 점수 형식이 올바르지 않아요.")
+        index, score = item.get("index"), item.get("score")
+        comment = item.get("comment")
+        if (type(index) is not int or not 1 <= index <= len(criteria)
+                or index in by_index or type(score) is not int
+                or not 0 <= score <= CRITERION_MAX
+                or not isinstance(comment, str) or not comment.strip()):
+            raise ValueError("AI 기준별 점수·근거 형식이 올바르지 않아요.")
+        by_index[index] = {"score": score, "comment": comment.strip()}
 
     scored = [
         {
@@ -180,7 +228,7 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
     # ----- 최종 점수 계산 (서버가 직접) -----
     total = sum(item["score"] for item in scored)
     score = round(total / (CRITERION_MAX * len(scored)) * 100)
-    on_task = result.get("on_task") is not False  # 값이 없으면 과제를 했다고 봄
+    on_task = result["on_task"]
     if not on_task:
         score = min(score, OFF_TASK_MAX_SCORE)
 
@@ -202,48 +250,19 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
 def score_writing(
     data: LearnScoreIn,
     current_user: models.User = Depends(get_current_user),  # 로그인한 사람만
+    db: Session = Depends(get_db),
 ):
     """학습 글쓰기 연습 AI 채점
     돌려주는 값: { score(0~100), pass_score(90), passed, on_task,
-                    criteria: [{ label, score, max, comment }], overall_feedback, next_step }
+                  criteria: [{ label, score, max, comment }], overall_feedback, next_step }
     """
     try:
-        return score_learning_writing(data)
+        result = score_learning_writing(data)
+        result["training_candidate"] = collect(db, current_user.user_id, data, result.copy())
+        return result
     except ValueError as exc:
         # CLOVA 키가 없거나, AI 답 모양이 틀렸을 때
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except (requests.RequestException, KeyError, TypeError) as exc:
         # CLOVA 서버에 연결이 안 되거나 시간이 너무 오래 걸렸을 때
         raise HTTPException(status_code=502, detail="AI 채점 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
-
-
-# -------------------------------------------------------------
-# 단원별 O/X 퀴즈 조회 API (수정된 부분: 404 대신 빈 배열 반환)
-# -------------------------------------------------------------
-@router.get("/quizzes")
-def get_ox_quizzes(
-    category: str = Query(..., description="카테고리 (예: report)"),
-    unit_id: int = Query(..., description="단원 번호 (예: 1)"),
-    db: Session = Depends(get_db)
-):
-    """
-    특정 카테고리와 단원 번호에 해당하는 O/X 퀴즈 목록을 조회합니다.
-    프론트엔드 OxQuiz 컴포넌트 규격에 맞춰 q(질문), a(정답), e(해설) 형태로 반환합니다.
-    """
-    quizzes = db.query(models.OxQuiz).filter(
-        models.OxQuiz.category == category,
-        models.OxQuiz.unit_id == unit_id
-    ).all()
-
-    # 데이터가 없어도 404 에러를 내지 않고 빈 배열을 반환하여 콘솔 에러 방지
-    if not quizzes:
-        return []
-
-    return [
-        {
-            "q": quiz.question,
-            "a": quiz.answer,
-            "e": quiz.explanation
-        }
-        for quiz in quizzes
-    ]

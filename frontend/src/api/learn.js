@@ -266,12 +266,23 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
   if (!before.units[unit.id]?.passed) throw new Error("O/X 문제를 모두 맞혀야 글쓰기 연습을 할 수 있어요.");
   if (!text?.trim()) throw new Error("글을 입력해 주세요.");
 
+  // 제출마다 동의를 묻고, 거절해도 기존 채점은 진행한다.
+  const trainingConsent = window.confirm(
+    "이 글이 90점 이상이면 공통 AI 학습 후보로 제공할까요?\n" +
+    "동의하면 글·과제·평가 결과를 저장하고 관리자 검토 후 모델 학습에 사용할 수 있습니다.\n" +
+    "본인이 작성하고 이용 권한이 있는 글만 제공하고 개인정보는 제외해 주세요.\n" +
+    "동의 철회는 관리자에게 요청할 수 있습니다. 이미 학습한 모델은 별도 조치가 필요합니다.\n" +
+    "확인: 동의 / 취소: 동의하지 않고 채점"
+  );
+
   let response;
   try {
     response = await fetch(`${API_URL}/api/learn/writing-score`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
+        unit_id: String(unit.id),
+        training_consent: trainingConsent,
         type_label: typeLabel,
         unit_title: unit.title,
         rules: unit.points,
@@ -298,6 +309,7 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
     criteria: data.criteria || [],
     overallFeedback: data.overall_feedback || "",
     nextStep: data.next_step || "",
+    trainingCandidate: data.training_candidate || null,
   };
 
   const progress = await fetchLearnProgress(user);
@@ -321,6 +333,16 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
     completedAt: unitProgress.completedAt || (result.passed ? now : null),
   };
   writeJson(userKey(user), progress);
+  if (trainingConsent) {
+    const state = data.training_candidate?.status;
+    if (state === "pending") {
+      window.alert("채점을 완료했고 학습 후보로 저장했습니다. 관리자 승인 후 학습에 사용할 수 있습니다.");
+    } else if (state === "save_failed" || !state) {
+      window.alert("채점은 완료했지만 학습 후보 저장은 확인되지 않았습니다. 관리자에게 문의해 주세요.");
+    } else if (state === "duplicate") {
+      window.alert("이미 제출한 후보입니다. 기존 검토 상태를 유지합니다.");
+    }
+  }
   return { progress, result, firstComplete };
 }
 
