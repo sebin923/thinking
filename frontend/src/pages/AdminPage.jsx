@@ -44,6 +44,8 @@ import scrollToElement from "../utils/scrollToElement";
 import ConfirmModal from "../components/ConfirmModal";
 // 학습 관리 탭 (내용이 길어서 파일을 따로 나눔)
 import LearnManager from "./admin/LearnManager";
+import TrainingManager from "./admin/TrainingManager";
+import RatingsManager from "./admin/RatingsManager";
 import {
   fetchAdminQuizzes,
   createQuiz,
@@ -67,6 +69,8 @@ import "./AdminPage.css";
 
 // ----- 탭 목록 (기획서 그림의 세 칸) -----
 const TABS = [
+  { key: "training", label: "학습 데이터", icon: ShieldCheck },
+  { key: "ratings", label: "별점·사용자 평가", icon: CheckCircle2 },
   { key: "quiz", label: "퀴즈 관리", icon: ListChecks },
   { key: "users", label: "회원 관리", icon: Users },
   { key: "rankings", label: "랭킹 관리", icon: Trophy },
@@ -191,6 +195,8 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
           {tab === "rankings" && <RankingManager token={auth.token} onSessionExpired={onSessionExpired} />}
           {tab === "notices" && <NoticeManager token={auth.token} onSessionExpired={onSessionExpired} />}
           {tab === "learn" && <LearnManager />}
+          {tab === "training" && <TrainingManager token={auth.token} onSessionExpired={onSessionExpired} />}
+          {tab === "ratings" && <RatingsManager token={auth.token} onSessionExpired={onSessionExpired} />}
         </section>
       </div>
     </div>
@@ -878,9 +884,6 @@ function RankingManager({ token, onSessionExpired }) {
     <>
       <div className="admin-toolbar">
         <p className="admin-hint wide">
-          모든 도전 기록이에요. 랭킹 화면에는 사람마다 최고 기록 1개만 보여요.
-          <br />
-          비정상적인 기록을 지우면 랭킹 화면에서도 바로 빠져요.
         </p>
         <label className="admin-search">
           <Search size={16} />
@@ -1102,9 +1105,7 @@ function NoticeManager({ token, onSessionExpired }) {
     <>
       {/* ----- 위쪽 도구 줄: 안내 문구 + 등록 버튼 ----- */}
       <div className="admin-toolbar">
-        <p className="admin-toolbar-text">
-          <Megaphone size={16} /> 등록한 공지는 푸터 &lsquo;공지사항&rsquo; 화면에 바로 보여요.
-        </p>
+        <p className="admin-toolbar-text"></p>
         <button type="button" className="admin-primary" onClick={openNew} disabled={editor !== null}>
           <Plus size={16} /> 공지 등록
         </button>

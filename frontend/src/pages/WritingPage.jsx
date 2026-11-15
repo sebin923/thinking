@@ -990,33 +990,48 @@ function WritingPage({
                 </div>
               )}
               <div className="writing-ai-tool-buttons">
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiDraft} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+                <button
+                  type="button"
+                  className="writing-ai-tool-button"
+                  onClick={handleAiDraft}
+                  disabled={
+                    aiLimitReached ||
+                    draftLoading ||
+                    commonDraftLoading ||
+                    personalDraftLoading ||
+                    feedbackLoading ||
+                    isComplete
+                  }
+                >
                   <FileText size={19} />
-                  <span><strong>{draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}</strong><small>입력한 생각을 바탕으로 초안 생성</small></span>
+                  <span>
+                    <strong>
+                      {draftLoading ? "AI 초안 생성 중..." : "AI 초안 작성"}
+                    </strong>
+                    <small>입력한 생각을 바탕으로 초안 생성</small>
+                  </span>
                 </button>
-                <button type="button" className="writing-ai-tool-button" onClick={handleAiFeedback} disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete}>
+
+                <button
+                  type="button"
+                  className="writing-ai-tool-button"
+                  onClick={handleAiFeedback}
+                  disabled={
+                    aiLimitReached ||
+                    draftLoading ||
+                    commonDraftLoading ||
+                    personalDraftLoading ||
+                    feedbackLoading ||
+                    isComplete
+                  }
+                >
                   <Lightbulb size={19} />
-                  <span><strong>{feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}</strong><small>문제점 분석과 개선 방향 확인</small></span>
-                </button>
-                <button
-                  type="button"
-                  className="writing-ai-tool-button"
-                  onClick={handleCommonAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "공통 Qwen LLM 초안 생성"}
-                >
-                  <Sparkles size={19} />
-                  <span><strong>{commonDraftLoading ? "공통 LLM 생성 중..." : "공통 LLM 초안 작성"}</strong><small> 실험용 </small></span>
-                </button>
-                <button
-                  type="button"
-                  className="writing-ai-tool-button"
-                  onClick={handlePersonalAiDraft}
-                  disabled={aiLimitReached || draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete || !["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)}
-                  title={!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType) ? "보고서·자기소개서·발표문·자유 글쓰기에서 사용 가능합니다." : "사용자별 LoRA 초안 생성 (실험용)"}
-                >
-                  <Sparkles size={19} />
-                  <span><strong>{personalDraftLoading ? "개인화 LLM 생성 중..." : "개인화 LLM 초안 작성"}</strong><small>실험용</small></span>
+                  <span>
+                    <strong>
+                      {feedbackLoading ? "AI 분석 중..." : "AI 피드백 및 수정"}
+                    </strong>
+                    <small>문제점 분석과 개선 방향 확인</small>
+                  </span>
                 </button>
               </div>
             </div>
