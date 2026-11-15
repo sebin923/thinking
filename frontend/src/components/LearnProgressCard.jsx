@@ -48,7 +48,7 @@ function LearnProgressCard({ user, onGoLearn }) {
       <div className="mypage-learn-head">
         <h2 id="mypage-learn-title">
           <GraduationCap size={20} />
-          스터디 진도
+          글쓰기 연습 진도
         </h2>
         <span className="mypage-learn-total">
           전체 <strong>{done}</strong> / {total} 단원 완료
@@ -86,7 +86,7 @@ function LearnProgressCard({ user, onGoLearn }) {
           <NotebookPen size={15} /> 해결하지 않은 오답 {data.openWrong}개
         </span>
         <button type="button" className="btn-outline mypage-learn-button" onClick={onGoLearn}>
-          스터디 이어 하기 <ArrowRight size={15} />
+          글쓰기 연습 이어 하기 <ArrowRight size={15} />
         </button>
       </div>
     </section>

@@ -105,8 +105,8 @@ const FEATURES = [
   },
   {
     icon: GraduationCap,
-    tag: "스터디",
-    title: "글쓰기 기본기 스터디",
+    tag: "글쓰기 연습",
+    title: "글쓰기 기본기 글쓰기 연습",
     description: "보고서·자기소개서·발표문의 작성 규칙을 단원별 O/X 문제와 글쓰기 연습으로 익혀요.",
     target: "learn",
   },

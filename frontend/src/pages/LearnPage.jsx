@@ -85,7 +85,7 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
   const hero = (
     <PageHero
       eyebrow="글쓰기 기본기"
-      title="스터디"
+      title="글쓰기 연습"
       description={"보고서·자기소개서·발표문의 작성 규칙을 단원별로 익혀요.\nO/X를 모두 맞히고, 글쓰기 AI 채점 90점을 넘기면 단원 완료!"}
       memoText={"규칙을 알면\n글이\n쉬워져요"}
       memoVariant="notebook"
