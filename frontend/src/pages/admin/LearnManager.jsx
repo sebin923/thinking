@@ -1,18 +1,3 @@
-// =============================================================
-// admin/LearnManager.jsx — 관리자 페이지 "학습 관리" 탭
-// -------------------------------------------------------------
-// 학습 단원의 개념(제목·요약·핵심 내용·예시·팁·글쓰기 할 일)과 O/X 문제를 고치는 곳
-//  1) 글 유형(보고서·자기소개서·발표문) 고르기
-//  2) 단원 고르기 (목록 상자)
-//  3) 내용 고치기 → "저장하기"
-//  - O/X 문제는 추가·삭제·정답(O/X) 바꾸기 가능
-//  - "기본 내용으로 되돌리기": 고친 내용을 지우고 처음 내용(data/learn)으로
-//
-// ★ 지금은 백엔드가 없어서 고친 내용이 이 브라우저에만 저장됨 (api/learn.js)
-//  → 다른 사람 컴퓨터에는 반영되지 않음. 백엔드 API가 생기면 api/learn.js만 바꾸면 모두에게 반영됨
-// 스타일: AdminPage.css (admin-* 공통 + 맨 아래 "학습 관리" 부분)
-// =============================================================
-
 import { useEffect, useState } from "react";
 // Plus: 문제 추가, Trash2: 문제 삭제, RotateCcw: 되돌리기, Save: 저장, Info: 안내, Loader2: 처리 중, CheckCircle2: 저장 완료
 import { Plus, Trash2, RotateCcw, Save, Info, Loader2, CheckCircle2 } from "lucide-react";
@@ -172,13 +157,6 @@ function LearnManager({ token, onSessionExpired }) {
 
   return (
     <>
-      {/* 안내: 지금은 이 브라우저에만 저장됨 */}
-      <p className="admin-learn-info">
-        <Info size={16} />
-        <span>
-          고친 내용은 지금 <strong>이 브라우저에만</strong> 저장돼요. 백엔드가 연결되면 모든 사용자에게 반영돼요.
-        </span>
-      </p>
 
       {/* 유형 고르기 + 단원 고르기 */}
       <div className="admin-toolbar">
