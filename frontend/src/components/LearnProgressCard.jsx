@@ -20,23 +20,37 @@ import { fetchLearnContent, fetchLearnProgress, summarizeProgress, countOpenWron
 function LearnProgressCard({ user, onGoLearn }) {
   // summary: [{ key, label, done, quizPassed, total }] / openWrong: 미해결 오답 수
   const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setReload(x => x + 1);
+    window.addEventListener("learning-progress-changed", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("learning-progress-changed", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
+    setError("");
     Promise.all([fetchLearnContent(), fetchLearnProgress(user)])
       .then(([content, progress]) => {
         if (ignore) return;
         setData({ summary: summarizeProgress(content, progress), openWrong: countOpenWrong(progress) });
       })
-      .catch(() => {
+      .catch((err) => {
         // 진도를 못 불러와도 마이페이지 나머지는 보여야 하니까 조용히 0으로
-        if (!ignore) setData({ summary: [], openWrong: 0 });
+        if (!ignore) setError(err.message || "진도를 불러오지 못했어요.");
       });
     return () => {
       ignore = true;
     };
-  }, [user]);
+  }, [user, reload]);
 
+  if (error) return <section className="panel"><p role="alert">{error}</p><button type="button" onClick={() => setReload(x => x + 1)}>진도 다시 불러오기</button></section>;
   if (!data) return null; // 불러오는 동안은 아무것도 안 그림 (아주 빨라서 깜빡이지 않음)
 
   // 전체 합계 (예: 7/30 단원)

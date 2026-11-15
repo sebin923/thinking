@@ -22,7 +22,7 @@
 import { LEARN_TYPES } from "../data/learn";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
 
 // 단원 완료 기준: 글쓰기 연습 AI 채점 점수 (백엔드 routers/learn.py의 PASS_SCORE와 같은 값)
 export const LEARN_PASS_SCORE = 90;
@@ -186,19 +186,67 @@ function emptyProgress() {
 }
 
 // 내 진도 가져오기
+// 서버 진도는 항상 회원 토큰으로 조회한다. 로컬 기록은 이전/임시 보관용이다.
+const progressRevisions = new WeakMap();
+const declinedLegacy = new Set();
+function progressToken(user, explicit) {
+  if (explicit) return explicit;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      const auth = JSON.parse(storage.getItem("saenggak-hanjul-auth") || "null");
+      if (auth?.token && String(auth.user?.user_id) === String(user?.user_id)) return auth.token;
+    } catch { /* 다른 로그인 형식은 사용하지 않음 */ }
+  }
+  throw new Error("로그인이 풀렸어요. 다시 로그인해 주세요.");
+}
+async function progressRequest(user, method = "GET", body, token, suffix = "") {
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/learn/progress${suffix}`, {
+      method, headers: {Authorization: `Bearer ${progressToken(user, token)}`, ...(body ? {"Content-Type":"application/json"} : {})},
+      ...(body ? {body:JSON.stringify(body)} : {}),
+    });
+  } catch (error) { throw new Error(error.message === "로그인이 풀렸어요. 다시 로그인해 주세요." ? error.message : "진도 서버에 연결할 수 없어요. 연결을 확인한 뒤 다시 시도해 주세요."); }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(response.status === 401 ? "로그인이 풀렸어요. 다시 로그인해 주세요." : typeof data.detail === "string" ? data.detail : "진도를 저장하지 못했어요.");
+  progressRevisions.set(data.progress, data.revision);
+  try { writeJson(userKey(user), data.progress); writeJson(userKey(user) + ":server-cache", true); } catch { /* 서버 저장 성공은 유지 */ }
+  if (method !== "GET") window.dispatchEvent(new Event("learning-progress-changed"));
+  return data;
+}
 export async function fetchLearnProgress(user) {
-  const saved = readJson(userKey(user), null);
-  // 예전 모양이거나 비어 있어도 항상 { units, wrong } 모양으로 돌려줌
-  return { ...emptyProgress(), ...(saved || {}) };
+  if (!user) return emptyProgress();
+  const backupKey = userKey(user) + ":legacy-backup";
+  const local = readJson(backupKey, null) || (readJson(userKey(user) + ":server-cache", false) ? null : readJson(userKey(user), null));
+  if (local && !readJson(backupKey, null) && (Object.keys(local.units || {}).length || Object.keys(local.wrong || {}).length)) {
+    writeJson(backupKey, local);
+  }
+  let data = await progressRequest(user);
+  if (!data.legacy_imported && !declinedLegacy.has(userKey(user)) && local && (Object.keys(local.units || {}).length || Object.keys(local.wrong || {}).length)) {
+    // 확인되지 않은 과거 브라우저 기록임을 서버에 표시하며, 기존 서버 단원은 덮어쓰지 않는다.
+    if (window.confirm("이 브라우저에 남아 있는 이전 학습 진도를 계정에 가져올까요? 가져온 기록은 기존 브라우저 기록으로 구분하며 서버에서 확인된 채점 기록은 유지합니다.")) {
+      data = await progressRequest(user, "POST", {expected_revision:data.revision, progress:{units:local.units || {}, wrong:local.wrong || {}}}, undefined, "/import-legacy");
+    } else { declinedLegacy.add(userKey(user)); }
+  }
+  return data.progress;
+}
+async function saveProgress(user, progress) {
+  const expected_revision = progressRevisions.get(progress);
+  if (expected_revision === undefined) throw new Error("진도를 먼저 불러와 주세요.");
+  const result = await progressRequest(user, "PUT", {expected_revision, progress});
+  return result.progress;
 }
 
 // O/X 결과 저장 (DB 퀴즈 및 오답노트가 예전 더미와 섞이지 않도록 quiz_id 또는 질문 내용 기반으로 고정)
 export async function saveQuizAttempt(user, { typeKey, unit, answers }) {
-  const progress = await fetchLearnProgress(user);
+  let progress = await fetchLearnProgress(user);
   const now = new Date().toISOString();
   
   const quizList = unit.quiz || [];
   const total = quizList.length;
+  if (!total || answers.length !== total || new Set(answers.map(a => a.index)).size !== total || answers.some(a => !Number.isInteger(a.index) || a.index < 0 || a.index >= total)) {
+    throw new Error("모든 O/X 문제에 답한 뒤 제출해 주세요.");
+  }
 
   let score = 0;
   answers.forEach(({ index, chosen }) => {
@@ -249,7 +297,7 @@ export async function saveQuizAttempt(user, { typeKey, unit, answers }) {
     passedAt: before.passedAt || (passed ? now : null),
   };
 
-  writeJson(userKey(user), progress);
+  progress = await saveProgress(user, progress);
   return { progress, score, total, passed, firstPass };
 }
 
@@ -312,27 +360,19 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
     trainingCandidate: data.training_candidate || null,
   };
 
-  const progress = await fetchLearnProgress(user);
-  const now = new Date().toISOString();
-  const unitProgress = progress.units[unit.id] || {};
-  const firstComplete = result.passed && !unitProgress.completed;
-  progress.units[unit.id] = {
-    ...unitProgress,
-    writing: {
-      text: text.trim(),
-      score: result.score,
-      criteria: result.criteria,
-      overallFeedback: result.overallFeedback,
-      nextStep: result.nextStep,
-      onTask: result.onTask,
-      scoredAt: now,
-    },
-    writingAttempts: (unitProgress.writingAttempts || 0) + 1,
-    writingBest: Math.max(unitProgress.writingBest || 0, result.score),
-    completed: Boolean(unitProgress.completed || result.passed),
-    completedAt: unitProgress.completedAt || (result.passed ? now : null),
-  };
-  writeJson(userKey(user), progress);
+  let progress;
+  let firstComplete = false;
+  if (data.progress_saved && data.saved_progress) {
+    progress = data.saved_progress.progress;
+    firstComplete = data.saved_progress.first_complete;
+    progressRevisions.set(progress, data.saved_progress.revision);
+    try { writeJson(userKey(user), progress); writeJson(userKey(user) + ":server-cache", true); } catch { /* 서버 저장 성공 */ }
+    window.dispatchEvent(new Event("learning-progress-changed"));
+  } else {
+    progress = before;
+    result.progressSaveFailed = true;
+    window.alert(data.progress_error || "채점은 완료했지만 서버 진도 저장을 확인하지 못했습니다. 결과를 보관하고 관리자에게 문의해 주세요.");
+  }
   if (trainingConsent) {
     const state = data.training_candidate?.status;
     if (state === "pending") {
@@ -348,7 +388,7 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
 
 // 퀴즈 화면 결과 반영
 export async function recordQuizAnswer(user, { quiz, category, categoryLabel, chosen }) {
-  const progress = await fetchLearnProgress(user);
+  let progress = await fetchLearnProgress(user);
   const now = new Date().toISOString();
   const key = `quiz-${quiz.quiz_id ?? quiz.question}`;
   const before = progress.wrong[key];
@@ -373,12 +413,12 @@ export async function recordQuizAnswer(user, { quiz, category, categoryLabel, ch
       resolvedAt: null,
     };
   }
-  writeJson(userKey(user), progress);
+  progress = await saveProgress(user, progress);
   return progress;
 }
 
 export async function answerWrongNote(user, key, chosen) {
-  const progress = await fetchLearnProgress(user);
+  let progress = await fetchLearnProgress(user);
   const note = progress.wrong[key];
   if (!note) throw new Error("오답노트에서 문제를 찾을 수 없어요.");
 
@@ -387,14 +427,14 @@ export async function answerWrongNote(user, key, chosen) {
   progress.wrong[key] = correct
     ? { ...note, resolved: true, resolvedAt: now }
     : { ...note, myAnswer: chosen, count: note.count + 1, lastAt: now };
-  writeJson(userKey(user), progress);
+  progress = await saveProgress(user, progress);
   return { correct, progress };
 }
 
 export async function deleteWrongNote(user, key) {
-  const progress = await fetchLearnProgress(user);
+  let progress = await fetchLearnProgress(user);
   delete progress.wrong[key];
-  writeJson(userKey(user), progress);
+  progress = await saveProgress(user, progress);
   return progress;
 }
 
