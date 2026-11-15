@@ -30,7 +30,15 @@ export default function TrainingManager({token, onSessionExpired}) {
   const approvable=selected?.consent && !form.synthetic && real && Object.keys(checks).every(k=>form[k]) && (selected?.source?.type_label!=='자기소개서'||form.training_context?.trim());
   return <div className="ta-admin">
     <h2>학습 데이터 관리</h2>
-    <div className="ta-tools">{[['candidates','후보 검토'],['exports','데이터셋'],['runs','학습 실험 기록']].map(([key,label])=><button key={key} disabled={busy} aria-pressed={view===key} onClick={()=>{setView(key);setOffset(0);setNotice('');}}>{label}</button>)}<button disabled={busy||loading} onClick={()=>setReload(x=>x+1)}>새로고침</button></div>
+    <div className="ta-tools">{[['candidates','후보 검토'],['exports','데이터셋'],['runs','학습 실험 기록']].map(([key,label])=><button key={key} disabled={busy} aria-pressed={view===key} onClick={() => {
+  if (view === key) return;
+  setRows([]);
+  setSelected(null);
+  setLoading(true);
+  setView(key);
+  setOffset(0);
+  setNotice('');
+}}>{label}</button>)}<button disabled={busy||loading} onClick={()=>setReload(x=>x+1)}>새로고침</button></div>
     {error&&<p role="alert" className="ta-error">{error}</p>}{notice&&<p role="status">{notice}</p>}
     {view==='candidates'&&<label>검토 상태 <select value={status} disabled={busy} onChange={e=>{setStatus(e.target.value);setOffset(0);}}>{Object.entries(labels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>}
     {loading?<p role="status">불러오는 중…</p>:<>
