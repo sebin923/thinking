@@ -1,5 +1,6 @@
 from database import engine, Base
 import models
+import learning_progress  # 회원 진도 테이블 등록
 import training_models  # 공통 학습 후보 테이블 등록
 from routers import training
 from sqlalchemy import text
@@ -77,6 +78,8 @@ app.include_router(payment.router)
 
 # 학습 글쓰기 연습 AI 채점 API를 서버에 붙이기
 app.include_router(learn.router)
+from routers import learn_progress
+app.include_router(learn_progress.router)
 app.include_router(training.router)
 from routers import admin_ratings
 app.include_router(admin_ratings.router)

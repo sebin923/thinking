@@ -27,6 +27,8 @@ from pydantic import BaseModel, Field, StrictBool
 from sqlalchemy.orm import Session
 from database import get_db
 from training_collection import collect
+import learning_progress as progress_svc
+from sqlalchemy.exc import SQLAlchemyError
 
 import models
 from routers.auth import get_current_user
@@ -257,8 +259,25 @@ def score_writing(
                   criteria: [{ label, score, max, comment }], overall_feedback, next_step }
     """
     try:
+        if not data.unit_id:
+            raise HTTPException(422, "진도를 저장할 단원 ID가 필요합니다.")
+        progress_row = progress_svc.row_for(db, current_user.user_id)
+        quiz_passed = progress_row.payload['units'].get(data.unit_id, {}).get('passed', False)
+        db.commit()
+        if not quiz_passed:
+            raise HTTPException(403, "O/X 문제를 통과한 뒤 글쓰기 연습을 제출해 주세요.")
         result = score_learning_writing(data)
-        result["training_candidate"] = collect(db, current_user.user_id, data, result.copy())
+        try:
+            saved = progress_svc.record_writing(db, current_user.user_id, data.unit_id, data.text.strip(), result)
+        except SQLAlchemyError as exc:
+            db.rollback()
+            # 채점을 다시 호출하지 않고 결과를 표시하며 저장 실패를 명확히 알린다.
+            result["progress_saved"] = False
+            result["progress_error"] = "채점은 완료했지만 서버 진도 저장에 실패했습니다. 이 채점 결과를 보관하고 관리자에게 문의해 주세요."
+        else:
+            result["progress_saved"] = True
+            result["saved_progress"] = saved
+        result["training_candidate"] = collect(db, current_user.user_id, data, {k:v for k,v in result.items() if k not in ("saved_progress","progress_saved","progress_error")})
         return result
     except ValueError as exc:
         # CLOVA 키가 없거나, AI 답 모양이 틀렸을 때
