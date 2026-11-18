@@ -90,6 +90,28 @@
   border-bottom-color: #4a98d3;
 }
 
+/* ===== 문법 난이도 탭 [상 | 중 | 하] (variant="level") ===== */
+/* [맞춤법 | 문법] 밑줄 탭 아래에 오는 작은 알약 모양
+   선택된 난이도만 파란 바탕 + 흰 글자로 눈에 띄게 */
+.category-tabs.level {
+  gap: 3px;
+  padding: 4px;
+  margin-bottom: 20px;
+  box-shadow: none;
+}
+
+.category-tabs.level .category-tab {
+  min-width: 58px;
+  padding: 6px 16px;
+  font-size: 14px;
+}
+
+.category-tabs.level .category-tab.active {
+  background: #4a98d3;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(74, 152, 211, 0.3);
+}
+
 /* 모바일: 탭이 화면 너비를 똑같이 나눠 쓰게 (2개면 반씩) */
 @media (max-width: 640px) {
   .category-tabs {
@@ -117,5 +139,16 @@
   .category-tabs.sub .category-tab {
     flex: none;
     padding: 6px 4px;
+  }
+
+  /* 난이도 탭도 모바일에서 꽉 채우지 않고 가운데에 작게 */
+  .category-tabs.level {
+    width: auto;
+  }
+
+  .category-tabs.level .category-tab {
+    flex: none;
+    min-width: 54px;
+    padding: 6px 14px;
   }
 }

@@ -34,6 +34,8 @@ import PaymentResultPage from "./pages/PaymentResultPage";
 import { readPaymentReturn } from "./utils/tossPayments";
 import WritingPage from "./pages/WritingPage";
 import QuizPage from "./pages/QuizPage";
+// DEFAULT_QUIZ_LEVEL: 문법 퀴즈를 처음 열 때 고를 난이도 ("easy" = 하)
+import { DEFAULT_QUIZ_LEVEL } from "./data/quizCategories";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import RankingPage from "./pages/RankingPage";
@@ -176,6 +178,9 @@ function App() {
   // App에 두는 이유: 다른 메뉴에 갔다 와도 마지막으로 보던 종류가 그대로 남게 하려고
   // (랭킹은 맞춤법 도전 모드만 있어서 이 값과 상관없음)
   const [quizCategory, setQuizCategory] = useState("spelling");
+  // quizLevel: 문법 퀴즈에서 지금 선택된 난이도 ("hard" 상 / "medium" 중 / "easy" 하)
+  // 맞춤법 퀴즈는 난이도를 안 나눠서 이 값을 안 씀
+  const [quizLevel, setQuizLevel] = useState(DEFAULT_QUIZ_LEVEL);
 
   // 학습 화면을 열 때 처음 보여줄 탭 ("learn" 학습 / "wrong" 오답노트)
   // 헤더로 들어가면 "learn", 퀴즈 결과의 "오답노트 보기"로 들어가면 "wrong"
@@ -516,8 +521,12 @@ function App() {
         return (
           <QuizPage
             // key: 종류가 바뀌면 React가 화면을 새로 만들어서 문제·점수가 처음부터 시작됨
-            key={quizCategory}
+            // (문법은 난이도까지 넣어서, 난이도 탭을 바꿔도 퀴즈가 처음부터 새로 시작됨)
+            key={quizCategory === "grammar" ? `grammar-${quizLevel}` : quizCategory}
             category={quizCategory}
+            // 문법 퀴즈 난이도 [상 | 중 | 하] → 바꾸면 그 난이도 문제로 새로 시작
+            level={quizLevel}
+            onChangeLevel={setQuizLevel}
             // [맞춤법 | 문법] 탭 → 종류만 바꿈 (key가 바뀌어서 퀴즈가 처음부터 새로 시작)
             onChangeCategory={setQuizCategory}
             // [퀴즈 | 랭킹] 탭 → 랭킹을 누르면 랭킹 화면으로

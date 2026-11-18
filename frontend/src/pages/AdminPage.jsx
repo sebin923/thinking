@@ -1,12 +1,17 @@
 // =============================================================
 // AdminPage.jsx — 관리자 페이지
 // -------------------------------------------------------------
-// 기획서 구조 그대로 탭 3개 + 공지사항 관리 탭
-//   1. 퀴즈 관리: 문제·정답·해설 추가 / 수정 / 삭제
+// 탭 7개 (화면 순서 그대로)
+//   1. 퀴즈 관리: 문제·정답·해설 추가 / 수정 / 삭제 (+ 문법 난이도 상·중·하)
 //   2. 회원 관리: 회원 조회(검색·상태 필터) + 이용 상태 관리(정상 ↔ 정지)
 //   3. 랭킹 관리: 도전 점수·기록 조회 / 삭제
 //   4. 공지사항 관리: 공지 등록 / 수정 / 삭제 (+ 중요 공지 고정)
-//   5. 학습 관리: 학습 단원의 개념·O/X 문제 수정 (admin/LearnManager.jsx)
+//   5. 글쓰기 연습: 글쓰기 연습 단원의 개념·O/X 문제 수정 (admin/LearnManager.jsx)
+//   6. 학습 데이터: AI 학습용 글 검토·데이터셋·실험 기록 (admin/TrainingManager.jsx)
+//   7. 별점 평가: AI 초안·피드백에 사용자가 준 별점 모아 보기 (admin/RatingsManager.jsx)
+//
+// 모든 탭이 같은 모양을 쓰도록 공통 부품은 admin/AdminShared.jsx(페이지 번호·불러오는 중 등),
+// 날짜 모양은 admin/adminFormat.js에 모아 둠 → 새 탭을 만들 때도 이걸 가져다 쓰면 됨
 //
 // 들어올 수 있는 사람: 로그인한 관리자(role = "admin")만
 //   - 화면에서도 막고(헤더에 버튼이 안 보이고, 들어와도 안내만 보임)
@@ -17,7 +22,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  ShieldCheck,
   ListChecks,
   Users,
   Trophy,
@@ -26,9 +30,6 @@ import {
   Trash2,
   X,
   Search,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   LogIn,
   Lock,
@@ -36,16 +37,20 @@ import {
   Megaphone,
   Pin,
   GraduationCap,
+  Database, // 학습 데이터 탭 아이콘
+  Star, // 별점 평가 탭 아이콘
 } from "lucide-react";
 
 import PageHero from "../components/PageHero";
-// 창만 스크롤하는 도구 (scrollIntoView를 쓰면 overflow: hidden 상자 안 내용이 밀려 올라가는 문제가 있어서)
-import scrollToElement from "../utils/scrollToElement";
 import ConfirmModal from "../components/ConfirmModal";
 // 학습 관리 탭 (내용이 길어서 파일을 따로 나눔)
 import LearnManager from "./admin/LearnManager";
 import TrainingManager from "./admin/TrainingManager";
 import RatingsManager from "./admin/RatingsManager";
+// 모든 탭이 같이 쓰는 부품 (페이지 번호, 불러오는 중/실패/비어 있음 표시)
+import { Pagination, ListState } from "./admin/AdminShared";
+// 날짜 → "2026.11.18" (모든 탭이 같은 모양으로)
+import { formatDate } from "./admin/adminFormat";
 import {
   fetchAdminQuizzes,
   createQuiz,
@@ -61,21 +66,24 @@ import {
 } from "../api/admin";
 // 공지 목록은 사용자 화면과 같은 API를 씀 (보이는 순서까지 똑같이 확인 가능)
 import { fetchNotices } from "../api/notice";
-import { QUIZ_CATEGORIES } from "../data/quizCategories";
+// QUIZ_LEVELS: 문법 난이도 [상 | 중 | 하] / getQuizLevel: 난이도 key("easy")로 이름("하") 찾기
+import { QUIZ_CATEGORIES, QUIZ_LEVELS, getQuizLevel } from "../data/quizCategories";
 import { formatPhone } from "../utils/validation";
 // 로딩 아이콘이 빙글빙글 도는 .spin 클래스가 들어 있는 파일
 import "../components/AuthLayout.css";
 import "./AdminPage.css";
 
-// ----- 탭 목록 (기획서 그림의 세 칸) -----
+// ----- 탭 목록 (배열 순서 = 화면 순서) -----
+// 처음 열리는 퀴즈 관리가 맨 앞 → 사이트 운영(퀴즈·회원·랭킹·공지·글쓰기 연습) → AI 데이터(학습 데이터·별점)
+// "글쓰기 연습": 헤더 메뉴 이름과 똑같이 ("학습 데이터"·"별점 평가"처럼 "관리"는 빼서 탭 글자가 한 줄에 들어가게)
 const TABS = [
-  { key: "training", label: "학습 데이터", icon: ShieldCheck },
-  { key: "ratings", label: "별점·사용자 평가", icon: CheckCircle2 },
   { key: "quiz", label: "퀴즈 관리", icon: ListChecks },
   { key: "users", label: "회원 관리", icon: Users },
   { key: "rankings", label: "랭킹 관리", icon: Trophy },
   { key: "notices", label: "공지사항 관리", icon: Megaphone },
-  { key: "learn", label: "학습 관리", icon: GraduationCap },
+  { key: "learn", label: "글쓰기 연습", icon: GraduationCap },
+  { key: "training", label: "학습 데이터", icon: Database },
+  { key: "ratings", label: "별점 평가", icon: Star },
 ];
 
 // 보기 개수 제한 (서버 admin_schemas.py의 QuizIn과 똑같이 맞춤)
@@ -96,16 +104,6 @@ function paginate(list, page) {
   // slice(시작, 끝): 1페이지는 0~9번, 2페이지는 10~19번
   const items = list.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   return { items, currentPage, totalPages };
-}
-
-// ----- 날짜 → "2026.10.27" -----
-function formatDate(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  const month = String(date.getMonth() + 1).padStart(2, "0"); // getMonth()는 0부터 시작해서 +1
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}.${month}.${day}`;
 }
 
 // ----- 서버 에러 공통 처리 -----
@@ -130,7 +128,7 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
     <PageHero
       eyebrow="관리자 전용"
       title="관리자 페이지"
-      description={"퀴즈 문제, 회원 이용 상태, 랭킹 기록, 공지사항을 관리해요.\n변경 내용은 사용자 화면에 바로 반영돼요."}
+      description={"퀴즈·회원·랭킹·공지사항·글쓰기 연습과 AI 학습 데이터를 관리해요.\n변경 내용은 사용자 화면에 바로 반영돼요."}
       memoText={"꼼꼼하게\n관리하기\n:)"}
       memoVariant="notebook"
     />
@@ -209,13 +207,20 @@ function AdminPage({ auth, onGoLogin, onSessionExpired }) {
 
 // 빈 입력 폼 (새 문제 추가할 때 시작 값)
 // answerIndex: 몇 번째 보기가 정답인지 (0부터 셈, -1이면 아직 안 고름)
-const emptyQuizForm = (category) => ({
+// level: 문법 난이도 ("hard" 상 / "medium" 중 / "easy" 하)
+//   → 목록에서 난이도를 골라 보고 있었으면 그 난이도로 시작, 아니면 비워 둠(직접 골라야 저장됨)
+const emptyQuizForm = (category, level = null) => ({
   category,
   question: "",
   options: ["", ""],
   answerIndex: -1,
   explanation: "",
+  level,
 });
+
+// 문법 문제 목록에서 난이도로 거르는 버튼 [전체 | 상 | 중 | 하 | 미지정]
+//  - "none"(미지정): 난이도 칸이 생기기 전에 넣은 문법 문제 → 퀴즈 화면 어느 탭에도 안 나오니 찾아서 난이도를 넣어 줘야 함
+const LEVEL_FILTERS = [{ key: "all", label: "전체" }, ...QUIZ_LEVELS, { key: "none", label: "미지정" }];
 
 function QuizManager({ token, onSessionExpired }) {
   const [category, setCategory] = useState("spelling"); // 지금 보고 있는 종류
@@ -225,6 +230,8 @@ function QuizManager({ token, onSessionExpired }) {
   const [reloadKey, setReloadKey] = useState(0); // +1 하면 목록을 다시 불러옴
   const [keyword, setKeyword] = useState(""); // 문제 검색어 (화면에서만 거름)
   const [page, setPage] = useState(1); // 지금 보고 있는 페이지 (10개씩)
+  // levelFilter: 문법 목록을 난이도로 거르기 ("all" 전체 / "hard" / "medium" / "easy" / "none" 미지정)
+  const [levelFilter, setLevelFilter] = useState("all");
 
   // editor: 입력 폼 상태 (null이면 폼 닫힘)
   //  { quizId: 수정할 퀴즈 번호(새 문제면 null), form: 입력값, saving: 저장 중인지, error: 실패 문구 }
@@ -260,6 +267,7 @@ function QuizManager({ token, onSessionExpired }) {
     setLoading(true);
     setCategory(key);
     setPage(1); // 종류가 바뀌면 1페이지부터
+    setLevelFilter("all"); // 난이도 거르기도 처음으로
   };
 
   // 성공 문구를 3초 동안 보여주기
@@ -269,7 +277,10 @@ function QuizManager({ token, onSessionExpired }) {
   };
 
   // ----- 입력 폼 열기 -----
-  const openNew = () => setEditor({ quizId: null, form: emptyQuizForm(category), saving: false, error: "" });
+  // 문법 목록에서 특정 난이도(상·중·하)를 보고 있었으면 그 난이도를 미리 골라 둠
+  const presetLevel = category === "grammar" && QUIZ_LEVELS.some((item) => item.key === levelFilter) ? levelFilter : null;
+  const openNew = () =>
+    setEditor({ quizId: null, form: emptyQuizForm(category, presetLevel), saving: false, error: "" });
   const openEdit = (quiz) =>
     setEditor({
       quizId: quiz.quiz_id,
@@ -281,6 +292,7 @@ function QuizManager({ token, onSessionExpired }) {
         // indexOf: 정답이 몇 번째 보기인지 (없으면 -1)
         answerIndex: quiz.options.map(String).indexOf(quiz.answer),
         explanation: quiz.explanation || "",
+        level: quiz.level || null, // 난이도 (없으면 null → 문법이면 저장 전에 골라야 함)
       },
       saving: false,
       error: "",
@@ -325,6 +337,8 @@ function QuizManager({ token, onSessionExpired }) {
       return setEditor((prev) => ({ ...prev, error: "보기는 2개 이상 입력해 주세요." }));
     if (form.answerIndex < 0 || !filled[form.answerIndex])
       return setEditor((prev) => ({ ...prev, error: "정답 보기를 골라 주세요. (보기 왼쪽 동그라미)" }));
+    if (form.category === "grammar" && !form.level)
+      return setEditor((prev) => ({ ...prev, error: "문법 문제는 난이도(상·중·하)를 골라 주세요." }));
 
     const payload = {
       category: form.category,
@@ -332,6 +346,8 @@ function QuizManager({ token, onSessionExpired }) {
       options: filled.filter(Boolean), // 빈 보기 칸은 빼고 보냄
       answer: filled[form.answerIndex],
       explanation: form.explanation,
+      // 난이도는 문법 문제만 보냄 (맞춤법은 난이도를 나누지 않아서 null)
+      level: form.category === "grammar" ? form.level : null,
     };
 
     setEditor((prev) => ({ ...prev, saving: true, error: "" }));
@@ -372,13 +388,21 @@ function QuizManager({ token, onSessionExpired }) {
     showNotice("퀴즈를 삭제했어요.");
   };
 
+  // 문법이면 먼저 난이도로 거름 ("all"이면 전부, "none"이면 난이도가 비어 있는 문제만)
+  const byLevel =
+    category === "grammar" && levelFilter !== "all"
+      ? quizzes.filter((quiz) => (levelFilter === "none" ? !quiz.level : quiz.level === levelFilter))
+      : quizzes;
+  // 문법 문제 중 난이도가 비어 있는 문제 수 (안내 문구용)
+  const noLevelCount = category === "grammar" ? quizzes.filter((quiz) => !quiz.level).length : 0;
+
   // 검색어로 거른 목록 (문제·보기·해설 중 하나에 들어 있으면 보여줌)
   const text = keyword.trim();
   const visible = text
-    ? quizzes.filter((quiz) =>
+    ? byLevel.filter((quiz) =>
         [quiz.question, quiz.explanation || "", ...quiz.options.map(String)].some((value) => value.includes(text))
       )
-    : quizzes;
+    : byLevel;
   // 지금 페이지에 보여줄 10개
   const quizPage = paginate(visible, page);
 
@@ -419,6 +443,35 @@ function QuizManager({ token, onSessionExpired }) {
         </button>
       </div>
 
+      {/* ----- 문법일 때만: 난이도로 거르기 [전체 | 상 | 중 | 하 | 미지정] ----- */}
+      {category === "grammar" && (
+        <div className="admin-chips admin-level-filter" role="group" aria-label="난이도로 거르기">
+          <span className="admin-label">난이도</span>
+          {LEVEL_FILTERS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={levelFilter === item.key ? "admin-chip active" : "admin-chip"}
+              aria-pressed={levelFilter === item.key}
+              onClick={() => {
+                setLevelFilter(item.key);
+                setPage(1); // 거르는 조건이 바뀌면 1페이지부터
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 난이도가 비어 있는 문법 문제가 있으면 알려 줌 (퀴즈 화면 어느 탭에도 안 나와서) */}
+      {noLevelCount > 0 && !loading && (
+        <p className="admin-error" role="status">
+          난이도가 없는 문법 문제가 {noLevelCount}개 있어요. 퀴즈 화면에 나오지 않으니 '미지정'에서 찾아 난이도를
+          골라 주세요.
+        </p>
+      )}
+
       {notice && (
         <p className="admin-notice" role="status">
           <CheckCircle2 size={16} /> {notice}
@@ -452,6 +505,26 @@ function QuizManager({ token, onSessionExpired }) {
               ))}
             </div>
           </div>
+
+          {/* 난이도: 문법일 때만 (퀴즈 화면의 [상 | 중 | 하] 탭에 나뉘어 나옴) */}
+          {editor.form.category === "grammar" && (
+            <div className="admin-field">
+              <span className="admin-label">난이도</span>
+              <div className="admin-chips">
+                {QUIZ_LEVELS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={editor.form.level === item.key ? "admin-chip active" : "admin-chip"}
+                    aria-pressed={editor.form.level === item.key}
+                    onClick={() => updateForm({ level: item.key })}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 문제 */}
           <label className="admin-field">
@@ -575,6 +648,13 @@ function QuizManager({ token, onSessionExpired }) {
                 </div>
                 {quiz.explanation && <p className="admin-quiz-explanation">{quiz.explanation}</p>}
                 <p className="admin-meta">
+                  {/* 문법 문제는 난이도 배지 (없으면 빨간 "난이도 없음") */}
+                  {quiz.category === "grammar" &&
+                    (quiz.level ? (
+                      <span className="admin-badge admin">난이도 {getQuizLevel(quiz.level).label}</span>
+                    ) : (
+                      <span className="admin-badge suspended">난이도 없음</span>
+                    ))}{" "}
                   #{quiz.quiz_id} · {formatDate(quiz.created_at)} 등록 · 푼 횟수 {quiz.solved_count}회
                 </p>
               </div>
@@ -883,8 +963,7 @@ function RankingManager({ token, onSessionExpired }) {
   return (
     <>
       <div className="admin-toolbar">
-        <p className="admin-hint wide">
-        </p>
+        <p className="admin-toolbar-text">도전 모드 기록이에요. 잘못 들어간 기록은 삭제할 수 있어요.</p>
         <label className="admin-search">
           <Search size={16} />
           <input
@@ -1105,7 +1184,7 @@ function NoticeManager({ token, onSessionExpired }) {
     <>
       {/* ----- 위쪽 도구 줄: 안내 문구 + 등록 버튼 ----- */}
       <div className="admin-toolbar">
-        <p className="admin-toolbar-text"></p>
+        <p className="admin-toolbar-text">중요 공지로 고정하면 사용자 공지 목록 맨 위에 보여요.</p>
         <button type="button" className="admin-primary" onClick={openNew} disabled={editor !== null}>
           <Plus size={16} /> 공지 등록
         </button>
@@ -1269,94 +1348,6 @@ function NoticeManager({ token, onSessionExpired }) {
       )}
     </>
   );
-}
-
-// =============================================================
-// 공통: 페이지 번호 (페이지네이션)
-// =============================================================
-// page: 지금 페이지, totalPages: 전체 페이지 수, onChange: 번호를 누르면 그 번호로 실행, label: 화면 읽기용 이름
-// 1페이지뿐이어도 항상 보여줌 (‹ 1 › — 화살표는 둘 다 흐리게 막힘)
-function Pagination({ page, totalPages, onChange, label }) {
-
-  // 보여줄 번호: 페이지가 많으면 지금 페이지 근처 최대 5개만 (예: 3 4 [5] 6 7)
-  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-  const end = Math.min(totalPages, start + 4);
-  // Array.from({ length: n }, (_, i) => ...): n개짜리 배열을 만들면서 값 채우기
-  const numbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-
-  // 페이지 이동: 번호를 바꾸고 탭 위치로 부드럽게 스크롤 (목록 맨 위부터 보이게)
-  const go = (next) => {
-    if (next < 1 || next > totalPages || next === page) return;
-    onChange(next);
-    scrollToElement(".admin-tabs");
-  };
-
-  return (
-    // nav: "이동 메뉴" 태그 → 화면 읽기 프로그램이 페이지 이동 버튼 묶음으로 알아들음
-    <nav className="admin-pagination" aria-label={label}>
-      <button
-        type="button"
-        className="admin-page-arrow"
-        onClick={() => go(page - 1)}
-        disabled={page === 1}
-        aria-label="이전 페이지"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      {numbers.map((number) => (
-        <button
-          key={number}
-          type="button"
-          className={number === page ? "admin-page active" : "admin-page"}
-          onClick={() => go(number)}
-          aria-current={number === page ? "page" : undefined} // 지금 보고 있는 페이지 표시
-        >
-          {number}
-        </button>
-      ))}
-      <button
-        type="button"
-        className="admin-page-arrow"
-        onClick={() => go(page + 1)}
-        disabled={page === totalPages}
-        aria-label="다음 페이지"
-      >
-        <ChevronRight size={18} />
-      </button>
-    </nav>
-  );
-}
-
-// =============================================================
-// 공통: 불러오는 중 / 실패 / 비어 있음 / 목록 보여주기
-// =============================================================
-// children: 정상일 때 보여줄 목록 (부모가 태그 사이에 넣은 내용)
-function ListState({ loading, error, empty, emptyText, onRetry, children }) {
-  if (loading) {
-    return (
-      <p className="admin-state">
-        <Loader2 size={18} className="spin" /> 불러오는 중이에요...
-      </p>
-    );
-  }
-  if (error) {
-    return (
-      <div className="admin-state">
-        <p>{error}</p>
-        <button type="button" className="admin-secondary small" onClick={onRetry}>
-          <RefreshCw size={14} /> 다시 불러오기
-        </button>
-      </div>
-    );
-  }
-  if (empty) {
-    return (
-      <p className="admin-state">
-        <ShieldCheck size={18} /> {emptyText}
-      </p>
-    );
-  }
-  return children;
 }
 
 export default AdminPage;

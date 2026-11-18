@@ -10,12 +10,14 @@
 // 헤더 "퀴즈" 메뉴로 들어오는 화면
 //   맨 위 큰 탭 [퀴즈 | 랭킹] → 랭킹을 누르면 랭킹 화면으로
 //   그 아래 작은 탭 [맞춤법 | 문법] → 퀴즈 종류 바꾸기
+//   문법을 고르면 그 아래 난이도 탭 [상 | 중 | 하]가 나옴
+//     → 고른 난이도 문제 중에서 10문제(QUIZ_LEVEL_SIZE)를 랜덤으로 뽑아서 냄
+//     → "다시 풀기"를 누르면 같은 난이도에서 10문제를 새로 뽑음
 // =============================================================
 
 import { useState, useEffect } from "react";
 import {
   BookOpenCheck,
-  Lightbulb,
   ArrowRight,
   Trophy,
   CheckCircle2,
@@ -31,7 +33,9 @@ import QuizSectionTabs from "../components/QuizSectionTabs";
 // CategoryTabs: 퀴즈 안의 작은 탭 [맞춤법 | 문법]
 import CategoryTabs from "../components/CategoryTabs";
 // getQuizCategory: 종류별 제목·설명 등 설정 꺼내기
-import { getQuizCategory } from "../data/quizCategories";
+// QUIZ_LEVELS: 문법 난이도 탭 목록 [상 | 중 | 하] / getQuizLevel: 난이도 key로 이름("상") 찾기
+// QUIZ_LEVEL_SIZE: 난이도 하나에서 낼 문제 수 (10)
+import { getQuizCategory, getQuizLevel, QUIZ_LEVELS, QUIZ_LEVEL_SIZE } from "../data/quizCategories";
 // 틀린 문제를 학습 화면의 오답노트에 담는 함수 (로그인했을 때만)
 import { recordQuizAnswer } from "../api/learn";
 import "./QuizPage.css";
@@ -48,40 +52,78 @@ function shuffle(list) {
   return copy;
 }
 
+// ----- 문제 은행(pool)에서 이번에 풀 문제 고르기 -----
+//  - 문제 순서와 보기 순서를 랜덤으로 섞음
+//  - limit가 있으면(문법 난이도 퀴즈) 섞은 것 중 앞에서 limit개만 → "랜덤 10문제"
+//    (문제가 10개보다 적으면 있는 만큼만 냄)
+function pickQuestions(pool, limit) {
+  const mixed = shuffle(pool);
+  const picked = limit ? mixed.slice(0, limit) : mixed;
+  return picked.map((q) => ({
+    ...q,
+    options: shuffle(q.options), // 보기 순서도 랜덤으로 섞음
+  }));
+}
+
 // props
 //  - category: 퀴즈 종류 ("spelling" = 맞춤법, "grammar" = 문법), 기본값 맞춤법
 //  - onChangeCategory: [맞춤법 | 문법] 탭을 눌렀을 때 실행 (App이 종류를 바꾸고 이 화면을 새로 그림)
+//  - level: 문법 퀴즈 난이도 ("hard" 상 / "medium" 중 / "easy" 하) → 문법일 때만 씀
+//  - onChangeLevel: [상 | 중 | 하] 탭을 눌렀을 때 실행 (App이 난이도를 바꾸고 이 화면을 새로 그림)
 //  - onChangeSection: [퀴즈 | 랭킹] 탭을 눌렀을 때 실행 ("ranking"이면 랭킹 화면으로)
 //  - onGoChallenge: "도전 모드" 버튼을 눌렀을 때 실행 (랭킹에 기록이 남는 맞춤법 도전 모드로 이동)
 //  - auth: 로그인 정보 → 로그인했으면 틀린 문제를 오답노트(학습 화면)에 담음 (안 했으면 담지 않음)
 //  - onGoWrongNotes: 결과 화면 "오답노트 보기" 버튼 (학습 화면의 오답노트 탭으로)
-function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, onGoChallenge, auth, onGoWrongNotes }) {
+function QuizPage({
+  category = "spelling",
+  onChangeCategory,
+  level,
+  onChangeLevel,
+  onChangeSection,
+  onGoChallenge,
+  auth,
+  onGoWrongNotes,
+}) {
   const user = auth?.user; // 로그인한 회원 (없으면 undefined)
   // info: 지금 종류의 제목·설명·메모 문구 등 (data/quizCategories.js)
   const info = getQuizCategory(category);
+  // levelInfo: 문법이면 지금 난이도 { key: "easy", label: "하" }, 맞춤법이면 null (난이도 없음)
+  const levelInfo = category === "grammar" ? getQuizLevel(level) : null;
+  // 화면·오답노트에 쓸 이름: "맞춤법" / "문법(하)"
+  const quizLabel = levelInfo ? `${info.label}(${levelInfo.label})` : info.label;
+  // 한 번에 낼 문제 수: 문법 난이도 퀴즈는 10문제, 맞춤법은 제한 없음(전부)
+  const limit = levelInfo ? QUIZ_LEVEL_SIZE : null;
+  // levelKey: 서버에 보낼 난이도 값 ("easy" 등, 맞춤법이면 null)
+  const levelKey = levelInfo ? levelInfo.key : null;
 
+  // pool: 서버에서 받은 문제 전체 ("다시 풀기" 때 여기서 다시 랜덤으로 뽑음)
+  const [pool, setPool] = useState([]);
+  // quizQuestions: 이번에 실제로 푸는 문제들 (pool에서 뽑아서 섞은 것)
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState(null);
   const [checked, setChecked] = useState(false);
-  const [showHint, setShowHint] = useState(false);
   const [results, setResults] = useState([]);
   const [finished, setFinished] = useState(false);
 
   // 백엔드에서 퀴즈 목록 가져오기
   useEffect(() => {
     // category 값에 맞는 문제만 가져옴 (encodeURIComponent: 주소에 안전한 글자로 변환)
-    fetch(`http://localhost:8000/api/quizzes/?category=${encodeURIComponent(category)}`)
+    // 문법이면 난이도도 같이 보내서 그 난이도 문제만 받음 (예: ...?category=grammar&level=easy)
+    let url = `http://localhost:8000/api/quizzes/?category=${encodeURIComponent(category)}`;
+    if (levelKey) url += `&level=${encodeURIComponent(levelKey)}`;
+
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        // ★ [수정] 가져온 퀴즈 목록과 보기들을 매번 랜덤하게 섞어서 세팅
-        const randomized = shuffle(data).map((q) => ({
-          ...q,
-          options: shuffle(q.options), // 보기 순서도 랜덤으로 섞음
-        }));
+        // 서버가 에러 모양({ detail: ... })을 보내도 화면이 깨지지 않게 배열일 때만 씀
+        const list = Array.isArray(data) ? data : [];
+        // ★ 가져온 문제를 섞어서 고름 (문법 난이도 퀴즈는 그중 10문제만)
+        const randomized = pickQuestions(list, limit);
 
+        setPool(list);
         setQuizQuestions(randomized);
         setResults(Array(randomized.length).fill(null));
         setLoading(false);
@@ -90,16 +132,26 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
         console.error("퀴즈 로딩 실패:", err);
         setLoading(false);
       });
-    // [category]: 종류가 바뀌면 다시 불러옴
-    // (App에서 key={category}로 화면 자체를 새로 만들어서, 실제로는 처음 한 번만 실행됨)
-  }, [category]);
+    // [category, levelKey, limit]: 종류·난이도가 바뀌면 다시 불러옴
+    // (App에서 key로 화면 자체를 새로 만들어서, 실제로는 처음 한 번만 실행됨)
+  }, [category, levelKey, limit]);
 
   // 맨 위 탭 (불러오는 중 / 문제 없음 / 문제 풀이 화면 모두에서 같이 보여주려고 변수로 만듦)
-  // 위: 큰 탭 [퀴즈 | 랭킹] (지금은 퀴즈 쪽) / 아래: 작은 탭 [맞춤법 | 문법]
+  // 위: 큰 탭 [퀴즈 | 랭킹] (지금은 퀴즈 쪽) / 가운데: 작은 탭 [맞춤법 | 문법]
+  // 아래: 문법일 때만 난이도 탭 [상 | 중 | 하]
   const tabs = (
     <div className="quiz-tabs-row">
       <QuizSectionTabs value="quiz" onChange={onChangeSection} />
       <CategoryTabs value={category} onChange={onChangeCategory} variant="sub" />
+      {levelInfo && (
+        <CategoryTabs
+          value={levelInfo.key}
+          onChange={onChangeLevel}
+          variant="level"
+          items={QUIZ_LEVELS}
+          ariaLabel="문법 난이도"
+        />
+      )}
     </div>
   );
 
@@ -119,7 +171,7 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
       <div className="sub-page">
         <div className="sub-page-inner" style={{ textAlign: "center", padding: "50px" }}>
           {tabs}
-          <h2>등록된 {info.label} 퀴즈가 없습니다.</h2>
+          <h2>등록된 {quizLabel} 퀴즈가 없습니다.</h2>
           {/* 백엔드 폴더에서 python insert_quiz_data.py 를 실행하면 문제가 들어감 */}
         </div>
       </div>
@@ -152,7 +204,7 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
       recordQuizAnswer(user, {
         quiz: question,
         category,
-        categoryLabel: info.label,
+        categoryLabel: quizLabel, // 오답노트에 "문법(하) 퀴즈"처럼 난이도까지 보이게
         chosen: question.options[selected],
       }).catch(() => {});
     }
@@ -166,21 +218,17 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
     setCurrent(current + 1);
     setSelected(null);
     setChecked(false);
-    setShowHint(false);
   };
 
   const handleRestart = () => {
-    // ★ [수정] 다시 풀기를 누를 때도 문제를 다시 무작위로 섞어줌
-    const randomized = shuffle(quizQuestions).map((q) => ({
-      ...q,
-      options: shuffle(q.options),
-    }));
+    // ★ 다시 풀기: 전체 문제(pool)에서 다시 랜덤으로 뽑음
+    //   → 문법 난이도 퀴즈는 문제가 10개보다 많으면 매번 다른 10문제가 나옴
+    const randomized = pickQuestions(pool, limit);
     setQuizQuestions(randomized);
     setCurrent(0);
     setSelected(null);
     setChecked(false);
-    setShowHint(false);
-    setResults(Array(total).fill(null));
+    setResults(Array(randomized.length).fill(null));
     setFinished(false);
   };
 
@@ -227,6 +275,8 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
             <h2 className="quiz-head-title">
               <BookOpenCheck size={24} />
               {info.title}
+              {/* 문법이면 지금 난이도를 작은 배지로 (예: 난이도 하) */}
+              {levelInfo && <span className="quiz-level-badge">난이도 {levelInfo.label}</span>}
             </h2>
             {!finished && (
               <div className="quiz-progress">
@@ -260,7 +310,7 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
               {results.some((result) => result === false) && (
                 <p className="quiz-result-note">
                   {user
-                    ? "틀린 문제는 학습 → 오답노트에 담아 두었어요."
+                    ? "틀린 문제는 글쓰기 연습 → 오답노트에 담아 두었어요."
                     : "로그인하면 틀린 문제가 오답노트에 담겨요."}
                 </p>
               )}
@@ -326,13 +376,6 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
                 ))}
               </div>
 
-              {showHint && !checked && question.hint && (
-                <p className="quiz-hint">
-                  <Lightbulb size={16} />
-                  {question.hint}
-                </p>
-              )}
-
               {checked && (
                 <div className={isCorrect ? "quiz-feedback correct" : "quiz-feedback wrong"}>
                   <strong>
@@ -356,18 +399,10 @@ function QuizPage({ category = "spelling", onChangeCategory, onChangeSection, on
                 </div>
               )}
 
+              {/* 아래 버튼: 정답 확인 → 다음 문제(마지막이면 결과 보기)
+                  ※ 예전에 있던 "힌트 보기" 버튼은 시험처럼 풀게 하려고 없앰
+                     (문제 데이터에 hint가 들어 있어도 화면에는 안 보여 줌) */}
               <div className="quiz-actions">
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setShowHint(!showHint)}
-                  // 정답 확인 후이거나, 이 문제에 힌트가 없으면 비활성화
-                  disabled={checked || !question.hint}
-                >
-                  <Lightbulb size={18} />
-                  {showHint && !checked ? "힌트 닫기" : "힌트 보기"}
-                </button>
-
                 {checked ? (
                   <button type="button" className="btn-primary" onClick={handleNext}>
                     {current === total - 1 ? "결과 보기" : "다음 문제"}

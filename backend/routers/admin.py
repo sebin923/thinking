@@ -76,6 +76,42 @@ def ensure_user_status_column(engine) -> None:
     print("[관리자] users 테이블에 status(이용 상태) 칸을 추가했어요.")
 
 
+def ensure_quiz_level_column(engine) -> None:
+    """quizzes 테이블에 level(난이도) 칸을 준비하고, 난이도가 없는 문법 문제를 "상"으로 채움
+
+    ① 칸 추가 — 위의 ensure_user_status_column과 같은 이유:
+      models.py의 Quiz에 level 칸을 새로 추가했는데, create_all은 이미 있는 테이블에 칸을 추가해 주지 않음
+      → 서버가 켜질 때 확인해서, 없으면 칸을 추가함 (있으면 건너뜀)
+
+    ② 기존 문법 문제 채우기 (팀에서 정한 규칙: "지금까지 있던 문법 문제는 전부 상")
+      → 난이도가 비어 있는(NULL) 문법 문제만 'hard'(상)로 바꿈
+      → 이미 상·중·하가 정해진 문제와 맞춤법 문제는 건드리지 않음
+      → 서버가 켜질 때마다 실행되지만, 바꿀 게 없으면 아무 일도 안 일어남 (여러 번 실행해도 안전)
+      ※ 관리자 페이지에서 추가·수정하는 문법 문제는 난이도를 꼭 고르게 되어 있어서
+        여기서 채우는 건 "예전 데이터"와 스크립트로 넣은 난이도 없는 문제뿐임
+    """
+    inspector = inspect(engine)
+    if "quizzes" not in inspector.get_table_names():
+        return  # 테이블이 아예 없으면 create_all이 level까지 포함해서 새로 만들어 줌
+
+    columns = [column["name"] for column in inspector.get_columns("quizzes")]
+
+    # engine.begin(): 작업이 끝나면 자동으로 commit (중간에 에러 나면 자동으로 취소)
+    with engine.begin() as connection:
+        # ① 칸이 없으면 추가
+        if "level" not in columns:
+            connection.execute(text("ALTER TABLE quizzes ADD COLUMN level VARCHAR(10)"))
+            print("[관리자] quizzes 테이블에 level(난이도) 칸을 추가했어요.")
+
+        # ② 난이도가 비어 있는 문법 문제 → 상('hard')
+        result = connection.execute(
+            text("UPDATE quizzes SET level = 'hard' WHERE category = 'grammar' AND level IS NULL")
+        )
+        # rowcount: 바뀐 줄 수 (0이면 바꿀 문제가 없었던 것)
+        if result.rowcount:
+            print(f"[관리자] 난이도가 없던 문법 문제 {result.rowcount}개를 '상'으로 채웠어요.")
+
+
 # ===================== 관리자 확인 =====================
 
 

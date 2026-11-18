@@ -186,25 +186,8 @@
 .quiz-option.correct .quiz-mark { color: #2f9c69; }
 .quiz-option.wrong .quiz-mark   { color: #d9534f; }
 
-/* ===================== 힌트 & 정답 설명 ===================== */
-
-.quiz-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 16px 0 0;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: #fff8e8;
-  color: #8a6a1f;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.quiz-hint svg {
-  flex-shrink: 0;
-  margin-top: 3px;
-}
+/* ===================== 정답 설명 ===================== */
+/* (예전 "힌트 보기" 상자 스타일 .quiz-hint는 힌트 기능을 없애면서 같이 지움) */
 
 .quiz-feedback {
   margin-top: 16px;
@@ -247,7 +230,8 @@
 /* 아래 버튼 줄 (양 끝 정렬) */
 .quiz-actions {
   display: flex;
-  justify-content: space-between;
+  /* 힌트 버튼을 없애서 버튼이 하나만 남음 → 오른쪽 끝에 붙임 */
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 26px;
 }
@@ -459,6 +443,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* 문법 퀴즈 제목 옆 "난이도 하" 배지 */
+.quiz-level-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e8f2fb;
+  color: #2b5b88;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;   /* "난이도 하"가 두 줄로 꺾이지 않게 */
 }
 
 /* 로그인 안내 문구 */

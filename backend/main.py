@@ -35,6 +35,8 @@ app = FastAPI()
 Base.metadata.create_all(bind=engine)
 # 이미 있는 users 테이블에 status(이용 상태) 칸이 없으면 추가 (create_all은 칸 추가를 안 해 줘서)
 admin.ensure_user_status_column(engine)
+# 이미 있는 quizzes 테이블에 level(난이도) 칸이 없으면 추가 (문법 퀴즈 상·중·하 탭용)
+admin.ensure_quiz_level_column(engine)
 
 # 서버에 CORS 규칙을 추가하는 부분
 app.add_middleware(

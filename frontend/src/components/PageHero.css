@@ -227,6 +227,25 @@
   border-color: #8fbde3;
 }
 
+/* 누를 수 없는 테두리 버튼: 파란 버튼(.btn-primary:disabled)과 똑같이 흐리게
+   (예전엔 퀴즈 화면에만 따로 있어서 다른 화면의 막힌 버튼은 눌리는 것처럼 보였음) */
+.btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-outline:disabled:hover {
+  background: #fff;
+  border-color: #bcd7ee;
+}
+
+/* 키보드(Tab)로 버튼에 왔을 때 테두리 표시 → 모든 화면의 공통 버튼이 같은 모양으로 보이게 */
+.btn-primary:focus-visible,
+.btn-outline:focus-visible {
+  outline: 2px solid #4a98d3;
+  outline-offset: 3px;
+}
+
 /* ===================== 반응형 ===================== */
 
 @media (max-width: 768px) {

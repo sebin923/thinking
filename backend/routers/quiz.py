@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 import models
 import schemas
@@ -12,9 +12,16 @@ router = APIRouter(
 )
 
 # 1. 퀴즈 목록 조회 (카테고리별: spelling / grammar)
+#  - level(난이도)을 같이 보내면 그 난이도 문제만 돌려줌
+#    예) /api/quizzes/?category=grammar&level=hard  → 문법 "상" 문제만
+#  - level을 안 보내면 예전처럼 그 종류의 문제를 전부 돌려줌 (맞춤법 퀴즈, 도전 모드는 이렇게 씀)
+#  - 몇 문제를 낼지(10문제 랜덤)는 프론트가 받은 목록을 섞어서 고름
 @router.get("/", response_model=List[schemas.QuizResponse])
-def get_quizzes(category: str, db: Session = Depends(get_db)):
-    quizzes = db.query(models.Quiz).filter(models.Quiz.category == category).all()
+def get_quizzes(category: str, level: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(models.Quiz).filter(models.Quiz.category == category)
+    if level:
+        query = query.filter(models.Quiz.level == level)
+    quizzes = query.all()
     return quizzes
 
 # 2. 퀴즈 제출 및 채점

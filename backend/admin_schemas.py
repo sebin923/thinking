@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 # ----- 정해진 값 목록 -----
 # Literal["a", "b"]: 이 두 값 말고 다른 값이 오면 Pydantic이 자동으로 422 에러를 냄
 QuizCategory = Literal["spelling", "grammar"]  # 맞춤법 / 문법 (퀴즈 화면과 똑같은 이름)
+QuizLevel = Literal["easy", "medium", "hard"]  # 난이도 하 / 중 / 상 (문법 퀴즈 탭과 똑같은 이름)
 UserStatus = Literal["active", "suspended"]  # 정상 / 이용 정지
 
 
@@ -36,6 +37,7 @@ class QuizIn(BaseModel):
     options: list[str]  # 보기 목록 (예: ["반드시", "반듯이"])
     answer: str  # 정답 (보기 중 하나와 글자까지 똑같아야 함)
     explanation: str | None = None  # 해설 (없어도 됨)
+    level: QuizLevel | None = None  # 난이도 (문법 문제는 꼭 골라야 함, 맞춤법은 비워 둠)
 
     # ----- 문제: 앞뒤 공백 지우고, 비어 있거나 너무 길면 거절 -----
     @field_validator("question")
@@ -84,6 +86,16 @@ class QuizIn(BaseModel):
             raise ValueError("정답은 보기 중 하나와 똑같아야 해요.")
         return self
 
+    # ----- 난이도: 문법은 꼭 있어야 하고, 맞춤법은 저장하지 않음 -----
+    # 문법 퀴즈 화면은 [상 | 중 | 하] 탭별로 문제를 가져와서, 난이도가 없는 문법 문제는 어느 탭에도 안 나옴
+    @model_validator(mode="after")
+    def check_level(self):
+        if self.category == "grammar" and self.level is None:
+            raise ValueError("문법 문제는 난이도(상·중·하)를 골라 주세요.")
+        if self.category != "grammar":
+            self.level = None  # 맞춤법은 난이도를 나누지 않음
+        return self
+
 
 class QuizOut(BaseModel):
     """관리자 퀴즈 목록의 한 줄"""
@@ -97,6 +109,7 @@ class QuizOut(BaseModel):
     options: list
     answer: str
     explanation: str | None = None
+    level: str | None = None  # 난이도 'easy'(하) / 'medium'(중) / 'hard'(상), 맞춤법은 None
     created_at: datetime | None = None
     solved_count: int = 0  # 사용자들이 이 문제를 푼 횟수 (삭제할 때 참고용)
 

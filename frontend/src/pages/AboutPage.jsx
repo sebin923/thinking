@@ -93,7 +93,7 @@ const FEATURES = [
     icon: SpellCheck,
     tag: "연습",
     title: "맞춤법 · 문법 퀴즈",
-    description: "자주 틀리는 표현을 문제로 풀고, 힌트와 해설로 왜 그런지까지 익혀요.",
+    description: "자주 틀리는 표현을 문제로 풀고, 해설로 왜 그런지까지 익혀요.",
     target: "quiz",
   },
   {
@@ -105,8 +105,8 @@ const FEATURES = [
   },
   {
     icon: GraduationCap,
-    tag: "글쓰기 연습",
-    title: "글쓰기 기본기 글쓰기 연습",
+    tag: "연습",
+    title: "글쓰기 연습",
     description: "보고서·자기소개서·발표문의 작성 규칙을 단원별 O/X 문제와 글쓰기 연습으로 익혀요.",
     target: "learn",
   },

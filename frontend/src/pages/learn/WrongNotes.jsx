@@ -142,7 +142,7 @@ function WrongNotes({ content, progress, onAnswer, onDelete, onGoLearn }) {
           <NotebookPen size={32} strokeWidth={1.6} />
           <p>
             {Object.keys(progress.wrong).length === 0
-              ? "아직 틀린 문제가 없어요. 학습 단원 O/X나 퀴즈에서 틀린 문제가 여기에 모여요."
+              ? "아직 틀린 문제가 없어요. 단원 O/X나 퀴즈에서 틀린 문제가 여기에 모여요."
               : "이 조건에 맞는 오답이 없어요. 모두 해결했어요!"}
           </p>
           <button type="button" className="btn-outline" onClick={onGoLearn}>

@@ -1,6 +1,8 @@
 /* =============================================================
-   AdminPage.css — 관리자 페이지 (퀴즈 관리 / 회원 관리 / 랭킹 관리)
+   AdminPage.css — 관리자 페이지 (탭 7개 전부: 퀴즈·회원·랭킹·공지사항·스터디·학습 데이터·별점 평가)
    색은 App.css의 변수(--sky, --navy 등)와 마이페이지 색을 그대로 써서 사이트 전체와 맞춤
+   ★ 모든 탭이 이 파일의 admin-* 클래스만 씀 → 탭을 옮겨 다녀도 버튼·표·입력칸 모양이 같음
+     (예전 학습 데이터·별점 탭 전용 TrainingAdmin.css는 이 파일로 합치고 지움)
    ============================================================= */
 
 /* ----- 로그인 안 했거나 관리자가 아닐 때 안내 상자 ----- */
@@ -26,24 +28,29 @@
 .admin-tabs {
   max-width: 900px;
   margin: 0 auto 14px;
-  display: flex;
+  /* 탭 7개를 한 줄에 같은 너비로 (예전엔 6개 + "학습 관리" 혼자 다음 줄로 떨어졌음) */
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
 }
 
 .admin-tab {
-  flex: 1;                   /* 세 탭이 같은 너비로 나눠 가짐 */
   display: inline-flex;
+  flex-direction: column;    /* 아이콘 위, 글자 아래 → 7개가 한 줄에 들어가게 */
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 13px 10px;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 4px;
   border: 1px solid #dbe7f2;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.85);
   color: #4f6378;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  white-space: nowrap;
+  line-height: 1.3;
+  text-align: center;
+  word-break: keep-all;      /* 칸이 좁아지면 띄어쓰기에서만 두 줄로 ("공지사항 / 관리") */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
@@ -103,6 +110,35 @@
   background: var(--navy);
   border-color: var(--navy);
   color: #fff;
+}
+
+/* 불러오는 중에는 다른 칩을 못 누르게 (고른 칩은 그대로 진하게) */
+.admin-chip:disabled:not(.active) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 칩 앞의 작은 제목 (예: "별점  [전체 | 5점 | 4점 …]") */
+.admin-chips-title {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  color: #2f4a63;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 도구 줄 오른쪽 버튼 묶음 (새로고침 + 주요 버튼) → 오른쪽 끝으로 */
+.admin-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* 도구 줄 아래 두 번째 거르기 줄 (검토 상태, 별점) */
+.admin-subfilters {
+  margin: -4px 0 14px;
 }
 
 /* 검색창 (돋보기 아이콘 + 입력칸) */
@@ -280,6 +316,15 @@
   margin: 0;
   color: #d9534f;
   font-size: 14px;
+}
+
+/* 목록 위에 따로 띄우는 실패 문구 (성공 문구 .admin-notice와 같은 모양, 빨간색) */
+.admin-error-box {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fdecec;
+  font-weight: 600;
 }
 
 .admin-hint {
@@ -559,6 +604,17 @@
 .admin-badge.admin     { background: #e6f1fb; color: #2f6fa6; }  /* 관리자: 파랑 */
 .admin-badge.me        { background: #f1f4f8; color: #5d6f82; }  /* 나: 회색 */
 
+/* 퀴즈 관리 → 문법일 때 "난이도 [전체 | 상 | 중 | 하 | 미지정]" 거르기 줄 */
+.admin-level-filter {
+  align-items: center;
+  flex-wrap: wrap;
+  margin: -4px 0 14px;
+}
+
+.admin-level-filter .admin-label {
+  margin: 0 4px 0 0;
+}
+
 /* ===================== 랭킹 표 ===================== */
 
 /* 화면이 좁으면 표만 옆으로 스크롤 (페이지 전체가 옆으로 밀리지 않게) */
@@ -607,6 +663,29 @@
 
 .admin-table .right {
   text-align: right;
+}
+
+/* 상세로 열어 둔 줄 */
+.admin-table tbody tr.selected {
+  background: #eef5fc;
+}
+
+/* 긴 글 칸: 줄바꿈 허용 (유형·단원 이름이 길 때) */
+.admin-table .wrap {
+  white-space: normal;
+  min-width: 160px;
+}
+
+/* 의견처럼 길 수 있는 칸: 한 줄로 자르고 … 표시 (전체는 "보기"에서) */
+.admin-table .ellipsis {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 낮은 별점(1~2점): 빨간 글자 */
+.admin-table .low {
+  color: #d9534f;
 }
 
 /* 눈에는 안 보이지만 화면 읽기 프로그램은 읽는 글자 (표 맨 끝 "관리" 칸 이름) */
@@ -726,23 +805,48 @@
     padding: 16px;
   }
 
-  /* 탭 5개를 화면 너비에 딱 맞게 5칸으로 나눔 (예전엔 마지막 "학습 관리"가 화면 밖으로 잘림) */
+  /* 탭 7개: 폰에서는 한 줄에 4개씩 (4 + 3) → 글자가 너무 작아지지 않게 */
   .admin-tabs {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
 
   .admin-tab {
-    flex-direction: column;  /* 아이콘 위, 글자 아래 → 다섯 탭이 한 줄에 들어가게 */
     gap: 4px;
-    min-width: 0;
     padding: 10px 2px;
     font-size: 12px;
-    text-align: center;
-    white-space: normal;     /* PC용 "한 줄 고정"을 풀어서 */
-    word-break: keep-all;    /* "공지사항 관리"가 넘치면 띄어쓰기에서만 두 줄로 */
-    line-height: 1.3;
+  }
+
+  /* 오른쪽 버튼 묶음: 칩 아래 줄로 내려가면 오른쪽 끝에 붙임 */
+  .admin-toolbar-actions {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+
+  /* 요약 카드: 3개를 한 줄에 작게 */
+  .admin-stats {
+    gap: 6px;
+  }
+
+  .admin-stat {
+    padding: 10px 10px;
+  }
+
+  .admin-stat span {
+    font-size: 11px;
+    word-break: keep-all;
+  }
+
+  .admin-stat strong {
+    font-size: 17px;
+  }
+
+  .admin-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-fieldset {
+    padding: 12px;
   }
 
   .admin-toolbar-text {
@@ -835,6 +939,225 @@
 .admin-page-arrow:focus-visible {
   outline: 2px solid #4a98d3;
   outline-offset: 2px;
+}
+
+/* =============================================================
+   학습 데이터 탭 (admin/TrainingManager.jsx) · 별점 평가 탭 (admin/RatingsManager.jsx)
+   — 다른 탭과 같은 색·둥글기로 맞춘 추가 모양
+   ============================================================= */
+
+/* 카드 제목 줄 (배지 + 제목) */
+.admin-item-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--navy);
+  font-size: 15px;
+}
+
+/* 데이터셋 ID처럼 긴 영문·숫자: 글자 폭이 같은 글꼴 + 어디서든 줄바꿈 */
+.admin-mono {
+  margin: 8px 0 0;
+  color: #2f4a63;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* 원문·JSON 같은 긴 글 상자 (줄바꿈 그대로, 너무 길면 상자 안에서 스크롤) */
+.admin-pre {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #e6eef6;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.admin-item .admin-pre {
+  margin-top: 10px;
+  background: #f7fafd;
+  font-size: 13px;
+}
+
+/* 점 목록 (채점 기준, 검토 이력) */
+.admin-bullets {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* 접었다 펴는 칸 (AI 채점 상세) */
+.admin-details summary {
+  color: var(--navy);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-details[open] summary {
+  margin-bottom: 8px;
+}
+
+/* 관리자 검토 묶음 (체크 항목 + 입력칸 + 버튼) */
+.admin-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #d6e3ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.admin-fieldset legend {
+  padding: 0 6px;
+}
+
+/* 검토 묶음 안의 체크 줄은 간격을 fieldset gap으로만 */
+.admin-fieldset .admin-check {
+  margin-bottom: 0;
+}
+
+/* 학습 실험 등록 폼: 두 칸씩 나란히 (.wide는 한 줄 전체) */
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-form-grid .wide {
+  grid-column: 1 / -1;
+}
+
+/* 상세 상자 (후보 상세, 평가 상세): 목록과 띄움 */
+.admin-detail {
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+
+.admin-detail .admin-meta {
+  margin: 0;
+}
+
+/* 요약 카드 3개 (별점 평가) */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid #e6eef6;
+  border-radius: 14px;
+  background: #f7fbff;
+}
+
+.admin-stat span {
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-stat strong {
+  color: var(--navy);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;       /* "3.69 / 5"가 두 줄로 쪼개지지 않게 */
+}
+
+.admin-stat strong small {
+  color: #93a4b5;
+  font-size: 14px;
+}
+
+/* 낮은 평가 카드: 살짝 붉게 */
+.admin-stat.warn {
+  background: #fffafa;
+  border-color: #f6dcdb;
+}
+
+.admin-stat.warn strong {
+  color: #d9534f;
+}
+
+/* 점수별 막대 (5점 ~ 1점) */
+.admin-bars {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.admin-bars li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.admin-bars-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #4f6378;
+  font-weight: 600;
+}
+
+.admin-bars-label svg {
+  color: #f0b429;            /* 별 아이콘은 노란색 */
+}
+
+.admin-bars-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #eef3f8;
+  overflow: hidden;
+}
+
+.admin-bars-track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--sky);
+  transition: width 0.3s;
+}
+
+.admin-bars-count {
+  color: var(--text-sub);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* SimplePager의 지금 페이지 번호 (버튼이 아닌 글자라 가운데 맞춤만 추가) */
+span.admin-page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* =============================================================

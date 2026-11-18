@@ -5,7 +5,8 @@
 
 /* 랭킹 카드 */
 .ranking-card {
-  max-width: 760px;
+  /* 퀴즈 카드(.quiz-card)와 같은 너비 → [퀴즈 | 랭킹] 탭을 오가도 카드 폭이 그대로 */
+  max-width: 860px;
   margin: 0 auto;
   padding: 26px 30px 30px;
 }

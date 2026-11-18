@@ -57,6 +57,10 @@ class Quiz(Base):
     options = Column(JSON, nullable=False)         # 보기 목록 (JSON 형태: ["보기1", "보기2"])
     answer = Column(String(255), nullable=False)   # 정답
     explanation = Column(Text, nullable=True)      # 정답 및 해설
+    # 난이도: 'easy'(하) / 'medium'(중) / 'hard'(상)
+    #  - 문법 퀴즈는 퀴즈 화면에서 [상 | 중 | 하] 탭으로 나눠서 보여줌 → 문법 문제는 꼭 넣어야 함
+    #  - 맞춤법 문제는 난이도를 안 나눠서 비워 둠(None)
+    level = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # 관계 설정

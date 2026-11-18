@@ -249,9 +249,12 @@ try:
 
         # ----- 문법 퀴즈 (category: grammar) -----
         # 조사·어미를 알맞게 고르는 문제 (빈칸은 ____ 로 표시 → 화면에서 밑줄 칸으로 바뀜)
+        # level: 난이도 "easy"(하) / "medium"(중) / "hard"(상) → 퀴즈 화면 [상 | 중 | 하] 탭에 나뉘어 나옴
+        #   (탭마다 10문제씩 랜덤으로 내니까, 난이도마다 10문제 이상 넣어 두는 게 좋음)
         {
             "category": "grammar",
             "question": "저는 어제 친구____ 영화를 봤어요.",
+            "level": "hard",  # 난이도 (상) — 기존 문제는 전부 상
             "answer": "와",
             "options": ["와", "과"],
             "explanation": "앞말에 받침이 없으면 '와', 받침이 있으면 '과'를 씁니다. '친구'는 받침이 없으니 '친구와'가 맞습니다."
@@ -259,6 +262,7 @@ try:
         {
             "category": "grammar",
             "question": "숙제를 아직 ____ 했다.",
+            "level": "hard",  # 난이도 (상) — 기존 문제는 전부 상
             "answer": "안",
             "options": ["안", "않"],
             "explanation": "'안'은 '아니'의 준말로 동사 앞에 씁니다. '않'은 '아니하-'의 준말이라 '하지 않았다'처럼 '-지 않다' 꼴로 씁니다."
@@ -266,6 +270,7 @@ try:
         {
             "category": "grammar",
             "question": "그는 학생____ 본분을 다했다.",
+            "level": "hard",  # 난이도 (상) — 기존 문제는 전부 상
             "answer": "으로서",
             "options": ["으로서", "으로써"],
             "explanation": "자격이나 신분을 나타낼 때는 '(으)로서', 수단이나 도구를 나타낼 때는 '(으)로써'를 씁니다."
@@ -273,6 +278,7 @@ try:
         {
             "category": "grammar",
             "question": "사과____ 배든지 먹고 싶은 걸 골라.",
+            "level": "hard",  # 난이도 (상) — 기존 문제는 전부 상
             "answer": "든지",
             "options": ["든지", "던지"],
             "explanation": "여러 가지 중에서 고를 때는 '-든지'를 씁니다. '-던지'는 지난 일을 떠올릴 때 씁니다."
@@ -280,6 +286,7 @@ try:
         {
             "category": "grammar",
             "question": "얼마나 놀랐____ 말이 나오지 않았다.",
+            "level": "hard",  # 난이도 (상) — 기존 문제는 전부 상
             "answer": "던지",
             "options": ["던지", "든지"],
             "explanation": "지난 일을 떠올리며 그 정도를 말할 때는 '-던지'를 씁니다. '얼마나 놀랐던지'가 맞습니다."
@@ -292,7 +299,9 @@ try:
             question=item["question"],
             answer=item["answer"],
             options=item["options"],
-            explanation=item["explanation"]
+            explanation=item["explanation"],
+            # 난이도: 문법 문제만 있음 (맞춤법 문제는 "level"이 없어서 None으로 저장됨)
+            level=item.get("level"),
         )
         db.add(quiz)
 

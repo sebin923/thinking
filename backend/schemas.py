@@ -26,6 +26,7 @@ class QuizBase(BaseModel):
     options: List[Any]    # 보기 목록
     answer: str           # 정답
     explanation: Optional[str] = None # 정답 및 해설
+    level: Optional[str] = None       # 난이도 'easy'(하) / 'medium'(중) / 'hard'(상), 맞춤법은 None
 
 class QuizCreate(QuizBase):
     pass
