@@ -169,6 +169,9 @@
 .writing-ai-limit p { display: flex; flex-direction: column; gap: 3px; margin: 0; font-size: 13px; color: #6e8296; word-break: keep-all; }
 .writing-ai-limit strong { font-size: 14px; color: #c4473f; }
 .writing-ai-limit-button { padding: 9px 16px; font-size: 14px; }
+/* 무료를 다 썼지만 이용권으로 계속 쓸 수 있을 때: 빨간 경고 대신 연한 파란 안내 */
+.writing-ai-limit.credit { border-color: #cfe3f3; background: #f3f9fe; }
+.writing-ai-limit.credit strong { color: #2b5b88; }
 .writing-ai-tools-subtitle { margin: 0 0 16px; font-size: 13px; color: #6e8296; }
 /* 카드가 4개라 3칸이면 마지막 하나만 혼자 떨어짐 → 2칸(2x2)으로 */
 .writing-ai-tool-buttons { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
