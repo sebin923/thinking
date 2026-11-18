@@ -19,6 +19,7 @@
 # =============================================================
 
 import json
+import random
 from copy import deepcopy
 
 import requests
@@ -285,3 +286,31 @@ def score_writing(
     except (requests.RequestException, KeyError, TypeError) as exc:
         # CLOVA 서버에 연결이 안 되거나 시간이 너무 오래 걸렸을 때
         raise HTTPException(status_code=502, detail="AI 채점 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
+
+
+@router.get("/quizzes")
+def get_ox_quizzes(
+    category: str,
+    unit_id: int,
+    limit: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """DB에서 단원별 O/X 퀴즈 조회 (limit 지정 시 랜덤 추출)"""
+    rows = (
+        db.query(models.OxQuiz)
+        .filter(models.OxQuiz.category == category, models.OxQuiz.unit_id == unit_id)
+        .order_by(models.OxQuiz.quiz_id.asc())
+        .all()
+    )
+    if limit and len(rows) > limit:
+        rows = random.sample(rows, limit)
+
+    return [
+        {
+            "quiz_id": row.quiz_id,
+            "q": row.question,
+            "a": row.answer,
+            "e": row.explanation or "",
+        }
+        for row in rows
+    ]

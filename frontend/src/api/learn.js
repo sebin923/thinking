@@ -469,28 +469,19 @@ export function countOpenWrong(progress) {
 }
 
 // =============================================================
-// 4. 백엔드 DB O/X 퀴즈 조회 함수 (관리자 수정 내용 우선 반영)
+// 4. 백엔드 DB O/X 퀴즈 조회 함수 (DB 우선 조회 + 랜덤 출제 지원)
 // =============================================================
-export async function fetchOxQuizzes(category, unitId) {
+export async function fetchOxQuizzes(category, unitId, limit = 10) {
   try {
-    // 1순위: 관리자 페이지에서 수정하여 브라우저에 저장한 내용이 있는지 확인
-    const overrides = readJson(CONTENT_KEY, {});
-    
-    // 가능한 모든 단원 ID 포맷을 정밀하게 유추하여 대조 (예: report-1, report-01 등)
-    const possibleIds = [
-      `${category}-${unitId}`,
-      `${category}-${String(unitId).padStart(2, "0")}`,
-      `${category}-${String(unitId).replace(/^0+/, "")}`
-    ];
-
-    for (const targetId of possibleIds) {
-      if (overrides[targetId] && Array.isArray(overrides[targetId].quiz)) {
-        return overrides[targetId].quiz;
-      }
+    const query = new URLSearchParams({
+      category: String(category),
+      unit_id: String(unitId),
+    });
+    if (limit) {
+      query.append("limit", String(limit));
     }
 
-    // 2순위: 수정된 내용이 없으면 기존처럼 백엔드 DB에서 가져오기
-    const response = await fetch(`${API_URL}/api/learn/quizzes?category=${category}&unit_id=${unitId}`);
+    const response = await fetch(`${API_URL}/api/learn/quizzes?${query.toString()}`);
     if (!response.ok) {
       throw new Error("퀴즈를 불러오지 못했어요.");
     }
