@@ -40,8 +40,8 @@ class User(Base):
     # 이메일 인증을 마쳤는지 (가입은 인증해야만 되니까 가입하면 항상 True)
     email_verified = Column(Boolean, nullable=False, default=False)
 
-    # AI 초안 잔여 횟수
-    ai_credits = Column(Integer, default=3)
+    # 충전 이용권 잔액. 매일 무료 3회는 ai_daily_usage에서 별도로 센다.
+    ai_credits = Column(Integer, default=0)
 
     # 관계 설정
     quiz_results = relationship("QuizResult", back_populates="user")

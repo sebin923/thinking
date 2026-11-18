@@ -25,9 +25,8 @@ import PageHero from "../components/PageHero";
 // AI 초안·피드백 결과 아래에 붙는 별점 평가 상자
 import AiRating from "../components/AiRating";
 // 글쓰기 AI 하루 무료 횟수(3회) 세기
-import { getAiUsage, recordAiUse } from "../api/aiUsage";
-// 내 프로필 가져오기 (보유 이용권 개수 ai_credits가 들어 있음)
-import { fetchMyProfile } from "../api/mypage";
+import { canUseAi, EMPTY_AI_USAGE } from "../api/aiUsage";
+import useAiUsage from "../hooks/useAiUsage";
 import "./WritingPage.css";
 import "./WritingPageCustom.css";
 import "./WritingCompare.css";
@@ -203,81 +202,34 @@ function WritingPage({
   //   ※ 이용권을 실제로 1 줄이는 건 서버(백엔드)가 함 → 화면은 성공한 뒤 서버에서 남은 개수를 다시 받아 옴
   // =============================================================
 
-  // ----- 하루 무료 AI 횟수 -----
-  // aiUsage: { used(오늘 쓴 횟수), limit(3), remaining(남은 횟수), unlimited(관리자) }
-  const [aiUsage, setAiUsage] = useState(() => getAiUsage(auth?.user));
-  const aiLimitReached = aiUsage.remaining <= 0; // 오늘 무료 횟수를 다 썼는지
-
-  // ----- 보유 이용권 개수 (결제로 충전한 횟수, 서버 users.ai_credits) -----
-  // null = 아직 불러오는 중(또는 로그인 안 함) → 화면에 안 보여줌 / "error" = 불러오기 실패 → "확인 불가"
-  const [aiCredits, setAiCredits] = useState(null);
-  // 이용권이 1회 이상 있는지 (숫자를 받아 왔고 0보다 클 때만)
-  const hasCredits = typeof aiCredits === "number" && aiCredits > 0;
-  // 지금 AI를 쓸 수 없는지: 무료를 다 썼고 이용권도 없을 때만 막음
-  const aiBlocked = aiLimitReached && !hasCredits;
-  // 무료를 다 써서 지금부터 이용권으로 쓰는 중인지 (관리자는 제한이 없어서 해당 없음)
-  const usingCredits = aiLimitReached && hasCredits && !aiUsage.unlimited;
-
-  // 서버에서 보유 이용권 개수를 (다시) 받아 오기
-  // 처음 화면을 열 때 + AI를 이용권으로 쓴 뒤(서버가 1 줄였는지 확인) + 서버가 "횟수 없음"이라고 할 때 부름
-  // useCallback: 함수를 고정해서 아래 useEffect가 쓸데없이 다시 실행되지 않게 함
-  const authToken = auth?.token; // 로그인 토큰 (없으면 undefined)
-  const refreshCredits = useCallback(() => {
-    if (!authToken) return Promise.resolve(); // 로그인 안 했으면 물어볼 수 없음
-    return fetchMyProfile(authToken)
-      .then((profile) => {
-        // 서버가 ai_credits를 안 보내 주면(백엔드 재시작 전 등) 이용권이 없는 것으로 보고 0회로 표시
-        setAiCredits(typeof profile?.ai_credits === "number" ? profile.ai_credits : 0);
-      })
-      .catch(() => {
-        // 불러오지 못해도 글쓰기는 계속 쓸 수 있어야 해서 조용히 넘어감
-        // (서버 연결 실패 등 → "확인 불가"로 표시)
-        setAiCredits("error");
-      });
-  }, [authToken]);
-
-  // 화면을 처음 열 때 한 번 불러오기
-  useEffect(() => {
-    refreshCredits();
-  }, [refreshCredits]);
-
-  // AI 요청 전에 부름: 쓸 수 있으면 true, 없으면 안내하고 false (요청을 안 보냄)
-  // (다른 탭에서 쓴 횟수나 날짜 변경도 반영되게 저장소에서 다시 읽음)
-  const checkAiQuota = () => {
-    const usage = getAiUsage(auth?.user);
-    setAiUsage(usage);
-    if (usage.remaining > 0) return true; // ① 무료 횟수가 남아 있음
-    if (hasCredits) return true; // ② 무료는 다 썼지만 이용권이 있음 → 서버가 1 차감
-    // ③ 둘 다 없음
-    if (aiCredits === "error") {
-      showToast("오늘 무료 횟수를 다 썼고, 보유 이용권을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
-    } else {
-      showToast(`오늘 무료 AI ${usage.limit}회를 모두 썼어요. 이용권을 충전하면 더 쓸 수 있어요.`);
+  const quota = useAiUsage(auth?.token);
+  const aiUsage = quota.usage || EMPTY_AI_USAGE;
+  const aiCredits = quota.usage ? aiUsage.credits : null;
+  const aiLimitReached = Boolean(quota.usage && aiUsage.remaining <= 0);
+  const quotaLoading = Boolean(auth?.token && !quota.usage);
+  const checkAiQuota = async () => {
+    if (!auth?.token) {
+      showToast("AI 기능은 로그인 후 사용할 수 있어요.");
+      return false;
     }
-    return false;
+    const usage = await quota.refresh();
+    if (!canUseAi(usage)) {
+      showToast("오늘 무료 횟수와 보유 이용권을 모두 썼어요. 이용권을 충전해 주세요.");
+      return false;
+    }
+    return true;
   };
 
-  // AI 요청이 성공한 뒤에 부름
-  //  - 무료 횟수가 남아 있었으면 → 무료 1회 사용으로 기록
-  //  - 무료를 다 쓴 상태였으면 → 이용권으로 쓴 것 → 서버에서 남은 이용권 개수를 다시 받아 옴
-  //    (줄어드는 건 서버가 함. 받아 오기 전까지 잠깐 1 줄인 숫자를 먼저 보여 줌)
-  const markAiUsed = () => {
-    const usage = getAiUsage(auth?.user);
-    if (usage.unlimited) return; // 관리자는 셀 필요 없음
-    if (usage.remaining > 0) {
-      setAiUsage(recordAiUse(auth?.user));
-      return;
-    }
-    setAiCredits((count) => (typeof count === "number" ? Math.max(0, count - 1) : count));
-    refreshCredits();
-  };
+  const aiBlocked = quotaLoading || Boolean(quota.usage && !canUseAi(aiUsage));
+  const usingCredits = aiLimitReached && aiCredits > 0 && !aiUsage.unlimited;
+  const markAiUsed = (usage) => quota.apply(usage);
 
   // AI 요청이 실패했을 때 보여 줄 에러 만들기
   //  - 402: 서버가 "무료 횟수도 이용권도 없음"이라고 거절 → 이용권 개수를 다시 받아 오고 충전 안내
   //  - 그 밖: 서버가 보낸 이유(detail)를 그대로, 없으면 fallback 문구
   const makeAiError = (response, data, fallback) => {
     if (response.status === 402) {
-      refreshCredits();
+      quota.refresh().catch(() => {});
       return new Error(
         typeof data?.detail === "string" ? data.detail : "오늘 무료 횟수와 이용권을 모두 썼어요. 이용권을 충전해 주세요."
       );
@@ -547,10 +499,10 @@ function WritingPage({
   // AI 초안 요청
   const handleAiDraft = async () => {
     if (draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
-    if (!checkAiQuota()) return; // 무료 횟수도 이용권도 없으면 멈춤
     const originalAtRequest = getBodyText();
     setDraftLoading(true);
     try {
+      if (!(await checkAiQuota())) return;
       showToast("AI가 초안을 작성하고 있어요.");
       const targetDocumentId = await createDocumentIfNeeded();
       await saveThoughtFromIdea(targetDocumentId);
@@ -570,7 +522,7 @@ function WritingPage({
       setPendingAiDraft(data.content || "");
       setPendingAiModel("clova"); // 별점 평가용: CLOVA가 만든 초안
       setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 사용 (무료 횟수 → 다 쓰면 이용권 순서)
+      markAiUsed(data.usage);
       setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
       showToast("AI 초안 작성 완료");
     } catch (error) {
@@ -587,10 +539,10 @@ function WritingPage({
       showToast("로그인이 필요합니다.");
       return;
     }
-    if (!checkAiQuota()) return; // 무료 횟수도 이용권도 없으면 멈춤
     const originalAtRequest = getBodyText();
     setCommonDraftLoading(true);
     try {
+      if (!(await checkAiQuota())) return;
       setApiMessage("");
       const targetDocumentId = await createDocumentIfNeeded();
       await saveThoughtFromIdea(targetDocumentId);
@@ -609,7 +561,7 @@ function WritingPage({
       setPendingAiDraft(data.content);
       setPendingAiModel("common"); // 별점 평가용: 공통 LLM이 만든 초안
       setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 사용 (무료 횟수 → 다 쓰면 이용권 순서)
+      markAiUsed(data.usage);
       setApiMessage("");
     } catch (error) {
       console.error("공통 LLM 초안 오류:", error);
@@ -629,10 +581,10 @@ function WritingPage({
       showToast("로그인이 필요합니다.");
       return;
     }
-    if (!checkAiQuota()) return; // 무료 횟수도 이용권도 없으면 멈춤
     const originalAtRequest = getBodyText();
     setPersonalDraftLoading(true);
     try {
+      if (!(await checkAiQuota())) return;
       setApiMessage("");
       const targetDocumentId = await createDocumentIfNeeded();
       // 본문이나 초기 생각이 있는 경우 기존 공통 LLM과 동일하게 전달
@@ -657,7 +609,7 @@ function WritingPage({
       setPendingAiDraft(data.content);
       setPendingAiModel("personal"); // 별점 평가용: 개인화 LLM이 만든 초안
       setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 사용 (무료 횟수 → 다 쓰면 이용권 순서)
+      markAiUsed(data.usage);
       setApiMessage("");
     } catch (error) {
       console.error("개인화 LLM 초안 오류:", error);
@@ -721,10 +673,10 @@ function WritingPage({
       showToast(`본문은 ${BODY_MAX}자 이하로 작성해 주세요.`);
       return;
     }
-    if (!checkAiQuota()) return; // 무료 횟수도 이용권도 없으면 멈춤
     setFeedbackLoading(true);
     setFeedback(null);
     try {
+      if (!(await checkAiQuota())) return;
       const targetDocumentId = await createDocumentIfNeeded();
       const saveResponse = await fetch(`${API_BASE_URL}/api/drafts`, {
         method: "POST",
@@ -755,7 +707,7 @@ function WritingPage({
       setFeedback(result.feedback);
       setFeedbackRequestText(bodyText); // 별점 평가용: 피드백을 요청한 본문
       setAiResultCount((n) => n + 1);
-      markAiUsed(); // 성공했을 때만 1회 사용 (무료 횟수 → 다 쓰면 이용권 순서)
+      markAiUsed(result.usage);
       setApiMessage("");
       showToast("AI 피드백이 완료되었습니다.");
     } catch (error) {
@@ -997,7 +949,7 @@ function WritingPage({
               <div className="writing-ai-tools-head">
                 <h3 className="writing-ai-tools-title">AI 글쓰기 도구</h3>
                 {/* 오늘 남은 무료 횟수 (관리자는 제한 없음) */}
-                {!aiUsage.unlimited && (
+                {quota.usage && !aiUsage.unlimited && (
                   // 위: 오늘 남은 무료 횟수 / 아래: 내가 가진 이용권 개수
                   <div className="writing-ai-quota-group">
                     <span className={aiLimitReached ? "writing-ai-quota empty" : "writing-ai-quota"}>
@@ -1025,6 +977,10 @@ function WritingPage({
                 필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다. (AI 기능은 종류와 상관없이 하루 {aiUsage.limit}회까지 무료,
                 그다음부터는 이용권이 1회씩 차감돼요)
               </p>
+              {quotaLoading && !quota.error && <p role="status">AI 이용 횟수를 확인하고 있어요.</p>}
+              {quota.error && (
+                <p role="status">{quota.error}{" "}<button type="button" onClick={() => quota.refresh().catch(() => {})}>다시 확인</button></p>
+              )}
               {/* 무료를 다 썼지만 이용권이 있을 때: 막지 않고 "지금부터 이용권 차감" 안내만 */}
               {usingCredits && (
                 <div className="writing-ai-limit credit" role="status">

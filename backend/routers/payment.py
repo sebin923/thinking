@@ -4,6 +4,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func, update
 from database import get_db
 from models import User, Payment
 
@@ -82,9 +83,10 @@ def confirm_payment(
         )
         db.add(new_payment)
 
-        if hasattr(user, "ai_credits"):
-            # 3. ai_credits 기본값 오류 수정: or 3 대신 or 0을 사용하도록 변경
-            user.ai_credits = (user.ai_credits or 0) + added_count
+        # 동시 AI 사용 차감을 덮어쓰지 않도록 DB에서 잔액을 더한다.
+        db.execute(update(User).where(User.user_id == user.user_id)
+                   .values(ai_credits=func.coalesce(User.ai_credits, 0) + added_count)
+                   .execution_options(synchronize_session=False))
         
         db.commit()
     except Exception as e:

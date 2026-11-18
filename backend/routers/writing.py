@@ -9,9 +9,16 @@ from routers.writing_preferences import DEFAULT_PREFERENCES
 import models
 from database import get_db
 import requests
+import ai_usage
 from clova import create_draft_with_ai, create_feedback_with_ai
 
 router = APIRouter(prefix="/api", tags=["Writing"])
+
+
+@router.get("/ai-usage/today")
+def get_today_ai_usage(db: Session = Depends(get_db),
+                       current_user: models.User = Depends(get_current_user)):
+    return ai_usage.get_usage(db, current_user.user_id)
 
 
 def get_user_preferences(db: Session, user_id: int):
@@ -126,17 +133,28 @@ def create_ai_draft(
     if not thought_text.strip():
         raise HTTPException(status_code=400, detail="작성할 생각 내용이 없습니다.")
     preferences = get_user_preferences(db, current_user.user_id)
+    user_id, kind = current_user.user_id, document.document_type
+    ai_usage.require_available(db, user_id)
+    db.commit()
     try:
         content = create_draft_with_ai(
             thought_text=thought_text,
-            document_type=document.document_type,
+            document_type=kind,
             user_preferences=preferences,
         )
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except (requests.RequestException, KeyError, TypeError) as exc:
         raise HTTPException(status_code=502, detail="AI 초안 생성 서비스에 연결하지 못했습니다.") from exc
-    return {"content": content}
+    if not isinstance(content, str) or not content.strip():
+        raise HTTPException(502, "AI가 빈 초안을 반환했습니다.")
+    try:
+        usage = ai_usage.consume(db, user_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"content": content, "usage": usage}
 
 
 @router.post("/drafts")
@@ -190,10 +208,14 @@ def create_ai_feedback(
     if not draft.content.strip():
         raise HTTPException(status_code=400, detail="피드백을 받을 글이 비어 있습니다.")
     preferences = get_user_preferences(db, current_user.user_id)
+    user_id, content, kind = current_user.user_id, draft.content, document.document_type
+    saved_draft_id, version = draft.id, draft.version
+    ai_usage.require_available(db, user_id)
+    db.commit()
     try:
         feedback_result = create_feedback_with_ai(
-            content=draft.content,
-            document_type=document.document_type,
+            content=content,
+            document_type=kind,
             user_preferences=preferences,
         )
     except ValueError as e:
@@ -203,16 +225,22 @@ def create_ai_feedback(
             status_code=502,
             detail="AI 피드백 서비스 호출에 실패했습니다.",
         ) from e
-    feedback = models.AIFeedback(draft_id=draft.id, feedback_data=feedback_result)
-    db.add(feedback)
-    db.commit()
+    feedback = models.AIFeedback(draft_id=saved_draft_id, feedback_data=feedback_result)
+    try:
+        usage = ai_usage.consume(db, user_id)
+        db.add(feedback)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(feedback)
     return {
         "message": "AI 피드백 생성 성공",
         "feedback_id": feedback.id,
-        "draft_id": draft.id,
-        "version": draft.version,
+        "draft_id": saved_draft_id,
+        "version": version,
         "feedback": feedback.feedback_data,
+        "usage": usage,
     }
 
 
@@ -623,6 +651,7 @@ COMMON_LLM_URL = os.getenv('COMMON_LLM_URL', 'http://127.0.0.1:8001').rstrip('/'
 
 
 def _qwen_draft(document_id, db, current_user, mode):
+    user_id = current_user.user_id
     document = get_owned_document(db, document_id, current_user.user_id)
     kind = str(document.document_type).strip()
     kind = {'자유글쓰기':'자유 글쓰기'}.get(kind, kind)
@@ -653,7 +682,9 @@ def _qwen_draft(document_id, db, current_user, mode):
         raise HTTPException(503, '백엔드에 THINKING_LLM_TOKEN 설정이 필요합니다.')
     payload = {'document_type':kind, 'topic':(document.title or kind).strip(),
                'facts':facts, 'tone':tone, 'target_chars':target,
-               'mode':mode, 'user_id':current_user.user_id}
+               'mode':mode, 'user_id':user_id}
+    ai_usage.require_available(db, user_id)
+    db.commit()
     try:
         response = requests.post(COMMON_LLM_URL + '/draft', json=payload,
                                  headers={'X-LLM-Token':token}, timeout=(10,180))
@@ -671,7 +702,13 @@ def _qwen_draft(document_id, db, current_user, mode):
         raise HTTPException(504, 'LLM 응답 시간이 초과되었습니다.') from exc
     except (requests.RequestException, ValueError) as exc:
         raise HTTPException(502, 'LLM 연결 또는 응답 오류입니다. 서버 콘솔을 확인해 주세요.') from exc
-    return {**result, 'tone':tone,
+    try:
+        usage = ai_usage.consume(db, user_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {**result, 'tone':tone, 'usage':usage,
             'personalization_type':'adapter' if mode == 'personal' else 'preference_prompt'}
 
 

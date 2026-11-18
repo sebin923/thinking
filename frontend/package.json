@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test:navigation": "node --test tests/page-history.test.mjs",
+    "test:ai-usage": "node tests/ai-usage.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

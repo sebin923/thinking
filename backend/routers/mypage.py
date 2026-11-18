@@ -151,7 +151,7 @@ def build_profile(db: Session, user: models.User) -> ProfileOut:
     profile.best_challenge_score = best_score or 0
     # AI 초안 잔여 횟수 설정 (User 모델에 추가된 ai_credits 반영)
     if hasattr(profile, "ai_credits"):
-        profile.ai_credits = user.ai_credits if user.ai_credits is not None else 3
+        profile.ai_credits = user.ai_credits if user.ai_credits is not None else 0
     return profile
 
 
