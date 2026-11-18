@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   PenLine,
   FilePlus2,
@@ -314,9 +314,6 @@ function WritingPage({
     }
   }, [draft, auth?.user?.user_id]);
   useEffect(() => {
-    onWritingStateChange?.({ documentId, savedVersion, isComplete, createdHere, dirty });
-  }, [documentId, savedVersion, isComplete, createdHere, dirty, onWritingStateChange]);
-  useEffect(() => {
     return () => clearTimeout(toastTimerRef.current);
   }, []);
   useEffect(() => {
@@ -355,7 +352,7 @@ function WritingPage({
     return editorRef.current?.innerHTML || "";
   };
   // 현재 글 임시저장
-  const saveBrowserDraft = () => {
+  const saveBrowserDraft = useCallback(() => {
     try {
       localStorage.setItem(getDraftKey(auth?.user?.user_id), JSON.stringify({
         title,
@@ -374,7 +371,10 @@ function WritingPage({
       console.error("임시저장 실패:", error);
       return false;
     }
-  };
+  }, [auth?.user?.user_id, title, writingType, customType, documentId, isComplete, savedVersion, createdHere, dirty]);
+  useEffect(() => {
+    onWritingStateChange?.({ documentId, savedVersion, isComplete, createdHere, dirty, saveDraft: saveBrowserDraft });
+  }, [documentId, savedVersion, isComplete, createdHere, dirty, onWritingStateChange, saveBrowserDraft]);
   const handleNewWriting = () => {
     onNewWriting?.();
   };

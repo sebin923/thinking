@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test:navigation": "node --test tests/page-history.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

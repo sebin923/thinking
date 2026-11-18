@@ -10,10 +10,11 @@
 //                공지사항(NoticePage), 이용약관·개인정보처리방침(PolicyPage),
 //                AI 초안 이용권 충전(PaymentPage), 학습(LearnPage, 오답노트 탭 포함)
 // 그 밖의 알 수 없는 메뉴 이름이 오면 "준비 중" 화면이 나옴.
-// (나중에 react-router를 배우면 주소(URL)로 페이지를 이동하는 방식으로 바꿀 예정)
+// 화면 주소와 브라우저 뒤로가기·앞으로가기는 usePageNavigation에서 관리함.
 // =============================================================
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import usePageNavigation from "./hooks/usePageNavigation";
 
 // 우리가 만든 컴포넌트들
 import Header from "./components/Header";
@@ -55,6 +56,9 @@ const AUTH_KEY = "saenggak-hanjul-auth";
 
 // 글쓰기에 속한 화면들 (글쓰기 ↔ 개인 맞춤 설정 사이를 오가는 건 "떠난 것"이 아님)
 const WRITING_PAGES = ["write", "writing-settings"];
+const leavesWritingRoute = (current, next) => WRITING_PAGES.includes(current.page) && (
+  !WRITING_PAGES.includes(next.page) || current.data?.document?.id !== next.data?.document?.id
+);
 
 // 글쓰기 화면이 설정 화면에 다녀올 때 쓰는 임시저장본 이름표 (WritingPage.jsx의 getDraftKey와 똑같이 맞춤)
 const writingDraftKey = (userId) => `saenggak-hanjul-draft-${userId ?? "guest"}`;
@@ -133,25 +137,19 @@ function App() {
   //  - 헤더 오른쪽 버튼: "login"(로그인), "signup"(회원가입)
   //  - 랭킹 화면 안의 버튼: "challenge"(맞춤법 도전 모드)
   //  - 푸터에만 있는 메뉴: "notice", "terms", "privacy"
-  // 처음 들어오면 "home"
+  // 처음 들어오면 주소에 해당하는 화면 (주소가 없으면 "home")
   //  - 단, 토스페이먼츠 결제창에서 돌아온 주소(/payment/success, /payment/fail)면 "payment-result"(결제 결과)
   // useState(함수): 처음 한 번만 함수를 실행해서 시작 값을 정함
   const [paymentReturn] = useState(() => readPaymentReturn());
-  const [activeNav, setActiveNav] = useState(() => (paymentReturn ? "payment-result" : "home"));
-
-  // 결제 결과 화면을 띄운 뒤 주소창을 "/"로 정리
-  // (?paymentKey=... 같은 값이 주소에 남아 있으면 새로고침할 때마다 결과 화면이 다시 뜨니까)
-  // history.replaceState: 페이지를 새로 불러오지 않고 주소창 글자만 바꿈 (뒤로가기 기록도 안 늘어남)
-  useEffect(() => {
-    if (paymentReturn) window.history.replaceState(null, "", "/");
-  }, [paymentReturn]);
+  const [route, setActiveNav, goBack, setNavigationHandlers] = usePageNavigation(paymentReturn ? "payment-result" : null);
+  const activeNav = route.page;
 
   // idea: 메인 페이지 입력창에 적은 생각 → 글쓰기 페이지로 넘겨줌
   const [idea, setIdea] = useState("");
 
   // openedDocument: 마이페이지 "내가 쓴 글"에서 연 글 { id, title, document_type, status, content, latest_version }
   // 이 값이 있으면 글쓰기 페이지가 빈 화면이 아니라 이 글을 채운 상태로 열림 (없으면 null = 새 글쓰기)
-  const [openedDocument, setOpenedDocument] = useState(null);
+  // 문서 정보는 이동 기록에 함께 보관하되, 같은 계정일 때만 다시 열어 줌.
 
   // writingSession: 글쓰기 화면에서 "새 글 쓰기"를 누를 때마다 1씩 올림
   // → WritingPage의 key가 바뀌어서 화면이 빈 새 글로 처음부터 다시 만들어짐 (저장 횟수도 0부터 = 첫 저장이 초안)
@@ -172,6 +170,7 @@ function App() {
   // auth: 로그인 정보 { token, user } (로그인 안 했으면 null)
   // useState(loadAuth): 처음 한 번만 저장소에서 꺼내서 시작값으로 씀 → 새로고침해도 로그인 유지
   const [auth, setAuth] = useState(loadAuth);
+  const openedDocument = route.data?.userId === auth?.user?.user_id ? route.data?.document ?? null : null;
 
   // quizCategory: 퀴즈 화면에서 지금 선택된 종류 ("spelling" = 맞춤법, "grammar" = 문법)
   // App에 두는 이유: 다른 메뉴에 갔다 와도 마지막으로 보던 종류가 그대로 남게 하려고
@@ -180,7 +179,7 @@ function App() {
 
   // 학습 화면을 열 때 처음 보여줄 탭 ("learn" 학습 / "wrong" 오답노트)
   // 헤더로 들어가면 "learn", 퀴즈 결과의 "오답노트 보기"로 들어가면 "wrong"
-  const [learnTab, setLearnTab] = useState("learn");
+  const learnTab = route.data?.learnTab || "learn";
   // 학습 화면을 "오답노트로 열기"할 때마다 +1 → LearnPage를 새로 만들어서 initialTab이 다시 적용되게
   const [learnOpenCount, setLearnOpenCount] = useState(0);
 
@@ -270,6 +269,18 @@ function App() {
     }
   };
 
+  useLayoutEffect(() => {
+    setNavigationHandlers({
+      shouldBlock: (next, current) => leavesWritingRoute(current, next) && !!getUnsavedLoss(),
+      onBlocked: (retry) => confirmLeaveWriting(retry),
+      onTraverse: (next, current) => {
+        setLeaveConfirm(null);
+        if (current.page === "write" && next.page === "writing-settings") writingStateRef.current?.saveDraft?.();
+        if (leavesWritingRoute(current, next)) discardWriting();
+      },
+    });
+  });
+
   // ----- 탭을 닫거나 새로고침할 때 -----
   // beforeunload: 페이지를 떠나기 직전 신호 → preventDefault 하면 브라우저 기본 경고창이 뜸
   //   (보안 때문에 브라우저가 문구를 못 바꾸게 막아 둬서, 우리 경고창 대신 브라우저 창이 나옴)
@@ -310,13 +321,12 @@ function App() {
   // 로그인/회원가입 화면을 새로 열 때는 이전 안내 문구를 지움
   const handleNavigate = (key) => {
     const go = () => {
+      setLeaveConfirm(null);
       if (key === "login" || key === "signup") setLoginNotice({ loginId: "", message: "" });
-      // 헤더·푸터의 "글쓰기"를 누르면 마이페이지에서 열었던 글은 닫고 새 글쓰기로 시작
-      if (key === "write") setOpenedDocument(null);
+      // 별도 문서 정보 없이 이동하면 새 글쓰기 화면으로 시작.
       // 헤더·푸터·마이페이지에서 "학습"으로 갈 때는 항상 학습 탭부터
       // (이미 학습 화면에 있어도 +1로 화면을 새로 만들어서 학습 탭·유형 목록으로 돌아가게)
       if (key === "learn") {
-        setLearnTab("learn");
         setLearnOpenCount((n) => n + 1);
       }
       setActiveNav(key);
@@ -342,16 +352,15 @@ function App() {
 
   // ----- 퀴즈 결과 화면의 "오답노트 보기" → 학습 화면을 오답노트 탭으로 열기 -----
   const openWrongNotes = () => {
-    setLearnTab("wrong");
     setLearnOpenCount((n) => n + 1); // LearnPage의 key가 바뀌어서 오답노트 탭으로 새로 열림
-    setActiveNav("learn");
+    setActiveNav("learn", { data: { learnTab: "wrong" } });
   };
 
   // ----- 글쓰기 화면의 "새 글 쓰기" 버튼 -----
   // 저장 안 한 내용이 있으면 경고창을 먼저 띄움 (확인하면 지금 글을 버리고 새 글 시작)
   const handleNewWriting = () => {
     confirmLeaveWriting(() => {
-      setOpenedDocument(null); // 마이페이지에서 열었던 글이면 닫음
+      setActiveNav("write", { replace: true }); // 마이페이지에서 열었던 글이면 닫음
       setIdea(""); // 메인에서 적은 생각도 이전 글 거니까 비움
       setWritingSession((n) => n + 1); // key를 바꿔서 글쓰기 화면을 새로 만듦
     });
@@ -360,14 +369,12 @@ function App() {
   // ----- 마이페이지 "내가 쓴 글"에서 글을 눌렀을 때 -----
   // doc: { id, title, document_type, status, content } → 그 글이 들어간 글쓰기 페이지로 이동
   const handleOpenDocument = (doc) => {
-    setOpenedDocument(doc);
-    setActiveNav("write");
+    setActiveNav("write", { data: { document: doc, userId: auth?.user?.user_id } });
   };
 
   // ----- 메인에서 "생각 정리 시작하기" -----
   const handleStart = (newIdea) => {
     setIdea(newIdea); // 입력한 생각 저장
-    setOpenedDocument(null); // 새 생각으로 시작하니까 마이페이지에서 열었던 글은 닫음
     setActiveNav("write"); // 글쓰기 화면으로 이동 (헤더의 "글쓰기"와 같은 화면)
     // TODO: 원래 흐름은 ① 생각 입력 → ② 구조화(AI) → ③ 글쓰기
   };
@@ -376,7 +383,7 @@ function App() {
   const handleSignupSuccess = (loginId) => {
     // 로그인 화면에 아이디를 미리 채우고 안내 문구 띄우기
     setLoginNotice({ loginId, message: "회원가입이 완료됐어요. 로그인해 주세요." });
-    setActiveNav("login");
+    setActiveNav("login", { replace: true });
   };
 
   // ----- 로그인 성공 -----
@@ -395,7 +402,7 @@ function App() {
     cleanupLeftoverDraft(nextAuth);
     // 로그인 후 첫 화면: 관리자 계정이면 바로 관리자 페이지, 일반 회원은 홈
     // (role은 로그인 응답의 user에 들어 있음 → backend/auth_schemas.py의 UserOut)
-    setActiveNav(nextAuth.user?.role === "admin" ? "admin" : "home");
+    setActiveNav(nextAuth.user?.role === "admin" ? "admin" : "home", { replace: true });
     // TODO: 다른 API를 부를 때 헤더에 "Authorization: Bearer 토큰"을 붙여서 보내기
   };
 
@@ -404,8 +411,7 @@ function App() {
     const logout = () => {
       clearAuth();
       setAuth(null);
-      setOpenedDocument(null); // 다른 사람이 로그인했을 때 이전 사람의 글이 열려 있지 않게
-      setActiveNav("home");
+      setActiveNav("home", { replace: true });
     };
     // 글쓰기 중이면 저장 안 한 내용 확인 → 확인하면 쓰다 만 글을 버리고 로그아웃
     // (버리기는 토큰이 지워지기 전에 해야 서버에 요청할 수 있음 → confirmLeaveWriting이 logout보다 먼저 버림)
@@ -420,8 +426,8 @@ function App() {
     clearAuth();
     setAuth(null);
     setLoginNotice({ loginId: "", message: "로그인이 만료됐어요. 다시 로그인해 주세요." });
-    setActiveNav("login");
-  }, []);
+    setActiveNav("login", { replace: true });
+  }, [setActiveNav, setAuth, setLoginNotice]);
 
   // ----- 회원정보 수정 성공 (마이페이지 수정 화면) -----
   // 헤더의 "○○님"과 저장된 로그인 정보도 새 이름·이메일로 바꿔 줌
@@ -440,7 +446,7 @@ function App() {
   const handleWithdrawn = (message) => {
     clearAuth();
     setAuth(null);
-    setActiveNav("home");
+    setActiveNav("home", { replace: true });
     showToast(message);
   };
 
@@ -466,7 +472,7 @@ function App() {
         // 학습 (로그인해야 쓸 수 있음 → 로그인 안 했으면 화면 안에서 로그인 안내)
         return (
           <LearnPage
-            key={learnOpenCount}
+            key={`${learnOpenCount}-${route.index}`}
             auth={auth}
             initialTab={learnTab}
             onGoLogin={() => handleNavigate("login")}
@@ -495,7 +501,7 @@ function App() {
             // 하루 무료 AI 횟수를 다 썼을 때 "이용권 충전" 버튼 → 결제 화면
             onCharge={() => handleNavigate("payment")}
             // 설정 화면에 다녀와도 openedDocument는 그대로라서 같은 글로 돌아옴
-            onOpenSettings={() => setActiveNav("writing-settings")}
+            onOpenSettings={() => setActiveNav("writing-settings", { data: route.data })}
           />
         );
 
@@ -503,7 +509,7 @@ function App() {
         return (
           <WritingSettingPage
             auth={auth}
-            onBack={() => setActiveNav("write")}
+            onBack={() => goBack("write", route.data)}
           />
         );
       case "quiz":
@@ -558,7 +564,7 @@ function App() {
         return (
           <MyPageEdit
             auth={auth}
-            onBack={() => setActiveNav("mypage")}
+            onBack={() => goBack("mypage")}
             onProfileUpdated={handleProfileUpdated}
             onWithdrawn={handleWithdrawn}
             onGoLogin={() => handleNavigate("login")}
