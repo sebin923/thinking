@@ -63,7 +63,7 @@ function LearnManager({ token, onSessionExpired }) {
         for (const typeItem of data) {
           for (let i = 0; i < typeItem.units.length; i++) {
             const unitNum = i + 1;
-            const dbQuizzes = await fetchOxQuizzes(typeItem.key, unitNum);
+            const dbQuizzes = await fetchOxQuizzes(typeItem.key, unitNum, null);
             if (Array.isArray(dbQuizzes) && dbQuizzes.length > 0) {
               typeItem.units[i].quiz = dbQuizzes;
             }
