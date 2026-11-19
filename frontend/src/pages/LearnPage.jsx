@@ -12,7 +12,7 @@
 // 규칙 (팀에서 정한 조건)
 //   - 로그인해야 학습 가능
 //   - 단원은 순서대로 열리고, 한 번 완료한 단원은 언제든 다시 할 수 있음
-//   - 단원마다 O/X 10문제 → 전부 맞혀야 글쓰기 연습 열림
+//   - 단원마다 O/X 20문제 중 최대 10개 출제 → 누적해서 전부 맞히면 글쓰기 연습 열림
 //   - 글쓰기 연습을 Qwen가 채점 → 90점 이상이면 단원 완료 → 다음 단원 열림
 //
 // 데이터·저장: api/learn.js (지금은 브라우저 저장, 백엔드 생기면 DB)
@@ -34,6 +34,7 @@ import {
   fetchLearnContent,
   fetchLearnProgress,
   saveQuizAttempt,
+  saveQuizAnswer,
   scoreWriting,
   recommendWritingPractice,
   answerWrongNote,
@@ -138,7 +139,7 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
   const handleSubmitQuiz = async (answers, quizToSubmit) => {
     // UnitView에서 넘겨준 실제 푼 10문제(quizToSubmit)가 있으면 우선 사용
     const unit = quizToSubmit || type.units[unitIndex];
-    const saved = await saveQuizAttempt(user, { typeKey: type.key, unit, answers });
+    const saved = await saveQuizAttempt(user, { typeKey: type.key, unit, answers, answersRecorded: true });
     setProgress(saved.progress);
     return saved;
   };
@@ -231,6 +232,11 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
               scrollToTabs();
             }}
             onSubmitQuiz={handleSubmitQuiz}
+            onAnswerQuiz={async (question, chosen, answerId) => {
+              const saved = await saveQuizAnswer(user, { typeKey: type.key, unit: type.units[unitIndex], question, chosen, answerId });
+              setProgress(saved.progress);
+              return saved;
+            }}
             onScoreWriting={handleScoreWriting}
             onRecommendPractice={handleRecommendPractice}
             onOpenWrongNotes={() => {

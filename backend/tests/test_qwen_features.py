@@ -380,3 +380,33 @@ def test_no_active_clova_module_or_import():
     for path in (ROOT / "backend").rglob("*.py"):
         if "tests" not in path.parts:
             assert "from clova import" not in path.read_text(encoding="utf-8-sig")
+
+
+def test_learning_correct_question_ids_persist_with_wrong_notes_and_account_scope(api):
+    client, db, _ = api
+    unlock(db)
+    state = client.get('/api/learn/progress').json()
+    state['progress']['units']['report-1'].update(correctQuestionIds=['ox:one', 'ox:one', 'ox:two'], quizBankTotal=20)
+    state['progress']['wrong']['report-1#ox:three'] = {
+        'questionId': 'ox:three', 'unitId': 'report-1', 'q': '확인용 문항', 'a': False,
+        'e': '확인용 해설', 'resolved': False,
+    }
+    response = client.put('/api/learn/progress', json={'expected_revision': state['revision'], 'progress': state['progress']})
+    assert response.status_code == 200
+    saved = client.get('/api/learn/progress').json()
+    assert saved['progress']['units']['report-1']['correctQuestionIds'] == ['ox:one', 'ox:two']
+    assert saved['progress']['wrong']['report-1#ox:three']['e'] == '확인용 해설'
+    # 다른 탭이 구 진도로 덮어쓰지 못한다.
+    assert client.put('/api/learn/progress', json={'expected_revision': state['revision'], 'progress': state['progress']}).status_code == 409
+    other = db.get(models.User, 2)
+    app.dependency_overrides[get_current_user] = lambda: other
+    assert client.get('/api/learn/progress').json()['progress'] == {'units': {}, 'wrong': {}}
+
+
+@pytest.mark.parametrize('ids', ['text', [False], [None], [''], ['x' * 2001], ['x'] * 1001])
+def test_learning_rejects_malformed_correct_question_ids(api, ids):
+    client, _, _ = api
+    state = client.get('/api/learn/progress').json()
+    payload = {'units': {'report-01': {'correctQuestionIds': ids}}, 'wrong': {}}
+    response = client.put('/api/learn/progress', json={'expected_revision': state['revision'], 'progress': payload})
+    assert response.status_code == 422

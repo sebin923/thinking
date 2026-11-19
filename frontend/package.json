@@ -11,7 +11,8 @@
     "test:api-base": "node --test tests/api-base.test.mjs",
     "test:navigation": "node --test tests/page-history.test.mjs",
     "test:ai-usage": "node tests/ai-usage.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:learning-quiz": "node tests/learning-quiz.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.52.0",

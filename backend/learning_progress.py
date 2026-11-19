@@ -47,6 +47,11 @@ def validated(payload):
             if not isinstance(key,str) or len(key)>2000 or not isinstance(item,dict):
                 raise ValueError('진도 항목 형식이 올바르지 않습니다.')
     for item in payload['units'].values():
+        if 'correctQuestionIds' in item:
+            ids = item['correctQuestionIds']
+            if not isinstance(ids, list) or len(ids) > 1000 or any(not isinstance(value, str) or not 1 <= len(value) <= 2000 for value in ids):
+                raise ValueError('문항별 정답 기록이 올바르지 않습니다.')
+            item['correctQuestionIds'] = list(dict.fromkeys(ids))
         for field in ('attempts','writingAttempts','writingBest','lastScore','bestScore','total'):
             if field in item and (type(item[field]) is not int or not 0 <= item[field] <= 1_000_000):
                 raise ValueError('점수·횟수는 유효한 정수여야 합니다.')

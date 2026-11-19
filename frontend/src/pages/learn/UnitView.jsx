@@ -3,8 +3,8 @@
 // -------------------------------------------------------------
 // 위쪽 단계 탭: [① 개념] → [② O/X 퀴즈] → [③ 글쓰기 연습]
 //   ① 개념   : 요약 + 핵심 내용 + 좋은 예/고칠 예 + 팁 → "O/X 문제 풀기"
-//   ② 퀴즈   : OxQuiz로 10문제 → 결과 (만점이면 글쓰기 열림, 틀린 문제는 오답노트로)
-//   ③ 글쓰기 : 만점을 받은 단원만 열림 (WritingPractice)
+//   ② 퀴즈   : 남은 문제 중 최대 10개 → 20문제를 누적해서 맞히면 글쓰기 열림
+//   ③ 글쓰기 : O/X를 모두 맞힌 단원만 열림 (WritingPractice)
 //              AI 채점 90점 이상 → 단원 완료 → 다음 단원 열림
 // =============================================================
 
@@ -30,6 +30,8 @@ import {
 import OxQuiz from "./OxQuiz";
 import WritingPractice from "./WritingPractice";
 import { fetchOxQuizzes } from "../../api/learn";
+import { drawQuestions, remainingQuestions } from "../../utils/learningQuiz";
+import { QUIZ_ROUND_SIZE } from "../../data/learn/quizBank";
 
 // props
 //  - type: 글 유형 (label 사용)
@@ -38,6 +40,7 @@ import { fetchOxQuizzes } from "../../api/learn";
 //  - practice: 글쓰기 연습 자료
 //  - onBack: 단원 목록으로
 //  - onSubmitQuiz: O/X 결과 저장 (answers → Promise<{ score, total, passed, firstPass }>)
+//  - onAnswerQuiz: 문항별 답을 즉시 저장 (중간 종료·재접속 시에도 정답 제외)
 //  - onScoreWriting: 글쓰기 AI 채점 (text → Promise<{ result, firstComplete }>)
 //  - onOpenWrongNotes: 결과 화면 "오답노트 보기" 버튼
 //  - onNextUnit: "다음 단원" 버튼 (다음 단원이 잠겨 있거나 마지막 단원이면 null)
@@ -49,6 +52,7 @@ function UnitView({
   practice,
   onBack,
   onSubmitQuiz,
+  onAnswerQuiz,
   onScoreWriting,
   onRecommendPractice,
   onOpenWrongNotes,
@@ -63,30 +67,24 @@ function UnitView({
   const [quizRound, setQuizRound] = useState(0);
 
   const [currentQuiz, setCurrentQuiz] = useState([]);
+  const [questionBank, setQuestionBank] = useState([]);
   const [loadingQuiz, setLoadingQuiz] = useState(true);
+  const [savingQuiz, setSavingQuiz] = useState(false);
 
   useEffect(() => {
     let ignore = false;
-    async function loadDbQuizzes() {
+    async function loadQuizzes() {
       setLoadingQuiz(true);
       try {
-        const unitNum = unitIndex + 1; 
-        const dbQuizzes = await fetchOxQuizzes(type.key, unitNum);
-        if (!ignore && Array.isArray(dbQuizzes) && dbQuizzes.length > 0) {
-          const shuffled = [...dbQuizzes].sort(() => Math.random() - 0.5);
-          const selectedQuizzes = shuffled.slice(0, 10);
-          setCurrentQuiz(selectedQuizzes);
-        } else {
-          setCurrentQuiz(unit.quiz || []);
-        }
+        const questions = await fetchOxQuizzes(type.key, unitIndex + 1);
+        if (!ignore) { setQuestionBank(questions); setError(""); }
       } catch (err) {
-        console.error("DB 퀴즈 로드 실패, 기본 데이터 사용:", err);
-        setCurrentQuiz(unit.quiz || []);
+        if (!ignore) setError(err.message || "문제를 불러오지 못했어요. 단원을 다시 열어 주세요.");
       } finally {
         if (!ignore) setLoadingQuiz(false);
       }
     }
-    loadDbQuizzes();
+    loadQuizzes();
     return () => {
       ignore = true;
     };
@@ -94,27 +92,35 @@ function UnitView({
 
   const passed = Boolean(unitProgress?.passed); // 만점 받은 적 있는지 = 글쓰기 열림
   const completed = Boolean(unitProgress?.completed); // 글쓰기 90점 이상 받은 적 있는지 = 단원 완료
+  const remaining = remainingQuestions(questionBank, unitProgress).length;
+  const mastered = questionBank.length > 0 && remaining === 0;
 
   // ----- 퀴즈를 다 풀었을 때 -----
   const handleFinish = async (answers) => {
     setError("");
+    setSavingQuiz(true);
     try {
-      // ★ 이전 팀원의 10문제 원본 데이터 대신, 우리가 DB에서 가져와 푼 10문제(currentQuiz)로 완전 교체
+      // 실제 출제한 문항으로만 이번 회차의 결과를 계산한다.
       const quizToSubmit = {
         ...unit,
         quiz: currentQuiz,
       };
-      // 부모에게 채점 요청을 보낼 때 우리가 푼 10문제가 담긴 quizToSubmit을 정확하게 함께 전달
       const saved = await onSubmitQuiz(answers, quizToSubmit);
       setResult({ ...saved, wrongCount: saved.total - saved.score });
       setStep("result");
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSavingQuiz(false);
     }
   };
 
   const startQuiz = () => {
-    if (loadingQuiz) return;
+    if (loadingQuiz || savingQuiz || !questionBank.length || step === "quiz") return;
+    const selected = drawQuestions(questionBank, unitProgress, QUIZ_ROUND_SIZE);
+    if (!selected.length) { setStep("concept"); return; }
+    setCurrentQuiz(selected);
+    setError("");
     setQuizRound((n) => n + 1);
     setStep("quiz");
   };
@@ -122,7 +128,7 @@ function UnitView({
   // 위쪽 단계 탭 (결과 화면은 "퀴즈" 탭에 불이 들어오게)
   const steps = [
     { key: "concept", label: "개념", icon: BookOpen, enabled: true },
-    { key: "quiz", label: "O/X 퀴즈", icon: ListChecks, enabled: !loadingQuiz },
+    { key: "quiz", label: "O/X 퀴즈", icon: ListChecks, enabled: !loadingQuiz && !savingQuiz && questionBank.length > 0 },
     { key: "writing", label: "글쓰기 연습", icon: PenLine, enabled: passed },
   ];
   const activeStep = step === "result" ? "quiz" : step;
@@ -149,7 +155,7 @@ function UnitView({
               <button
                 type="button"
                 className={activeStep === item.key ? "unit-step active" : "unit-step"}
-                disabled={!item.enabled}
+                disabled={!item.enabled || (step === "quiz" && item.key !== "quiz")}
                 // 퀴즈 탭을 누르면 처음부터 새로 시작
                 onClick={() => (item.key === "quiz" ? startQuiz() : setStep(item.key))}
                 title={!item.enabled ? "퀴즈를 불러오는 중이거나 잠겨 있어요" : undefined}
@@ -171,7 +177,7 @@ function UnitView({
 
       {loadingQuiz && (
         <p className="admin-state" style={{ textAlign: "center", padding: "10px" }}>
-          <Loader2 size={16} className="spin" /> DB에서 퀴즈를 불러오는 중...
+          <Loader2 size={16} className="spin" /> 이 단원의 문제를 불러오는 중...
         </p>
       )}
 
@@ -210,16 +216,22 @@ function UnitView({
           )}
 
           <div className="unit-actions">
-            <button type="button" className="btn-primary" onClick={startQuiz} disabled={loadingQuiz}>
-              {loadingQuiz ? "퀴즈 불러오는 중..." : `O/X 문제 풀기 (${currentQuiz.length}문제)`} <ArrowRight size={16} />
-            </button>
+            {mastered ? (
+              <p className="learn-locked-note"><Trophy size={18} /> 이 단원 {questionBank.length}문제를 모두 맞혔어요.</p>
+            ) : (
+              <button type="button" className="btn-primary" onClick={startQuiz} disabled={loadingQuiz || !questionBank.length}>
+                {loadingQuiz ? "퀴즈 불러오는 중..." : `O/X 문제 풀기 (${Math.min(remaining, QUIZ_ROUND_SIZE)}문제)`} <ArrowRight size={16} />
+              </button>
+            )}
+            {passed && <button type="button" className="btn-outline" onClick={() => setStep("writing")}><PenLine size={16} /> 글쓰기 연습하기</button>}
           </div>
+          {!loadingQuiz && questionBank.length > 0 && <p className="unit-result-desc">전체 {questionBank.length}문제 중 {questionBank.length - remaining}문제 정답 · 남은 문제 {remaining}개. 맞힌 문제는 다시 출제하지 않아요.</p>}
         </div>
       )}
 
       {/* ===== ② 퀴즈 ===== */}
       {step === "quiz" && (
-        <OxQuiz key={quizRound} questions={currentQuiz} onFinish={handleFinish} onCancel={() => setStep("concept")} />
+        <OxQuiz key={quizRound} questions={currentQuiz} onAnswer={onAnswerQuiz} onFinish={handleFinish} savingResult={savingQuiz} onCancel={() => setStep("concept")} />
       )}
 
       {/* ===== ② 결과 ===== */}
@@ -235,7 +247,7 @@ function UnitView({
           {result.passed ? (
             <>
               <p className="unit-result-title">
-                {result.firstPass ? "만점! 글쓰기 연습이 열렸어요" : "이번에도 만점이에요"}
+                이 단원 O/X 문제를 모두 맞혔어요!
               </p>
               <p className="unit-result-desc">
                 {completed
@@ -245,9 +257,10 @@ function UnitView({
             </>
           ) : (
             <>
-              <p className="unit-result-title">조금만 더! 모두 맞혀야 글쓰기 연습이 열려요</p>
+              <p className="unit-result-title">{result.wrongCount === 0 ? "이번 문제는 모두 정답이에요!" : "해설을 확인하고 이어서 도전해 보세요"}</p>
               <p className="unit-result-desc">
-                틀린 {result.wrongCount}문제는 오답노트에 담아 두었어요. 해설을 확인하고 다시 풀어 보세요.
+                {result.wrongCount > 0 && <>틀린 {result.wrongCount}문제는 오답노트에 담아 두었어요. </>}
+                아직 맞히지 않은 문제는 {result.remaining}개예요. {passed ? "열린 글쓰기 연습도 계속할 수 있어요." : "전체 문제를 한 번씩 맞히면 글쓰기 연습이 열려요."}
               </p>
             </>
           )}
@@ -267,11 +280,12 @@ function UnitView({
             ) : (
               <>
                 <button type="button" className="btn-primary" onClick={startQuiz} disabled={loadingQuiz}>
-                  <RotateCcw size={16} /> 다시 풀기
+                  <RotateCcw size={16} /> 남은 문제 풀기
                 </button>
                 <button type="button" className="btn-outline" onClick={onOpenWrongNotes}>
                   <NotebookPen size={16} /> 오답노트 보기
                 </button>
+                {passed && <button type="button" className="btn-outline" onClick={() => setStep("writing")}><PenLine size={16} /> 글쓰기 연습하기</button>}
               </>
             )}
           </div>

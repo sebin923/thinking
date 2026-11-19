@@ -20,9 +20,12 @@
 // =============================================================
 
 import { LEARN_TYPES } from "../data/learn";
+import { loadUnitQuiz, QUIZ_BANK_VERSION } from "../data/learn/quizBank";
+import { questionId, recordAnswer, remainingQuestions } from "../utils/learningQuiz";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
 import { API_BASE_URL as API_URL } from "./baseUrl";
+
 // 단원 완료 기준: 글쓰기 연습 AI 채점 점수 (백엔드 routers/learn.py의 PASS_SCORE와 같은 값)
 export const LEARN_PASS_SCORE = 90;
 
@@ -32,6 +35,13 @@ const PROGRESS_PREFIX = "saenggak-hanjul-learn-progress:"; // 뒤에 user_id가 
 
 // 관리자가 고칠 수 있는 칸 (이 칸만 저장·덮어쓰기 함 → id 같은 중요한 값은 못 바꾸게)
 const EDITABLE_FIELDS = ["title", "summary", "points", "good", "bad", "tip", "task", "quiz"];
+
+function currentOverride(override) {
+  if (!override) return {};
+  const { quiz, quizVersion, ...lesson } = override;
+  // 이전 문제만 교체한다. 팀원이 수정한 설명·예시 등은 유지한다.
+  return quizVersion === QUIZ_BANK_VERSION ? { ...lesson, quiz, quizVersion } : lesson;
+}
 
 // ----- localStorage 읽기·쓰기 (실패해도 화면이 멈추지 않게 try/catch) -----
 // 사생활 보호 모드, 저장소 꽉 참 등으로 실패할 수 있음
@@ -69,7 +79,7 @@ export async function fetchLearnContent() {
   return LEARN_TYPES.map((type) => ({
     ...type,
     units: type.units.map((unit) =>
-      overrides[unit.id] ? { ...unit, ...overrides[unit.id], id: unit.id, edited: true } : unit
+      overrides[unit.id] ? { ...unit, ...currentOverride(overrides[unit.id]), id: unit.id, edited: true } : { ...unit }
     ),
   }));
 }
@@ -90,6 +100,12 @@ export async function saveLearnUnit(unit, token) {
     if (unit[field] !== undefined) saved[field] = unit[field];
   });
   saved.updatedAt = new Date().toISOString();
+  saved.quizVersion = QUIZ_BANK_VERSION;
+  const defaults = await loadUnitQuiz(unit.id);
+  saved.quiz = saved.quiz.map(({ q, a, e }) => {
+    const original = defaults.find((item) => item.q === q && item.a === a);
+    return { ...(original ? { id: original.id } : {}), q, a, e };
+  });
   overrides[unit.id] = saved;
   writeJson(CONTENT_KEY, overrides);
 
@@ -236,58 +252,42 @@ async function saveProgress(user, progress) {
   return result.progress;
 }
 
-// O/X 결과 저장 (DB 퀴즈 및 오답노트가 예전 더미와 섞이지 않도록 quiz_id 또는 질문 내용 기반으로 고정)
-export async function saveQuizAttempt(user, { typeKey, unit, answers }) {
+// 각 답을 즉시 저장한다. 중간에 그만 풀거나 새로고침해도 맞힌 문항은 제외된다.
+export async function saveQuizAnswer(user, { typeKey, unit, question, chosen, answerId }) {
+  const progress = await fetchLearnProgress(user);
+  const bank = await fetchOxQuizzes(typeKey, unit.id.split("-").at(-1));
+  const canonical = bank.find((item) => questionId(item) === questionId(question));
+  if (!canonical) throw new Error("문제가 변경됐어요. 단원을 다시 열어 주세요.");
+  const wasPassed = Boolean(progress.units[unit.id]?.passed);
+  const outcome = recordAnswer(progress, { typeKey, unit, question: canonical, chosen, bank, now: new Date().toISOString(), answerId });
+  const saved = await saveProgress(user, progress);
+  return { ...outcome, progress: saved, firstPass: outcome.mastered && !wasPassed };
+}
+
+// 회차 결과 저장. 화면에서 각 답을 저장한 경우 오답 횟수를 다시 올리지 않는다.
+export async function saveQuizAttempt(user, { typeKey, unit, answers, answersRecorded = false }) {
   let progress = await fetchLearnProgress(user);
   const now = new Date().toISOString();
   
   const quizList = unit.quiz || [];
   const total = quizList.length;
-  if (!total || answers.length !== total || new Set(answers.map(a => a.index)).size !== total || answers.some(a => !Number.isInteger(a.index) || a.index < 0 || a.index >= total)) {
+  if (!total || answers.length !== total || new Set(answers.map(a => a.index)).size !== total || answers.some(a => typeof a.chosen !== "boolean" || !Number.isInteger(a.index) || a.index < 0 || a.index >= total)) {
     throw new Error("모든 O/X 문제에 답한 뒤 제출해 주세요.");
   }
 
-  let score = 0;
-  answers.forEach(({ index, chosen }) => {
-    const question = quizList[index];
-    if (!question) return;
-
-    // ★ 핵심 수정: 예전 팀원 더미 데이터 인덱스 충돌을 원천 차단하기 위해 
-    // DB의 고유 quiz_id가 있으면 그걸 쓰고, 없으면 질문 내용(q)을 해시/인코딩하여 고유 키 생성
-    const uniqueId = question.quiz_id ?? encodeURIComponent(question.q.trim());
-    const key = `${unit.id}#db-${uniqueId}`;
-
-    if (chosen === question.a) {
-      score += 1;
-      const note = progress.wrong[key];
-      if (note && !note.resolved) {
-        progress.wrong[key] = { ...note, resolved: true, resolvedAt: now };
-      }
-    } else {
-      const before = progress.wrong[key];
-      progress.wrong[key] = {
-        key,
-        typeKey,
-        unitId: unit.id,
-        unitTitle: unit.title,
-        index,
-        q: question.q,
-        a: question.a,
-        e: question.e,
-        myAnswer: chosen,
-        count: (before?.count || 0) + 1,
-        lastAt: now,
-        resolved: false,
-        resolvedAt: null,
-      };
-    }
-  });
-
-  const passed = score === total;
+  const bank = await fetchOxQuizzes(typeKey, unit.id.split("-").at(-1));
+  const canonical = new Map(bank.map((question) => [questionId(question), question]));
+  if (quizList.some((question) => !canonical.has(questionId(question)))) throw new Error("문제가 변경됐어요. 단원을 다시 열어 주세요.");
   const before = progress.units[unit.id] || {};
+  const score = answers.filter(({ index, chosen }) => chosen === canonical.get(questionId(quizList[index])).a).length;
+  if (!answersRecorded) answers.forEach(({ index, chosen }) => {
+    recordAnswer(progress, { typeKey, unit, question: canonical.get(questionId(quizList[index])), chosen, bank, now });
+  });
+  const remaining = remainingQuestions(bank, progress.units[unit.id]).length;
+  const passed = remaining === 0;
   const firstPass = passed && !before.passed;
   progress.units[unit.id] = {
-    ...before,
+    ...progress.units[unit.id],
     attempts: (before.attempts || 0) + 1,
     lastScore: score,
     bestScore: Math.max(before.bestScore || 0, score),
@@ -297,7 +297,7 @@ export async function saveQuizAttempt(user, { typeKey, unit, answers }) {
   };
 
   progress = await saveProgress(user, progress);
-  return { progress, score, total, passed, firstPass };
+  return { progress, score, total, passed, firstPass, remaining, bankTotal: bank.length };
 }
 
 // 연습 자료를 AI에게 보낼 글자로 바꾸기
@@ -450,6 +450,15 @@ export async function answerWrongNote(user, key, chosen) {
   progress.wrong[key] = correct
     ? { ...note, resolved: true, resolvedAt: now }
     : { ...note, myAnswer: chosen, count: note.count + 1, lastAt: now };
+  if (correct && note.source !== "quiz" && note.questionId && note.unitId) {
+    const type = LEARN_TYPES.find((item) => item.key === note.typeKey);
+    const unit = type?.units.find((item) => item.id === note.unitId);
+    if (unit) {
+      const bank = await fetchOxQuizzes(type.key, unit.id.split("-").at(-1));
+      const question = bank.find((item) => questionId(item) === note.questionId);
+      if (question) recordAnswer(progress, { typeKey: type.key, unit, question, chosen, bank, now });
+    }
+  }
   progress = await saveProgress(user, progress);
   return { correct, progress };
 }
@@ -492,25 +501,14 @@ export function countOpenWrong(progress) {
 }
 
 // =============================================================
-// 4. 백엔드 DB O/X 퀴즈 조회 함수 (DB 우선 조회 + 랜덤 출제 지원)
+// 4. 단원별 O/X 문항. 이전 DB/브라우저의 구 문제를 섞지 않는다.
 // =============================================================
-export async function fetchOxQuizzes(category, unitId, limit = 10) {
-  try {
-    const query = new URLSearchParams({
-      category: String(category),
-      unit_id: String(unitId),
-    });
-    if (limit) {
-      query.append("limit", String(limit));
-    }
-
-    const response = await fetch(`${API_URL}/api/learn/quizzes?${query.toString()}`);
-    if (!response.ok) {
-      throw new Error("퀴즈를 불러오지 못했어요.");
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("퀴즈 조회 에러:", error);
-    return [];
+export async function fetchOxQuizzes(category, unitId) {
+  const id = `${category}-${String(Number(unitId)).padStart(2, "0")}`;
+  const overrides = readJson(CONTENT_KEY, {});
+  const override = overrides[id] || overrides[`${category}-${Number(unitId)}`];
+  if (override?.quizVersion === QUIZ_BANK_VERSION && Array.isArray(override.quiz) && override.quiz.length) {
+    return override.quiz.map((question) => ({ ...question }));
   }
+  return loadUnitQuiz(id);
 }

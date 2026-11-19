@@ -6,7 +6,7 @@
 // 점수 계산·저장은 여기서 안 하고, 고른 답 목록만 부모(UnitView)에게 넘김
 // =============================================================
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 // Circle: O 버튼 아이콘, X: X 버튼 아이콘, CheckCircle2/XCircle: 정답·오답 표시, ArrowRight: 다음
 import { Circle, X, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 
@@ -14,10 +14,14 @@ import { Circle, X, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 //  - questions: [{ q, a, e }, …] 문제 목록
 //  - onFinish: 다 풀었을 때 실행 → [{ index, chosen }, …] (문제 순서대로)를 넘겨줌
 //  - onCancel: "그만 풀기" 버튼 (개념 화면으로 돌아가기)
-function OxQuiz({ questions, onFinish, onCancel }) {
+function OxQuiz({ questions, onAnswer, onFinish, onCancel, savingResult = false }) {
   const [current, setCurrent] = useState(0); // 지금 푸는 문제 번호 (0부터)
   const [chosen, setChosen] = useState(null); // 이 문제에서 고른 답 (null = 아직 안 고름)
   const [answers, setAnswers] = useState([]); // 지금까지 고른 답 목록
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const answerId = useRef(null);
 
   const question = questions[current];
   const answered = chosen !== null; // 이 문제를 이미 골랐는지
@@ -25,21 +29,36 @@ function OxQuiz({ questions, onFinish, onCancel }) {
   const isLast = current === questions.length - 1;
 
   // ----- O 또는 X 고르기 (한 번 고르면 바꿀 수 없음) -----
+  const persist = async (value) => {
+    setSaving(true);
+    setSaveError("");
+    try {
+      await onAnswer(question, value, answerId.current);
+      setAnswers((prev) => [...prev.filter((item) => item.index !== current), { index: current, chosen: value }]);
+      setSaved(true);
+    } catch (error) {
+      setSaveError(error.message || "답을 저장하지 못했어요. 다시 저장해 주세요.");
+    } finally {
+      setSaving(false);
+    }
+  };
   const choose = (value) => {
     if (answered) return;
+    answerId.current = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
     setChosen(value);
-    // 현재 문제의 배열 인덱스 그대로 전달
-    setAnswers((prev) => [...prev, { index: current, chosen: value }]);
+    persist(value);
   };
 
   // ----- 다음 문제로 (마지막이면 결과 넘기기) -----
   const next = () => {
+    if (!saved || saving || savingResult) return;
     if (isLast) {
       onFinish(answers);
       return;
     }
     setCurrent((n) => n + 1);
     setChosen(null);
+    setSaved(false);
   };
 
   // 진행 막대 길이: 푼 문제 수 / 전체 (지금 문제를 골랐으면 그것까지 포함)
@@ -63,7 +82,7 @@ function OxQuiz({ questions, onFinish, onCancel }) {
         <div className="ox-progress" aria-hidden="true">
           <div className="ox-progress-fill" style={{ width: `${progressPercent}%` }} />
         </div>
-        <button type="button" className="learn-text-button" onClick={onCancel}>
+        <button type="button" className="learn-text-button" onClick={onCancel} disabled={saving || savingResult}>
           그만 풀기
         </button>
       </div>
@@ -106,8 +125,9 @@ function OxQuiz({ questions, onFinish, onCancel }) {
             {isCorrect ? "정답이에요!" : `아쉬워요. 정답은 ${question.a ? "O" : "X"}예요.`}
           </p>
           {question.e && <p className="ox-feedback-explain">{question.e}</p>}
-          <button type="button" className="btn-primary ox-next" onClick={next}>
-            {isLast ? "결과 보기" : "다음 문제"} <ArrowRight size={16} />
+          {saveError && <p className="learn-error" role="alert">{saveError} <button type="button" className="learn-text-button" onClick={() => persist(chosen)} disabled={saving}>다시 저장하기</button></p>}
+          <button type="button" className="btn-primary ox-next" onClick={next} disabled={!saved || saving || savingResult}>
+            {saving || savingResult ? "저장 중..." : isLast ? "결과 보기" : "다음 문제"} <ArrowRight size={16} />
           </button>
         </div>
       )}
