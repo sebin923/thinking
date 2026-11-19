@@ -8,88 +8,7 @@ import requests
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 
-import os
-from pathlib import Path
-import sys
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "backend"))
-for key, value in {"DB_HOST": "localhost", "DB_PORT": "5432", "DB_NAME": "test",
-                   "DB_USER": "test", "DB_PASSWORD": "test",
-                   "JWT_SECRET_KEY": "test-only-secret-key-for-isolated-tests"}.items():
-    os.environ[key] = value
-import database
-database.engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-database.SessionLocal = sessionmaker(bind=database.engine)
-import models
-import clova
-from routers import writing, payment
-from routers.auth import get_current_user
-
-app = FastAPI()
-app.include_router(writing.router)
-app.include_router(payment.router)
-
-
-@pytest.fixture
-def api(monkeypatch):
-    database.Base.metadata.drop_all(database.engine)
-    database.Base.metadata.create_all(database.engine)
-    db = database.SessionLocal()
-    user = models.User(user_id=1, email="test@example.com", login_id="tester", name="test",
-                       phone="01000000000", password_hash="unused", role="general")
-    other = models.User(user_id=2, email="other@example.com", login_id="other", name="other",
-                        phone="01000000001", password_hash="unused", role="general")
-    db.add_all([user, other])
-    db.commit()
-    app.dependency_overrides[get_current_user] = lambda: user
-    monkeypatch.setenv("THINKING_LLM_TOKEN", "test-qwen-token")
-    monkeypatch.setenv("TOSS_SECRET_KEY", "test-only-key")
-    post = Mock()
-    monkeypatch.setattr(writing.requests, "post", post)
-
-    def generated_content(**kwargs):
-        response = post("http://fake-ai.test/draft", json=kwargs)
-        if response.status_code != 200:
-            raise requests.HTTPError("test-only AI failure")
-        result = response.json()
-        if not isinstance(result, dict) or not isinstance(result.get("content"), str) or not result["content"].strip():
-            raise ValueError("Empty AI response")
-        return result["content"]
-
-    def generated_feedback(**kwargs):
-        return clova._feedback_from_content(generated_content(**kwargs), kwargs["content"])
-
-    monkeypatch.setattr(writing, "create_draft_with_ai", generated_content)
-    monkeypatch.setattr(writing, "create_feedback_with_ai", generated_feedback)
-    with TestClient(app) as client:
-        yield client, db, post
-    app.dependency_overrides.clear()
-    db.close()
-
-
-def document(client):
-    doc = client.post("/api/documents", json={"title": "test", "document_type": "보고서"}).json()
-    assert "id" in doc
-    assert client.post("/api/thoughts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).status_code == 200
-    return doc
-
-
-def reply(post, content, **extra):
-    response = Mock(status_code=200)
-    response.json.return_value = {"content": content, **extra}
-    post.return_value = response
-
-
-def feedback_payload():
-    return {"overall_feedback": "확인했습니다.", "highlights": []}
-
+from test_qwen_features import api, document, feedback_payload, reply
 import ai_usage
 import database
 import models
@@ -191,7 +110,7 @@ def test_invalid_feedback_never_charges_or_saves(api):
     prepare(db, credits=1, used=3)
     doc = document(client)
     draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
-    reply(post, "{invalid-json")
+    reply(post, json.dumps(feedback_payload("원문에 없는 구절"), ensure_ascii=False))
     assert client.post(f"/api/drafts/{draft['id']}/feedback-ai").status_code == 502
     assert status(client)["credits"] == 1
     assert db.query(models.AIFeedback).count() == 0
@@ -317,5 +236,6 @@ def test_usage_is_per_account_and_rejects_unauthenticated_requests(api):
     prepare(db, credits=0, used=3)
     assert status(client)["can_use"] is False
     assert ai_usage.get_usage(db, 2)["remaining"] == 3
+    from main import app
     app.dependency_overrides.clear()
     assert client.get("/api/ai-usage/today").status_code == 401

@@ -17,8 +17,7 @@
 //   ★ 결제 승인을 안 하면 결제가 완료되지 않음 (결제창에서 인증만 된 상태로 끝남)
 // =============================================================
 
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 // 결제 승인 요청
 // 실패하면 Error를 던짐 → error.status에 응답 번호(404면 "아직 API 없음")를 넣어 둠
 export async function confirmPayment(token, { paymentKey, orderId, amount }) {

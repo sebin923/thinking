@@ -13,7 +13,7 @@
 //   - 로그인해야 학습 가능
 //   - 단원은 순서대로 열리고, 한 번 완료한 단원은 언제든 다시 할 수 있음
 //   - 단원마다 O/X 10문제 → 전부 맞혀야 글쓰기 연습 열림
-//   - 글쓰기 연습을 AI(CLOVA)가 채점 → 90점 이상이면 단원 완료 → 다음 단원 열림
+//   - 글쓰기 연습을 Qwen가 채점 → 90점 이상이면 단원 완료 → 다음 단원 열림
 //
 // 데이터·저장: api/learn.js (지금은 브라우저 저장, 백엔드 생기면 DB)
 // AI 채점: 백엔드 POST /api/learn/writing-score (backend/routers/learn.py)
@@ -29,12 +29,13 @@ import scrollToElement from "../utils/scrollToElement";
 import UnitList from "./learn/UnitList";
 import UnitView from "./learn/UnitView";
 import WrongNotes from "./learn/WrongNotes";
-import { getPracticeFor } from "../data/learn";
+import { getPracticeCandidates, getPracticeFor } from "../data/learn";
 import {
   fetchLearnContent,
   fetchLearnProgress,
   saveQuizAttempt,
   scoreWriting,
+  recommendWritingPractice,
   answerWrongNote,
   deleteWrongNote,
   summarizeProgress,
@@ -143,12 +144,16 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
   };
 
   // 글쓰기 AI 채점 (채점 결과는 WritingPractice가 보여주고, 진도는 여기서 갱신)
-  const handleScoreWriting = async (text) => {
+  const handleScoreWriting = async (text, practice) => {
     const unit = type.units[unitIndex];
-    const scored = await scoreWriting(user, token, { typeLabel: type.label, unit, practice: getPracticeFor(type, unit, unitIndex), text });
+    const scored = await scoreWriting(user, token, { typeLabel: type.label, unit, practice: practice || getPracticeFor(type, unit, unitIndex), text });
     setProgress(scored.progress);
     return scored;
   };
+
+  const handleRecommendPractice = (currentPractice) => recommendWritingPractice(token, {
+    typeLabel: type.label, unit: type.units[unitIndex], candidates: getPracticeCandidates(type), currentPractice,
+  });
 
   const handleAnswerWrong = async (key, chosen) => {
     const result = await answerWrongNote(user, key, chosen);
@@ -227,6 +232,7 @@ function LearnPage({ auth, onGoLogin, initialTab = "learn" }) {
             }}
             onSubmitQuiz={handleSubmitQuiz}
             onScoreWriting={handleScoreWriting}
+            onRecommendPractice={handleRecommendPractice}
             onOpenWrongNotes={() => {
               setUnitIndex(null);
               setTab("wrong");

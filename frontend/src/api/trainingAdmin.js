@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+import { API_BASE_URL as BASE } from "./baseUrl";
 export async function adminRequest(token, path, body, blob = false) {
   const response = await fetch(`${BASE}${path}`, {
     method: body === undefined ? 'GET' : 'POST',

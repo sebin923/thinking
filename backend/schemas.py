@@ -90,7 +90,7 @@ class RankingResponse(BaseModel):
 # --- AI 결과 별점 평가 스키마 ---
 class AiRatingCreate(BaseModel):
     kind: str           # "draft" 또는 "feedback"
-    model: str          # "clova", "common", "personal"
+    model: str          # "common", "personal"
     rating: int         # 별점 (1~5)
     comment: Optional[str] = ""
     documentId: Optional[Any] = None

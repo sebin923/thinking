@@ -1,0 +1,11 @@
+# Keep source bytes stable across the Windows GPU host and Linux EC2.
+*.py text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+.gitattributes text eol=lf
+# Preserve the exact CRLF bytes recorded in completed training provenance.
+llm_training/train_qwen35.py -text whitespace=cr-at-eol

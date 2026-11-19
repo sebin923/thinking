@@ -8,8 +8,7 @@
 // =============================================================
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 // 공지 목록 (고정 공지가 맨 위 → 그다음 최신 순, 서버가 정렬해서 보내 줌)
 // 돌려주는 값: [{ notice_id, title, content, is_pinned, created_at, updated_at }, ...]
 export async function fetchNotices() {

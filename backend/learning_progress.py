@@ -85,7 +85,7 @@ def import_legacy(db,user_id,payload,expected_revision):
         assign(row,merged);row.legacy_imported=1
     db.commit();return snapshot(row)
 
-def record_writing(db,user_id,unit_id,text,result):
+def record_writing(db,user_id,unit_id,text,result,practice=None):
     row=row_for(db,user_id);progress=deepcopy(row.payload)
     old=progress['units'].get(unit_id,{})
     now=datetime.now(timezone.utc).isoformat()
@@ -98,5 +98,7 @@ def record_writing(db,user_id,unit_id,text,result):
         'completed':bool(old.get('completed') or passed),
         'completedAt':old.get('completedAt') or (now if passed else None),
         'completionSource':'server_grade' if passed else old.get('completionSource','server_grade')}
+    if practice is not None:
+        progress['units'][unit_id]['writing']['practice'] = deepcopy(practice)
     assign(row,progress);db.commit()
     return {**snapshot(row),'first_complete':first_complete}

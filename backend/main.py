@@ -56,11 +56,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for route in quiz_router.routes:
-    app.router.routes.append(route)
-
-for route in writing_router.routes:
-    app.router.routes.append(route)
+app.include_router(quiz_router)
+app.include_router(writing_router)
 
 # 개인화 API 등록
 app.include_router(writing_preferences_router)

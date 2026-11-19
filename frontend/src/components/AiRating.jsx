@@ -29,7 +29,7 @@ const COMMENT_MAX = 100; // 한 줄 의견 최대 글자 수
 //  - title: 상자 제목 (예: "이 AI 초안은 어땠나요?")
 //  - user: 로그인한 회원 (평가를 회원별로 저장)
 //  - kind: "draft"(초안) / "feedback"(피드백)
-//  - model: "clova" / "common" / "personal" (어떤 AI가 만든 결과인지)
+//  - model: "common" / "personal" (어떤 AI가 만든 결과인지)
 //  - documentId: 지금 글 번호 (없으면 null)
 //  - resultText: AI가 만든 결과 글 / requestText: AI에게 보낸 원래 글
 function AiRating({ title, user, kind, model, documentId, resultText, requestText }) {

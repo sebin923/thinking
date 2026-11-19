@@ -1,7 +1,6 @@
 import { FREE_DAILY_AI_USES } from "../data/aiCredits";
 
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 export const EMPTY_AI_USAGE = Object.freeze({
   used: 0, limit: FREE_DAILY_AI_USES, remaining: 0, credits: 0, unlimited: false,
 });

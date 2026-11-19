@@ -1,0 +1,17 @@
+[Unit]
+Description=Thinking FastAPI backend (separate GPU API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace the user and all /opt/thinking paths for your existing EC2 checkout.
+User=ubuntu
+WorkingDirectory=/opt/thinking/backend
+EnvironmentFile=/opt/thinking/backend/.env
+ExecStart=/opt/thinking/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -24,13 +24,13 @@ import {
 import PageHero from "../components/PageHero";
 // AI 초안·피드백 결과 아래에 붙는 별점 평가 상자
 import AiRating from "../components/AiRating";
-// 글쓰기 AI 하루 무료 횟수(3회) 세기
+// 무료 횟수와 충전 이용권은 서버에서 확인하고 성공한 요청만 차감한다.
 import { canUseAi, EMPTY_AI_USAGE } from "../api/aiUsage";
 import useAiUsage from "../hooks/useAiUsage";
 import "./WritingPage.css";
 import "./WritingPageCustom.css";
 import "./WritingCompare.css";
-const API_BASE_URL = "http://localhost:8000";
+import { API_BASE_URL } from "../api/baseUrl";
 const TITLE_MAX = 50;
 const BODY_MAX = 2000;
 const DRAFT_KEY_PREFIX = "saenggak-hanjul-draft";
@@ -92,10 +92,10 @@ function documentToDraft(doc) {
     fromServer: true,
   };
 }
-function countText(html) {
+function htmlToText(html) {
   const temp = document.createElement("div");
   temp.innerHTML = html || "";
-  return temp.textContent.trim().length;
+  return temp.textContent.trim();
 }
 function splitForCompare(text) {
   return (text || "").match(/\s+|[^\s]+/g) || [];
@@ -193,19 +193,10 @@ function WritingPage({
   onWritingStateChange,
   onCharge, // 무료 횟수와 이용권을 다 썼을 때 "이용권 충전" 버튼 → 결제 화면으로
 }) {
-  // =============================================================
-  // AI 이용 횟수 규칙 (이용약관 제7조와 같음)
-  //   ① 하루 무료 3회를 먼저 씀
-  //   ② 무료 3회를 다 쓰면 → 보유 이용권(결제로 충전한 횟수)에서 1회씩 차감
-  //   ③ 무료도 이용권도 없으면 → AI 버튼을 막고 "이용권 충전" 안내
-  //   ※ 요청이 실패하면 무료 횟수도 이용권도 줄지 않음
-  //   ※ 이용권을 실제로 1 줄이는 건 서버(백엔드)가 함 → 화면은 성공한 뒤 서버에서 남은 개수를 다시 받아 옴
-  // =============================================================
-
   const quota = useAiUsage(auth?.token);
   const aiUsage = quota.usage || EMPTY_AI_USAGE;
   const aiCredits = quota.usage ? aiUsage.credits : null;
-  const aiLimitReached = Boolean(quota.usage && aiUsage.remaining <= 0);
+  const aiLimitReached = Boolean(quota.usage && !canUseAi(aiUsage));
   const quotaLoading = Boolean(auth?.token && !quota.usage);
   const checkAiQuota = async () => {
     if (!auth?.token) {
@@ -220,36 +211,20 @@ function WritingPage({
     return true;
   };
 
-  const aiBlocked = quotaLoading || Boolean(quota.usage && !canUseAi(aiUsage));
-  const usingCredits = aiLimitReached && aiCredits > 0 && !aiUsage.unlimited;
-  const markAiUsed = (usage) => quota.apply(usage);
-
-  // AI 요청이 실패했을 때 보여 줄 에러 만들기
-  //  - 402: 서버가 "무료 횟수도 이용권도 없음"이라고 거절 → 이용권 개수를 다시 받아 오고 충전 안내
-  //  - 그 밖: 서버가 보낸 이유(detail)를 그대로, 없으면 fallback 문구
-  const makeAiError = (response, data, fallback) => {
-    if (response.status === 402) {
-      quota.refresh().catch(() => {});
-      return new Error(
-        typeof data?.detail === "string" ? data.detail : "오늘 무료 횟수와 이용권을 모두 썼어요. 이용권을 충전해 주세요."
-      );
-    }
-    return new Error(typeof data?.detail === "string" ? data.detail : fallback);
-  };
-
   const [pendingAiDraft, setPendingAiDraft] = useState(null);
+  const [pendingAiChecks, setPendingAiChecks] = useState([]);
+  const [pendingAiReviewOnly, setPendingAiReviewOnly] = useState(false);
   const [pendingAiOriginal, setPendingAiOriginal] = useState("");
   // ----- 별점 평가용 -----
-  // pendingAiModel: 지금 보이는 AI 초안을 만든 AI ("clova" / "common" 공통 LLM / "personal" 개인화 LLM)
-  const [pendingAiModel, setPendingAiModel] = useState("clova");
+  // pendingAiModel: 지금 보이는 AI 초안을 만든 AI ("common" 공통 Qwen / "personal" 개인화 Qwen)
+  const [pendingAiModel, setPendingAiModel] = useState("common");
   // aiResultCount: AI 결과(초안·피드백)가 새로 나올 때마다 +1
   //   → 별점 상자의 key로 써서, 새 결과가 나오면 별점 상자가 처음부터 다시 시작되게 함
   const [aiResultCount, setAiResultCount] = useState(0);
   // feedbackRequestText: AI 피드백을 요청할 때 보낸 본문 (평가 저장 때 같이 남김)
   const [feedbackRequestText, setFeedbackRequestText] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
-  const [commonDraftLoading, setCommonDraftLoading] = useState(false);
-  const [personalDraftLoading, setPersonalDraftLoading] = useState(false);
+  const [draftMode, setDraftMode] = useState("common");
   const [draft] = useState(() => {
     const saved = loadDraft(auth?.user?.user_id);
     if (!initialDocument) {
@@ -273,7 +248,8 @@ function WritingPage({
   const [customType, setCustomType] = useState(draft?.customType || "");
   const selectedDocumentType = writingType === "기타" ? customType.trim() : writingType;
   const [title, setTitle] = useState(draft?.title || "");
-  const [bodyLength, setBodyLength] = useState(() => countText(draft?.html));
+  const [editorText, setEditorText] = useState(() => htmlToText(draft?.html));
+  const bodyLength = editorText.length;
   const [toast, setToast] = useState(() => {
     if (!draft) return "";
     if (draft.fromIdea) return "메인에서 적은 생각을 본문에 넣어 두었어요.";
@@ -292,17 +268,17 @@ function WritingPage({
   const editorRef = useRef(null);
   const toastTimerRef = useRef(null);
   // 두 AI 기능의 지적 문장을 같은 방식으로 본문에 표시합니다.
-  const refreshEditorHighlights = () => {
+  const refreshEditorHighlights = useCallback(() => {
     const phrases = [
       ...(feedback?.highlights || []).map((item) => item.original_text),
       ...(pendingAiDraft === null ? [] : getDraftChangedPhrases(pendingAiOriginal, pendingAiDraft)),
     ];
     highlightEditorMatches(editorRef.current, phrases);
-  };
+  }, [feedback, pendingAiDraft, pendingAiOriginal]);
   useEffect(() => {
     refreshEditorHighlights();
     return () => CSS?.highlights?.delete("writing-ai-issues");
-  }, [feedback, pendingAiDraft, pendingAiOriginal]);
+  }, [refreshEditorHighlights]);
   const showToast = (message) => {
     setToast(message);
     clearTimeout(toastTimerRef.current);
@@ -312,7 +288,7 @@ function WritingPage({
     if (draft?.resumedFromSettings) {
       try {
         localStorage.removeItem(getDraftKey(auth?.user?.user_id));
-      } catch {
+      } catch { // 저장소를 사용할 수 없으면 메모리의 현재 글을 유지한다.
       }
     }
   }, [draft, auth?.user?.user_id]);
@@ -332,7 +308,7 @@ function WritingPage({
       setUndoAiHtml(null);
       setRedoAiHtml(null);
     }
-    setBodyLength(editorRef.current.innerText.trim().length);
+    setEditorText(editorRef.current.innerText.trim());
     setDirty(true);
     refreshEditorHighlights();
   };
@@ -350,9 +326,6 @@ function WritingPage({
   };
   const getBodyText = () => {
     return editorRef.current?.innerText?.trim() || "";
-  };
-  const getBodyHtml = () => {
-    return editorRef.current?.innerHTML || "";
   };
   // 현재 글 임시저장
   const saveBrowserDraft = useCallback(() => {
@@ -374,7 +347,7 @@ function WritingPage({
       console.error("임시저장 실패:", error);
       return false;
     }
-  }, [auth?.user?.user_id, title, writingType, customType, documentId, isComplete, savedVersion, createdHere, dirty]);
+  }, [auth, title, writingType, customType, documentId, isComplete, savedVersion, createdHere, dirty]);
   useEffect(() => {
     onWritingStateChange?.({ documentId, savedVersion, isComplete, createdHere, dirty, saveDraft: saveBrowserDraft });
   }, [documentId, savedVersion, isComplete, createdHere, dirty, onWritingStateChange, saveBrowserDraft]);
@@ -450,7 +423,7 @@ function WritingPage({
   };
   // AI 문장을 본문에 적용
   const applyAiText = (value) => {
-    if (isComplete || !editorRef.current) return;
+    if (isComplete || draftLoading || feedbackLoading || !editorRef.current) return;
     if (value.length > BODY_MAX) {
       showToast(`본문은 ${BODY_MAX}자 이하만 적용할 수 있습니다.`);
       return;
@@ -463,7 +436,7 @@ function WritingPage({
   };
   // AI 적용 전 상태로 돌아가기
   const undoAiApply = () => {
-    if (isComplete || undoAiHtml === null || !editorRef.current) return;
+    if (isComplete || draftLoading || feedbackLoading || undoAiHtml === null || !editorRef.current) return;
     setRedoAiHtml(editorRef.current.innerHTML);
     editorRef.current.innerHTML = undoAiHtml;
     setUndoAiHtml(null);
@@ -472,7 +445,7 @@ function WritingPage({
   };
   // 취소한 AI 수정안 다시 적용
   const redoAiApply = () => {
-    if (isComplete || redoAiHtml === null || !editorRef.current) return;
+    if (isComplete || draftLoading || feedbackLoading || redoAiHtml === null || !editorRef.current) return;
     setUndoAiHtml(editorRef.current.innerHTML);
     editorRef.current.innerHTML = redoAiHtml;
     setRedoAiHtml(null);
@@ -498,7 +471,7 @@ function WritingPage({
   };
   // AI 초안 요청
   const handleAiDraft = async () => {
-    if (draftLoading || commonDraftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
+    if (draftLoading || feedbackLoading || isComplete) return;
     const originalAtRequest = getBodyText();
     setDraftLoading(true);
     try {
@@ -507,7 +480,7 @@ function WritingPage({
       const targetDocumentId = await createDocumentIfNeeded();
       await saveThoughtFromIdea(targetDocumentId);
       const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-ai`,
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/${draftMode === "personal" ? "draft-personal-ai" : "draft-ai"}`,
         {
           method: "POST",
           headers: getAuthHeaders()
@@ -519,103 +492,26 @@ function WritingPage({
       }
       const data = await response.json();
       setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content || "");
-      setPendingAiModel("clova"); // 별점 평가용: CLOVA가 만든 초안
+      if (typeof data.content !== "string" || !data.content.trim()) {
+        throw new Error("AI가 빈 초안을 반환했습니다.");
+      }
+      if (draftMode === "personal" && data.personalized !== true) {
+        throw new Error("개인화 모델이 적용되지 않았습니다.");
+      }
+      setPendingAiDraft(data.content);
+      setPendingAiChecks(Array.isArray(data.checks) ? [...new Set(data.checks.filter((item) => typeof item === "string" && item.trim()))] : []);
+      setPendingAiReviewOnly(data.local_review_only === true || ["application_service_20261119", "curated_over1000_20261119"].includes(data.loaded_identity?.profile));
+      setPendingAiModel(draftMode);
       setAiResultCount((n) => n + 1);
-      markAiUsed(data.usage);
+      quota.apply(data.usage);
       setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
       showToast("AI 초안 작성 완료");
     } catch (error) {
       console.error(error);
+      quota.refresh().catch(() => {});
       showToast(error.message || "AI 초안 작성 실패");
     } finally {
       setDraftLoading(false);
-    }
-  };
-  // 공통 Qwen SFT 초안 요청 (기존 CLOVA 기능은 유지)
-  const handleCommonAiDraft = async () => {
-    if (commonDraftLoading || draftLoading || personalDraftLoading || feedbackLoading || isComplete) return;
-    if (!auth?.token) {
-      showToast("로그인이 필요합니다.");
-      return;
-    }
-    const originalAtRequest = getBodyText();
-    setCommonDraftLoading(true);
-    try {
-      if (!(await checkAiQuota())) return;
-      setApiMessage("");
-      const targetDocumentId = await createDocumentIfNeeded();
-      await saveThoughtFromIdea(targetDocumentId);
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-common-ai`,
-        { method: "POST", headers: getAuthHeaders() }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw makeAiError(response, data, "공통 LLM 초안 생성 실패");
-      }
-      if (typeof data.content !== "string" || !data.content.trim()) {
-        throw new Error("공통 LLM이 빈 초안을 반환했습니다.");
-      }
-      setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content);
-      setPendingAiModel("common"); // 별점 평가용: 공통 LLM이 만든 초안
-      setAiResultCount((n) => n + 1);
-      markAiUsed(data.usage);
-      setApiMessage("");
-    } catch (error) {
-      console.error("공통 LLM 초안 오류:", error);
-      showToast(error.message || "공통 LLM 호출 실패");
-    } finally {
-      setCommonDraftLoading(false);
-    }
-  };
-  // 사용자별 LoRA 초안 요청: 기존 본문을 변경하지 않고 비교 패널에만 표시
-  const handlePersonalAiDraft = async () => {
-    if (personalDraftLoading || commonDraftLoading || draftLoading || feedbackLoading || isComplete) return;
-    if (!["보고서", "자기소개서", "발표문", "자유 글쓰기"].includes(selectedDocumentType)) {
-      showToast("개인화 LLM은 보고서와 자기소개서만 지원합니다.");
-      return;
-    }
-    if (!auth?.token) {
-      showToast("로그인이 필요합니다.");
-      return;
-    }
-    const originalAtRequest = getBodyText();
-    setPersonalDraftLoading(true);
-    try {
-      if (!(await checkAiQuota())) return;
-      setApiMessage("");
-      const targetDocumentId = await createDocumentIfNeeded();
-      // 본문이나 초기 생각이 있는 경우 기존 공통 LLM과 동일하게 전달
-      if ((idea || originalAtRequest).trim()) {
-        await saveThoughtFromIdea(targetDocumentId);
-      }
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-personal-ai`,
-        { method: "POST", headers: getAuthHeaders() }
-      );
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw makeAiError(response, data, "개인화 LLM 초안 생성 실패");
-      }
-      if (!data.personalized) {
-        throw new Error("개인화 모델이 적용되지 않았습니다.");
-      }
-      if (typeof data.content !== "string" || !data.content.trim()) {
-        throw new Error("개인화 LLM이 빈 초안을 반환했습니다.");
-      }
-      setPendingAiOriginal(originalAtRequest);
-      setPendingAiDraft(data.content);
-      setPendingAiModel("personal"); // 별점 평가용: 개인화 LLM이 만든 초안
-      setAiResultCount((n) => n + 1);
-      markAiUsed(data.usage);
-      setApiMessage("");
-    } catch (error) {
-      console.error("개인화 LLM 초안 오류:", error);
-      showToast(error.message || "개인화 LLM 호출 실패");
-    } finally {
-      setPersonalDraftLoading(false);
     }
   };
   // 글 버전 저장
@@ -663,7 +559,7 @@ function WritingPage({
   };
   // AI 피드백 요청
   const handleAiFeedback = async () => {
-    if (feedbackLoading || draftLoading || commonDraftLoading || isComplete) return;
+    if (feedbackLoading || draftLoading || isComplete) return;
     const bodyText = getBodyText();
     if (!title.trim() || !bodyText) {
       showToast("제목과 본문을 먼저 작성해 주세요.");
@@ -707,11 +603,12 @@ function WritingPage({
       setFeedback(result.feedback);
       setFeedbackRequestText(bodyText); // 별점 평가용: 피드백을 요청한 본문
       setAiResultCount((n) => n + 1);
-      markAiUsed(result.usage);
+      quota.apply(result.usage);
       setApiMessage("");
       showToast("AI 피드백이 완료되었습니다.");
     } catch (error) {
       console.error("AI 피드백 오류:", error);
+      quota.refresh().catch(() => {});
       showToast(error.message || "AI 피드백 요청 실패");
     } finally {
       setFeedbackLoading(false);
@@ -854,9 +751,15 @@ function WritingPage({
                   type="button"
                   className="writing-settings-button writing-version-button"
                   onClick={handleSaveVersion}
-                  disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}
+                  disabled={feedbackLoading || draftLoading || isComplete}
                 >
                   <FileText size={16} /> 버전 저장
+                </button>
+                <button type="button" className="writing-settings-button writing-version-button" onClick={handleSaveDraft} disabled={draftLoading || feedbackLoading || isComplete}>
+                  임시저장
+                </button>
+                <button type="button" className="writing-settings-button writing-version-button" onClick={handleLoadDrafts} disabled={!documentId || draftLoading || feedbackLoading}>
+                  저장 버전 보기
                 </button>
               </div>
               {writingType === "기타" && (
@@ -895,10 +798,10 @@ function WritingPage({
             <div className="writing-body-heading">
               <span className="field-label" id="writing-body-label">본문</span>
               <div className="writing-body-actions">
-                <button type="button" className="writing-compare-copy" onClick={undoAiApply} disabled={isComplete || undoAiHtml === null}>
+                <button type="button" className="writing-compare-copy" onClick={undoAiApply} disabled={isComplete || draftLoading || feedbackLoading || undoAiHtml === null}>
                   <Undo2 size={14} /> 실행 취소
                 </button>
-                <button type="button" className="writing-compare-copy" onClick={redoAiApply} disabled={isComplete || redoAiHtml === null}>
+                <button type="button" className="writing-compare-copy" onClick={redoAiApply} disabled={isComplete || draftLoading || feedbackLoading || redoAiHtml === null}>
                   <Redo2 size={14} /> 다시 실행
                 </button>
                 <button type="button" className="writing-compare-copy" onClick={() => copyText(getBodyText(), "본문")} disabled={bodyLength === 0}>
@@ -918,6 +821,7 @@ function WritingPage({
                         type="button"
                         className="toolbar-button"
                         title={tool.label}
+                        disabled={isComplete || draftLoading || feedbackLoading}
                         aria-label={tool.label}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => handleToolbar(tool.command)}
@@ -931,7 +835,7 @@ function WritingPage({
               <div
                 ref={editorRef}
                 className={bodyLength === 0 ? "editor is-empty" : "editor"}
-                contentEditable={!isComplete}
+                contentEditable={!isComplete && !draftLoading && !feedbackLoading}
                 suppressContentEditableWarning
                 onInput={handleBodyInput}
                 role="textbox"
@@ -952,7 +856,7 @@ function WritingPage({
                 {quota.usage && !aiUsage.unlimited && (
                   // 위: 오늘 남은 무료 횟수 / 아래: 내가 가진 이용권 개수
                   <div className="writing-ai-quota-group">
-                    <span className={aiLimitReached ? "writing-ai-quota empty" : "writing-ai-quota"}>
+                    <span className={aiUsage.remaining <= 0 ? "writing-ai-quota empty" : "writing-ai-quota"}>
                       오늘 무료 <strong>{aiUsage.remaining}</strong>/{aiUsage.limit}회 남음
                     </span>
                     {aiCredits !== null && (
@@ -960,13 +864,7 @@ function WritingPage({
                         <Ticket size={14} aria-hidden="true" />
                         {/* 글자를 span 하나로 묶어야 숫자와 "회" 사이가 안 벌어짐 (아이콘과의 간격만 gap 적용) */}
                         <span>
-                          {aiCredits === "error" ? (
-                            "보유 이용권 확인 불가"
-                          ) : (
-                            <>
-                              보유 이용권 <strong>{aiCredits.toLocaleString("ko-KR")}</strong>회
-                            </>
-                          )}
+                          보유 이용권 <strong>{aiCredits.toLocaleString("ko-KR")}</strong>회
                         </span>
                       </span>
                     )}
@@ -974,27 +872,20 @@ function WritingPage({
                 )}
               </div>
               <p className="writing-ai-tools-subtitle">
-                필요한 기능만 선택하세요. AI 사용은 필수가 아닙니다. (AI 기능은 종류와 상관없이 하루 {aiUsage.limit}회까지 무료,
-                그다음부터는 이용권이 1회씩 차감돼요)
+                필요한 기능만 선택하세요. 하루 {aiUsage.limit}회 무료 이용 후에는 보유 이용권이 1회씩 차감돼요.
               </p>
               {quotaLoading && !quota.error && <p role="status">AI 이용 횟수를 확인하고 있어요.</p>}
               {quota.error && (
                 <p role="status">{quota.error}{" "}<button type="button" onClick={() => quota.refresh().catch(() => {})}>다시 확인</button></p>
               )}
-              {/* 무료를 다 썼지만 이용권이 있을 때: 막지 않고 "지금부터 이용권 차감" 안내만 */}
-              {usingCredits && (
-                <div className="writing-ai-limit credit" role="status">
-                  <p>
-                    <strong>오늘 무료 {aiUsage.limit}회를 다 써서 지금부터는 이용권을 써요.</strong>
-                    <span>AI 기능을 쓸 때마다 보유 이용권이 1회씩 차감돼요. (실패하면 차감되지 않아요)</span>
-                  </p>
-                </div>
+              {quota.usage && !aiUsage.unlimited && aiUsage.remaining === 0 && aiCredits > 0 && (
+                <p role="status">무료 횟수를 모두 사용했어요. 지금부터 보유 이용권이 1회씩 차감돼요.</p>
               )}
-              {/* 무료도 이용권도 없을 때: AI 버튼을 막고 충전 안내 */}
-              {aiBlocked && (
+              {/* 무료 횟수를 다 썼을 때 안내 + 이용권 충전 */}
+              {aiLimitReached && (
                 <div className="writing-ai-limit" role="status">
                   <p>
-                    <strong>오늘 무료 AI {aiUsage.limit}회를 모두 썼어요.</strong>
+                    <strong>오늘 무료 횟수와 보유 이용권을 모두 썼어요.</strong>
                     <span>내일 다시 {aiUsage.limit}회가 생겨요. 지금 더 쓰려면 이용권을 충전해 주세요.</span>
                   </p>
                   {onCharge && (
@@ -1004,16 +895,22 @@ function WritingPage({
                   )}
                 </div>
               )}
+              <label className="writing-ai-model">
+                초안 작성 방식{" "}
+                <select value={draftMode} onChange={(event) => setDraftMode(event.target.value)} disabled={draftLoading || feedbackLoading || isComplete}>
+                  <option value="common">내 설정을 반영한 AI</option>
+                  <option value="personal">내 문체를 학습한 AI</option>
+                </select>
+                {draftMode === "personal" && <small>개인화 학습을 마친 계정에서 이용할 수 있어요.</small>}
+              </label>
               <div className="writing-ai-tool-buttons">
                 <button
                   type="button"
                   className="writing-ai-tool-button"
                   onClick={handleAiDraft}
                   disabled={
-                    aiBlocked ||
+                    aiLimitReached || quotaLoading ||
                     draftLoading ||
-                    commonDraftLoading ||
-                    personalDraftLoading ||
                     feedbackLoading ||
                     isComplete
                   }
@@ -1032,10 +929,8 @@ function WritingPage({
                   className="writing-ai-tool-button"
                   onClick={handleAiFeedback}
                   disabled={
-                    aiBlocked ||
+                    aiLimitReached || quotaLoading ||
                     draftLoading ||
-                    commonDraftLoading ||
-                    personalDraftLoading ||
                     feedbackLoading ||
                     isComplete
                   }
@@ -1054,6 +949,13 @@ function WritingPage({
               <section className="writing-ai-draft-preview writing-compare-panel" aria-label="AI 초안 비교">
                 <h3>AI 초안 비교</h3>
                 <p>빨간색은 변경된 내용입니다. 왼쪽 본문에도 변경 제안 부분이 빨간 밑줄로 표시됩니다.</p>
+                {(pendingAiReviewOnly || pendingAiChecks.length > 0) && (
+                  <div className="writing-ai-checks" role="status" aria-label="초안 확인 사항">
+                    <strong>적용 전 확인해 주세요</strong>
+                    {pendingAiReviewOnly && <p>검토용 모델의 초안입니다. 입력 메모와 비교해 행동 주체, 수치와 완료 여부를 확인해 주세요.</p>}
+                    {pendingAiChecks.length > 0 && <ul>{pendingAiChecks.map((item) => <li key={item}>{item}</li>)}</ul>}
+                  </div>
+                )}
                 <div className="writing-compare-grid">
                   <div className="writing-compare-card">
                     <div className="writing-compare-card-heading"><strong>현재 원문</strong>
@@ -1070,7 +972,7 @@ function WritingPage({
                 </div>
                 <div className="writing-ai-preview-actions">
                   <button type="button" className="btn-outline" onClick={() => setPendingAiDraft(null)}>닫기</button>
-                  <button type="button" className="btn-primary" disabled={isComplete} onClick={() => {
+                  <button type="button" className="btn-primary" disabled={isComplete || draftLoading || feedbackLoading} onClick={() => {
                     applyAiText(pendingAiDraft);
                     if (pendingAiDraft.length <= BODY_MAX) setPendingAiDraft(null);
                   }}>AI 초안 본문에 적용</button>
@@ -1089,7 +991,7 @@ function WritingPage({
               </section>
             )}
             <div className="writing-actions writing-save-actions">
-              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || commonDraftLoading || isComplete}>
+              <button type="button" className="btn-primary" onClick={handleComplete} disabled={feedbackLoading || draftLoading || isComplete}>
                 <Check size={18} /> {isComplete ? "저장 완료" : "최종 저장"}
               </button>
             </div>
@@ -1141,11 +1043,11 @@ function WritingPage({
                   feedback.highlights.map((item, index) => {
                     const revised = item.revised_text || item.corrected_text || item.suggested_text || item.replacement_text || "";
                     const canApply = Boolean(
-                      !isComplete && item.original_text?.trim() && revised.trim() &&
+                      !isComplete && !draftLoading && !feedbackLoading && item.original_text?.trim() && revised.trim() &&
                       item.original_text.trim() !== revised.trim() &&
                       !/\[[^\]]+\]/.test(revised) &&
-                      getBodyText().includes(item.original_text.trim()) &&
-                      getBodyText().replace(item.original_text.trim(), revised.trim()).length <= BODY_MAX
+                      editorText.includes(item.original_text.trim()) &&
+                      editorText.replace(item.original_text.trim(), revised.trim()).length <= BODY_MAX
                     );
                     return (
                       <div className="ai-feedback-item writing-feedback-compare" key={index}>
@@ -1176,7 +1078,7 @@ function WritingPage({
                   title="이 AI 피드백은 도움이 됐나요?"
                   user={auth?.user}
                   kind="feedback"
-                  model="clova"
+                  model="common"
                   documentId={documentId}
                   resultText={feedback.overall_feedback || ""}
                   requestText={feedbackRequestText}

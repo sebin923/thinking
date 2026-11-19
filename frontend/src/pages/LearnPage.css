@@ -1630,3 +1630,21 @@
   opacity: 0.35;
   cursor: not-allowed;
 }
+.wp-recommendation {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.wp-recommendation button {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wp-recommendation p {
+  margin: 0;
+  color: #5c6472;
+  line-height: 1.6;
+}

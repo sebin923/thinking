@@ -1,3 +1,4 @@
+import { API_BASE_URL as API_URL } from "../api/baseUrl";
 // =============================================================
 // QuizPage.jsx — 팀원 원본 디자인 유지 + 백엔드 데이터 연동 버전
 // -------------------------------------------------------------
@@ -112,7 +113,7 @@ function QuizPage({
   useEffect(() => {
     // category 값에 맞는 문제만 가져옴 (encodeURIComponent: 주소에 안전한 글자로 변환)
     // 문법이면 난이도도 같이 보내서 그 난이도 문제만 받음 (예: ...?category=grammar&level=easy)
-    let url = `http://localhost:8000/api/quizzes/?category=${encodeURIComponent(category)}`;
+    let url = `${API_URL}/api/quizzes/?category=${encodeURIComponent(category)}`;
     if (levelKey) url += `&level=${encodeURIComponent(levelKey)}`;
 
     fetch(url)

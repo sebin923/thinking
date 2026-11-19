@@ -446,3 +446,13 @@
 .ai-feedback-item p {
   margin: 6px 0;
 }
+.writing-ai-checks {
+  margin: 14px 0;
+  padding: 14px 18px;
+  border-left: 3px solid #a76a22;
+  background: #fff8ed;
+  color: #67451e;
+  line-height: 1.65;
+}
+.writing-ai-checks p { margin: 6px 0; }
+.writing-ai-checks ul { margin: 6px 0 0; padding-left: 22px; }

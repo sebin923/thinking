@@ -22,8 +22,7 @@
 import { LEARN_TYPES } from "../data/learn";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
-const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 // 단원 완료 기준: 글쓰기 연습 AI 채점 점수 (백엔드 routers/learn.py의 PASS_SCORE와 같은 값)
 export const LEARN_PASS_SCORE = 90;
 
@@ -206,7 +205,7 @@ async function progressRequest(user, method = "GET", body, token, suffix = "") {
       method, headers: {Authorization: `Bearer ${progressToken(user, token)}`, ...(body ? {"Content-Type":"application/json"} : {})},
       ...(body ? {body:JSON.stringify(body)} : {}),
     });
-  } catch (error) { throw new Error(error.message === "로그인이 풀렸어요. 다시 로그인해 주세요." ? error.message : "진도 서버에 연결할 수 없어요. 연결을 확인한 뒤 다시 시도해 주세요."); }
+  } catch (error) { throw new Error(error.message === "로그인이 풀렸어요. 다시 로그인해 주세요." ? error.message : "진도 서버에 연결할 수 없어요. 연결을 확인한 뒤 다시 시도해 주세요.", { cause: error }); }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(response.status === 401 ? "로그인이 풀렸어요. 다시 로그인해 주세요." : typeof data.detail === "string" ? data.detail : "진도를 저장하지 못했어요.");
   progressRevisions.set(data.progress, data.revision);
@@ -308,6 +307,29 @@ function practiceToText(practice) {
   return [`주제: ${practice.topic}`, ...(practice.facts || []).map((fact) => `- ${fact}`)].join("\n");
 }
 
+export async function recommendWritingPractice(token, { typeLabel, unit, candidates, currentPractice }) {
+  const available = candidates.filter(({ practice }) => practice.topic !== currentPractice?.topic).slice(0, 20);
+  const response = await fetch(`${API_URL}/api/learn/practice-recommendation`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      unit_id: String(unit.id), type_label: typeLabel, unit_title: unit.title,
+      task: unit.task, rules: unit.points,
+      current_topic: currentPractice?.question || currentPractice?.topic || "",
+      candidates: available.map(({ id, practice }) => ({
+        id, title: practice.topic, summary: (practice.facts || []).join(" · ").slice(0, 160),
+      })),
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "주제를 추천하지 못했어요.");
+  const practice = typeLabel === "자기소개서"
+    ? (typeof data.question === "string" && data.question.trim() ? { kind: "question", question: data.question.trim() } : null)
+    : available.find(({ id }) => id === data.candidate_id)?.practice;
+  if (!practice || typeof data.reason !== "string") throw new Error("추천 결과를 확인하지 못했어요.");
+  return { practice, reason: data.reason };
+}
+
 // 글쓰기 연습 AI 채점 받기 + 결과 저장
 export async function scoreWriting(user, token, { typeLabel, unit, practice, text }) {
   const before = await fetchLearnProgress(user);
@@ -336,6 +358,7 @@ export async function scoreWriting(user, token, { typeLabel, unit, practice, tex
         rules: unit.points,
         task: unit.task,
         material: practiceToText(practice),
+        practice,
         text: text.trim(),
       }),
     });

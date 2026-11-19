@@ -1,4 +1,4 @@
-"""CLOVA 채점 결과를 검토 후보로 수집하고 승인 데이터만 내보낸다."""
+"""Qwen 채점 결과를 검토 후보로 수집하고 승인 데이터만 내보낸다."""
 import hashlib
 import io
 import json

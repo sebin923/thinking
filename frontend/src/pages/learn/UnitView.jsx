@@ -50,6 +50,7 @@ function UnitView({
   onBack,
   onSubmitQuiz,
   onScoreWriting,
+  onRecommendPractice,
   onOpenWrongNotes,
   onNextUnit,
 }) {
@@ -289,6 +290,7 @@ function UnitView({
             completed={completed}
             best={unitProgress?.writingBest || 0}
             onScore={onScoreWriting}
+            onRecommend={onRecommendPractice}
             onNextUnit={onNextUnit}
           />
         ) : (

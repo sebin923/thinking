@@ -6,6 +6,9 @@
 --epochs 3: 3에포크 이내 비교 실험. 매 에포크 어댑터와 검증 응답을 별도 저장.
 매번 기본 모델에서 시작한다. 이전 어댑터나 체크포인트를 이어받지 않는다.
 test.jsonl은 학습 및 검증 손실 계산에 사용하지 않는다.
+검증 손실은 전체 valid로 계산하고, 답변 생성만 기본 유형별 3건으로 제한한다.
+--generation-per-type 0: 검증 답변 전체 생성(느림).
+--generation-reference 이전/epoch_comparison.json: 같은 검증 문항 번호로 답변 비교.
 """
 import argparse
 import hashlib
@@ -40,6 +43,45 @@ def resolve_eos_ids(model_eos, tokenizer):
     if not values:
         raise ValueError('종료 토큰을 찾지 못했습니다.')
     return values
+
+
+def select_generation_rows(rows, per_type=3):
+    """입력 해시 순으로 유형별 고정 표본 선택. 학습 RNG와 전체 검증 자료는 변경하지 않는다."""
+    if per_type < 0:
+        raise ValueError('--generation-per-type은 0 이상이어야 합니다.')
+    groups = {}
+    for index, row in enumerate(rows):
+        content = row['prompt'][-1]['content']
+        match = re.search(r'^글 유형:\s*([^\n]+)', content, re.MULTILINE)
+        genre = match.group(1).strip() if match else '미분류'
+        digest = hashlib.sha256(json.dumps(row['prompt'], ensure_ascii=False,
+                                          sort_keys=True).encode('utf-8')).hexdigest()
+        groups.setdefault(genre, []).append((digest, index))
+    indices = sorted(index for group in groups.values()
+                     for _, index in (sorted(group)[:per_type] if per_type else group))
+    counts = {genre: min(len(group), per_type) if per_type else len(group)
+              for genre, group in groups.items()}
+    return [rows[i] for i in indices], [i + 1 for i in indices], counts
+
+
+def select_reference_rows(rows, reference_path):
+    """Reuse validation scenarios from a previous run, including revised prompts."""
+    reference = json.loads(reference_path.read_text(encoding='utf-8-sig'))
+    numbers = reference['metadata']['generation_sample']['source_valid_numbers']
+    prompts = reference['validation_prompts']
+    if (not numbers or len(numbers) != len(set(numbers)) or len(numbers) != len(prompts)
+            or any(type(n) is not int or n < 1 or n > len(rows) for n in numbers)):
+        raise ValueError('비교 실험의 검증 문항 번호가 유효하지 않습니다.')
+    selected = [rows[n - 1] for n in numbers]
+    counts = {}
+    for row, old in zip(selected, prompts):
+        content = row['prompt'][-1]['content']
+        if not content.startswith(old['prompt'][-1]['content'].strip()):
+            raise ValueError('이전 실험과 검증 문항 순서 또는 자료가 다릅니다.')
+        match = re.search(r'^글 유형:\s*([^\n]+)', content, re.MULTILINE)
+        genre = match.group(1).strip() if match else '미분류'
+        counts[genre] = counts.get(genre, 0) + 1
+    return selected, numbers, counts
 
 
 class EpochMonitor(TrainerCallback):
@@ -97,7 +139,9 @@ class EpochMonitor(TrainerCallback):
                     )
                     generated = output[0, inputs['input_ids'].shape[1]:].tolist()
                     text = tok.decode(generated, skip_special_tokens=True)
-                    answer = {'number': index, 'text': text, 'chars': len(text.strip()),
+                    answer = {'number': index,
+                              'source_valid_number': self.metadata['generation_sample']['source_valid_numbers'][index - 1],
+                              'text': text, 'chars': len(text.strip()),
                               'tokens': len(generated),
                               'ended_with_eos': bool(generated and generated[-1] in eos_ids),
                               'eos_token_ids': eos_ids,
@@ -118,17 +162,23 @@ class EpochMonitor(TrainerCallback):
         (self.output / 'epoch_comparison.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
         lines = ['에포크별 검증 응답 비교', f'실험 폴더: {self.output}',
                  'epoch 0은 초기 LoRA(기본 모델과 같은 초기 출력)입니다.',
+                 f'검증 손실: 전체 {self.metadata["data"]["valid"]["count"]}건 / 답변 생성: 고정 표본 {len(self.rows)}건',
                  '같은 검증 입력과 greedy 설정으로 비교합니다. 분량 통과는 품질 합격이 아닙니다.',
                  '학습 기간에 맞춰 선형 학습률 감소도 늘어나므로 이전 1에포크 실험과 첫 에포크가 완전히 같지는 않습니다.', '']
         for key, snap in self.snapshots.items():
             successes = 0
+            eligible = 0
             for answer in snap['responses']:
                 prompt = self.rows[answer['number'] - 1]['prompt'][-1]['content']
                 bounds = re.search(r'(\d+)\s*[~～∼–-]\s*(\d+)\s*자', prompt)
-                successes += int(bool(bounds and int(bounds[1]) <= answer['chars'] <= int(bounds[2])))
-            lines.append(f'epoch {key}: 검증 손실 {(snap["metrics"] or {}).get("eval_loss")} / 분량 충족 {successes}/{len(snap["responses"])}')
+                if bounds:
+                    eligible += 1
+                    successes += int(int(bounds[1]) <= answer['chars'] <= int(bounds[2]))
+            length_result = f'{successes}/{eligible}' if eligible else '해당 없음'
+            lines.append(f'epoch {key}: 검증 손실 {(snap["metrics"] or {}).get("eval_loss")} / 분량 충족 {length_result} / 분량 조건 없음 {len(snap["responses"]) - eligible}건')
         for index, row in enumerate(self.rows, 1):
-            lines.extend(['', f'===== 검증 {index} =====', '[입력]',
+            lines.extend(['', f'===== 검증 {index} =====',
+                          f'원본 valid 번호: {self.metadata["generation_sample"]["source_valid_numbers"][index - 1]}', '[입력]',
                           json.dumps(row['prompt'], ensure_ascii=False, indent=2)])
             for key, snap in self.snapshots.items():
                 answer = next((x for x in snap['responses'] if x['number'] == index), None)
@@ -201,7 +251,13 @@ def main():
     parser.add_argument('--epochs', type=int, choices=[1, 2, 3], default=1)
     parser.add_argument('--data-dir', type=Path, default=Path('data/qwen35'),
                         help='train.jsonl과 valid.jsonl이 있는 폴더. 상대 경로는 이 스크립트 기준.')
+    parser.add_argument('--generation-per-type', type=int, default=3,
+                        help='에포크별 답변 생성 유형당 건수. 기본 3, 0이면 전체. 검증 손실은 항상 전체 자료.')
+    parser.add_argument('--generation-reference', type=Path,
+                        help='이전 epoch_comparison.json의 검증 문항 번호 유지. 상대 경로는 스크립트 기준.')
     args = parser.parse_args()
+    if args.generation_per_type < 0:
+        parser.error('--generation-per-type은 0 이상이어야 합니다.')
     monitor_enabled = args.epochs > 1 and not args.smoke
     set_seed(42)
 
@@ -214,6 +270,18 @@ def main():
                for name, items in rows.items()}
     if answers['train'] & answers['valid']:
         raise ValueError('학습/검증 데이터에 동일한 정답이 있습니다.')
+
+    reference_path = None
+    if args.generation_reference is not None:
+        reference_path = (args.generation_reference if args.generation_reference.is_absolute()
+                          else ROOT / args.generation_reference).resolve()
+        generation_rows, generation_numbers, generation_counts = select_reference_rows(
+            rows['valid'], reference_path)
+    else:
+        generation_rows, generation_numbers, generation_counts = select_generation_rows(
+            rows['valid'], args.generation_per_type)
+    print(f'검증 손실 대상: {len(rows["valid"])}건 전체', flush=True)
+    print(f'답변 생성 표본: {len(generation_rows)}건 / 유형별 {generation_counts}', flush=True)
 
     processor = AutoProcessor.from_pretrained(MODEL_ID)
     tok = processor.tokenizer
@@ -265,12 +333,25 @@ def main():
         'fresh_lora': True, 'epochs': args.epochs, 'learning_rate': 2e-5, 'seed': 42,
         'lr_scheduler_type': 'linear', 'warmup_steps': 0 if args.smoke else 2,
         'generation_stop_policy': 'model_and_chat_eos',
+        'generation_sample': {'per_type': args.generation_per_type,
+                              'selection': 'reference_valid_numbers_v1' if reference_path else 'prompt_sha256_per_type_v1',
+                              'reference': ({'path': str(reference_path),
+                                             'sha256': hashlib.sha256(reference_path.read_bytes()).hexdigest()}
+                                            if reference_path else None),
+                              'source_valid_numbers': generation_numbers,
+                              'counts_by_type': generation_counts,
+                              'count': len(generation_rows)},
         'data': {name: {'path': str(path), 'count': len(rows[name]),
                        'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
                  for name, path in paths.items()},
         'versions': {name: version(name) for name in ('torch', 'transformers', 'peft', 'datasets', 'accelerate')},
+        'training_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
-    monitor = EpochMonitor(processor, rows['valid'], output, metadata) if monitor_enabled else None
+    manifest_path = data_dir / 'manifest.json'
+    if manifest_path.is_file():
+        metadata['data_manifest'] = {'path': str(manifest_path),
+                                     'sha256': hashlib.sha256(manifest_path.read_bytes()).hexdigest()}
+    monitor = EpochMonitor(processor, generation_rows, output, metadata) if monitor_enabled else None
     config = TrainingArguments(
         output_dir=str(output), num_train_epochs=args.epochs,
         max_steps=2 if args.smoke else -1,

@@ -10,7 +10,7 @@
 //   POST /api/ai-ratings   (로그인 필요)
 //     보내는 값: { kind, model, rating, comment, document_id, result_text, request_text }
 //       kind        : "draft"(AI 초안) / "feedback"(AI 피드백)
-//       model       : "clova"(CLOVA) / "common"(공통 LLM) / "personal"(개인화 LLM)
+//       model       : "common"(공통 LLM) / "personal"(개인화 LLM)
 //       rating      : 별점 1~5
 //       comment     : 한 줄 의견 (없으면 빈 칸)
 //       result_text : AI가 만든 결과 (초안 글 또는 피드백 요약)
@@ -69,7 +69,7 @@ export async function saveAiRating(user, rating) {
     }
 
     return result.data; // 서버에서 저장되어 반환된 데이터 (id, createdAt 포함)
-  } catch (err) {
+  } catch {
     // 서버 통신 실패 시 기존 앱 구동을 안정적으로 유지하기 위한 로컬 백업 처리
     const saved = {
       // id: 저장 시각 + 무작위 글자 (겹치지 않게)

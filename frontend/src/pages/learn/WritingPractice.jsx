@@ -4,7 +4,7 @@
 // 흐름
 //   ① 할 일(task) + 연습 자료(학습 데이터의 주제·사실, 또는 자기소개서 문항) 보여주기
 //   ② 사용자가 직접 글쓰기 (글자 수 표시)
-//   ③ "AI 채점받기" → 단원 규칙을 기준으로 AI(CLOVA)가 100점 만점으로 채점
+//   ③ "AI 채점받기" → 단원 규칙을 기준으로 Qwen이 100점 만점으로 채점
 //        - 기준별 점수(10점 만점) + 이유, 전체 평가, 다음에 고칠 점
 //   ④ 90점 이상 → 단원 완료 → 다음 단원이 열림
 //      90점 미만 → 피드백을 보고 글을 고쳐서 다시 채점 (몇 번이든 가능)
@@ -51,7 +51,10 @@ function criterionLevel(score, max) {
 //  - best: 글쓰기 최고 점수 (없으면 0)
 //  - onScore: 채점 함수 (text를 넘기면 Promise<{ result, firstComplete }>를 돌려줌)
 //  - onNextUnit: "다음 단원" 버튼 (다음 단원이 아직 잠겨 있거나 마지막 단원이면 null)
-function WritingPractice({ unit, practice, saved, completed, best, onScore, onNextUnit }) {
+function WritingPractice({ unit, practice: defaultPractice, saved, completed, best, onScore, onRecommend, onNextUnit }) {
+  const [practice, setPractice] = useState(saved?.practice || defaultPractice);
+  const [recommendation, setRecommendation] = useState("");
+  const [recommending, setRecommending] = useState(false);
   // 예전에 채점 받은 글이 있으면 그 글로 시작
   const [text, setText] = useState(saved?.text || "");
   // 지금 보여줄 채점 결과 (예전 결과가 있으면 그걸로 시작)
@@ -81,7 +84,7 @@ function WritingPractice({ unit, practice, saved, completed, best, onScore, onNe
     setScoring(true);
     setError("");
     try {
-      const scored = await onScore(text);
+      const scored = await onScore(text, practice);
       setResult(scored.result);
       setScoredText(text);
       setFirstComplete(scored.firstComplete);
@@ -89,6 +92,26 @@ function WritingPractice({ unit, practice, saved, completed, best, onScore, onNe
       setError(err.message);
     } finally {
       setScoring(false);
+    }
+  };
+
+  const handleRecommend = async () => {
+    if (recommending || scoring) return;
+    if (text.trim() && !window.confirm("주제를 바꾸면 현재 입력과 채점 결과가 초기화됩니다. 새 주제를 추천받을까요?")) return;
+    setRecommending(true);
+    setError("");
+    try {
+      const next = await onRecommend(practice);
+      setPractice(next.practice);
+      setRecommendation(next.reason);
+      setText("");
+      setResult(null);
+      setScoredText(null);
+      setFirstComplete(false);
+    } catch (err) {
+      setError(err.message || "주제를 추천하지 못했어요.");
+    } finally {
+      setRecommending(false);
     }
   };
 
@@ -105,6 +128,16 @@ function WritingPractice({ unit, practice, saved, completed, best, onScore, onNe
         <PenLine size={18} />
         <p>{unit.task}</p>
       </div>
+
+      {onRecommend && (
+        <div className="wp-recommendation">
+          <button type="button" className="btn-outline" onClick={handleRecommend} disabled={recommending || scoring}>
+            {recommending ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
+            {recommending ? "주제를 추천하는 중..." : "다른 연습 주제 추천받기"}
+          </button>
+          {recommendation && <p role="status">추천 이유: {recommendation}</p>}
+        </div>
+      )}
 
       {/* ① 연습 자료 */}
       {practice?.kind === "data" && (
@@ -154,7 +187,7 @@ function WritingPractice({ unit, practice, saved, completed, best, onScore, onNe
           onChange={(event) => setText(event.target.value)}
           rows={9}
           placeholder="이 단원에서 배운 규칙을 떠올리며 직접 써 보세요."
-          readOnly={scoring} // 채점하는 동안은 못 고치게
+          readOnly={scoring || recommending}
         />
         <span className={length > MAX_LENGTH ? "wp-length over" : "wp-length"}>{length.toLocaleString("ko-KR")}자</span>
       </label>
@@ -166,7 +199,7 @@ function WritingPractice({ unit, practice, saved, completed, best, onScore, onNe
           type="button"
           className="btn-primary"
           onClick={handleScore}
-          disabled={scoring || length < MIN_LENGTH || length > MAX_LENGTH || unchanged}
+          disabled={scoring || recommending || length < MIN_LENGTH || length > MAX_LENGTH || unchanged}
         >
           {scoring ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
           {scoring ? "AI가 채점하는 중..." : result ? "다시 채점받기" : "AI 채점받기"}

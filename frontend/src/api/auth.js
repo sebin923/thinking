@@ -26,8 +26,7 @@ const USE_MOCK = false;
 
 // 백엔드 서버 주소
 // frontend/.env 에 VITE_API_URL=http://127.0.0.1:8000 처럼 적어두면 그 값을 쓰고, 없으면 기본값
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 // =============================================================
 // 진짜 서버 요청 공통 함수
 // =============================================================

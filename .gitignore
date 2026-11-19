@@ -15,6 +15,12 @@ dist/
 
 # Local database
 *.db
+*.sqlite
+*.sqlite3
+
+# Local integration checkouts and machine-specific model selection
+/.worktrees/
+/llm_training/model_selection.json
 
 # Editor
 .vscode/
@@ -44,6 +50,11 @@ llm_training/data/
 
 # LLM secrets
 .thinking_llm_token
+/thinking_llm_token
+# Local terminal transcripts and connection notes
+/(.venv) *.txt
+/COMMON_LLM_URL=*.txt
+/desktop-*.txt
 *.pem
 
 # LLM environments and model outputs

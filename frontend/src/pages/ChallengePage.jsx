@@ -34,8 +34,7 @@ import "./QuizPage.css";
 import "./ChallengePage.css";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
+import { API_BASE_URL as API_URL } from "../api/baseUrl";
 // 랭킹에 저장할 종류 → 랭킹은 맞춤법만 있으니까 고정
 const CATEGORY = "spelling";
 

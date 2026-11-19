@@ -8,8 +8,7 @@ import PageHero from "../components/PageHero";
 // 저장 완료 팝업 스타일 (화면 전체를 살짝 어둡게 덮고 가운데에 하얀 상자)
 import "./WritingSettingPage.css";
 
-const API_BASE_URL = "http://localhost:8000";
-
+import { API_BASE_URL } from "../api/baseUrl";
 // 저장 완료 팝업을 보여준 뒤 글쓰기 화면으로 자동으로 돌아가기까지 기다리는 시간 (밀리초, 1500 = 1.5초)
 const RETURN_DELAY = 1500;
 

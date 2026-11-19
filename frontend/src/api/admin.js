@@ -12,8 +12,7 @@
 // =============================================================
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-
+import { API_BASE_URL as API_URL } from "./baseUrl";
 // ----- 서버 에러 응답에서 사람이 읽을 문구만 꺼내기 -----
 // FastAPI는 에러를 두 가지 모양으로 보냄
 //  1) { detail: "관리자만 이용할 수 있어요." }                  ← 우리가 직접 만든 에러

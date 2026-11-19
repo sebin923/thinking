@@ -72,6 +72,11 @@ export function getPracticeFor(type, unit, unitIndex) {
   return { kind: "data", ...pool[unitIndex % pool.length] };
 }
 
+export function getPracticeCandidates(type) {
+  const pool = type.practiceKey ? PRACTICE_DATA[type.practiceKey] : [];
+  return (pool || []).map((item, index) => ({ id: `${type.key}-${index}`, practice: { kind: "data", ...item } }));
+}
+
 // 유형 key로 유형 찾기 (없으면 undefined)
 export function findLearnType(key) {
   return LEARN_TYPES.find((type) => type.key === key);
