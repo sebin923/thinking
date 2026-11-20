@@ -245,6 +245,39 @@
   overflow-wrap: anywhere;   /* 아주 긴 주소(URL)도 카드 밖으로 안 넘치게 */
 }
 
+.notice-paragraph {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.notice-figure {
+  margin: 26px 0;
+  white-space: normal;
+}
+
+.notice-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line, #dce7f1);
+  border-radius: 10px;
+}
+
+.notice-figure figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 14px;
+  margin-top: 8px;
+  color: var(--text-sub);
+  font-size: 13px;
+}
+
+.notice-figure figcaption a {
+  color: var(--navy);
+  text-underline-offset: 3px;
+}
+
 /* ===================== 이용약관 · 개인정보처리방침 ===================== */
 .policy-date {
   display: inline-flex;
