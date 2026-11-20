@@ -1,7 +1,7 @@
-"""Publish the reviewed AI notice after its images and renderer are deployed.
+"""이미지 표시 기능과 비교 이미지를 배포한 뒤 검토한 AI 공지를 등록합니다.
 
-Run with the existing backend Python environment. Default is check-only.
-No passwords, tokens, roles, schemas, or other notices are changed.
+기존 백엔드 Python 환경에서 실행하며 기본 동작은 확인만 수행합니다.
+비밀번호·토큰·권한·DB 구조·다른 공지는 변경하지 않습니다.
 """
 import argparse
 from datetime import datetime, timezone
@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--web-root', type=Path, default=Path('/var/www/thinking'))
     parser.add_argument('--payload', type=Path, default=Path(__file__).parent/'notices/ai-writing-20261120.json')
     parser.add_argument('--author-id', type=int)
-    parser.add_argument('--expected-index-sha256', help='Required with --apply; use the verified image-capable build index hash')
+    parser.add_argument('--expected-index-sha256', help='실제 등록 시 필요합니다. 이미지 표시를 확인한 웹 빌드의 index.html 파일 해시를 입력하세요.')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
 
@@ -35,33 +35,33 @@ def main():
     payload = NoticeIn.model_validate(json.loads(args.payload.read_text(encoding='utf-8')))
     images = re.findall(r'^!\[[^\]\r\n]*\]\((/notice-assets/[a-zA-Z0-9/_-]+\.png)\)$', payload.content, re.M)
     if len(images) != 2 or len(set(images)) != 2:
-        raise ValueError('The reviewed notice must contain its two local comparison images')
+        raise ValueError('검토한 공지에는 사이트 내부 비교 이미지 두 장이 포함되어야 합니다.')
     for src in images:
         path = (args.web_root/src.lstrip('/')).resolve()
         if not path.is_relative_to(args.web_root.resolve()) or not path.is_file():
-            raise ValueError('Deploy both comparison images before publishing')
+            raise ValueError('공지 등록 전에 비교 이미지 두 장을 먼저 배포해 주세요.')
         if path.read_bytes()[:8] != b'\x89PNG\r\n\x1a\n':
-            raise ValueError('Comparison asset is not a PNG')
+            raise ValueError('비교 이미지가 PNG 파일이 아닙니다.')
     if args.apply:
         if not args.expected_index_sha256:
-            raise ValueError('--apply requires --expected-index-sha256 from the verified build')
+            raise ValueError('--apply로 등록할 때는 검증한 웹 빌드의 --expected-index-sha256 값이 필요합니다.')
         actual = hashlib.sha256((args.web_root/'index.html').read_bytes()).hexdigest()
         if actual != args.expected_index_sha256:
-            raise ValueError('The deployed web build does not match the verified notice renderer')
+            raise ValueError('배포된 웹 파일이 이미지 표시를 검증한 빌드와 다릅니다.')
 
     with SessionLocal() as db:
         if args.apply and db.bind.dialect.name == 'postgresql':
             db.execute(text('SELECT pg_advisory_xact_lock(71120261120)'))
         existing = db.query(models.Notice).filter(models.Notice.title == payload.title).with_for_update().all()
         if len(existing) > 1:
-            raise ValueError('Several notices have the same title; choose the intended record manually')
+            raise ValueError('같은 제목의 공지가 여러 개입니다. 수정할 공지를 직접 확인해 주세요.')
         current = existing[0] if existing else None
         admins = db.query(models.User).filter(models.User.role == 'admin', models.User.status == 'active')
         if args.author_id:
             admins = admins.filter(models.User.user_id == args.author_id)
         authors = admins.order_by(models.User.user_id).all()
         if not current and len(authors) != 1:
-            raise ValueError('Specify one active administrator with --author-id')
+            raise ValueError('--author-id로 이용 중인 관리자 한 명을 지정해 주세요.')
 
         result = {'apply': args.apply, 'title': payload.title, 'characters': len(payload.content),
                   'images': len(images), 'existing_notice_id': current.notice_id if current else None}

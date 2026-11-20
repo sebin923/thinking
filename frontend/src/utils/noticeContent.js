@@ -1,5 +1,5 @@
-// Only local raster images on a separate line are supported. All other input
-// remains plain text, including HTML and links to external hosts.
+// 별도 줄에 적은 사이트 내부 이미지만 표시합니다.
+// HTML과 외부 주소를 포함한 나머지 입력은 일반 글자로 유지합니다.
 const IMAGE_LINE = /^!\[([^\]\r\n]{0,200})\]\((\/notice-assets\/[a-zA-Z0-9/_-]+\.(?:png|jpe?g|webp))\)$/;
 
 export function parseNoticeContent(content) {
