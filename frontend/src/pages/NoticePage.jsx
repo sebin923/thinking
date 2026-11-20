@@ -18,6 +18,7 @@ import PageHero from "../components/PageHero";
 // 창만 스크롤하는 도구 (scrollIntoView를 쓰면 overflow: hidden 상자 안 내용이 밀려 올라가는 문제가 있어서)
 import scrollToElement from "../utils/scrollToElement";
 import SupportTabs from "../components/SupportTabs";
+import NoticeContent from "../components/NoticeContent";
 import { fetchNotices } from "../api/notice";
 // 로딩 아이콘이 도는 .spin 클래스가 들어 있는 파일
 import "../components/AuthLayout.css";
@@ -147,8 +148,7 @@ function NoticePage({ onNavigate }) {
             {isEdited(selected) && ` · ${formatDate(selected.updated_at)} 수정`}
           </p>
         </header>
-        {/* white-space: pre-line(CSS)으로 관리자가 넣은 줄바꿈이 그대로 보임 */}
-        <div className="notice-content">{selected.content}</div>
+        <NoticeContent content={selected.content} />
       </article>
     );
   } else if (notices.length === 0) {
