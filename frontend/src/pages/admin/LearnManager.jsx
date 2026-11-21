@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-// Plus: 문제 추가, Trash2: 문제 삭제, RotateCcw: 되돌리기, Save: 저장, Info: 안내, Loader2: 처리 중, CheckCircle2: 저장 완료
-import { Plus, Trash2, RotateCcw, Save, Info, Loader2, CheckCircle2 } from "lucide-react";
+// Plus: 문제 추가, Trash2: 문제 삭제, RotateCcw: 되돌리기, Save: 저장, Loader2: 처리 중, CheckCircle2: 저장 완료
+import { Plus, Trash2, RotateCcw, Save, Loader2, CheckCircle2 } from "lucide-react";
 
 import ConfirmModal from "../../components/ConfirmModal";
 import { fetchLearnContent, saveLearnUnit, resetLearnUnit, fetchOxQuizzes } from "../../api/learn";

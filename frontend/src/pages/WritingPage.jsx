@@ -27,6 +27,7 @@ import AiRating from "../components/AiRating";
 // 무료 횟수와 충전 이용권은 서버에서 확인하고 성공한 요청만 차감한다.
 import { canUseAi, EMPTY_AI_USAGE } from "../api/aiUsage";
 import useAiUsage from "../hooks/useAiUsage";
+import { makeAiError } from "../utils/aiError";
 import "./WritingPage.css";
 import "./WritingPageCustom.css";
 import "./WritingCompare.css";
@@ -488,7 +489,7 @@ function WritingPage({
       );
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw makeAiError(response, errorData, "AI 초안 작성 실패");
+        throw makeAiError(errorData, "AI 초안 작성 실패");
       }
       const data = await response.json();
       setPendingAiOriginal(originalAtRequest);
@@ -597,7 +598,7 @@ function WritingPage({
       );
       if (!feedbackResponse.ok) {
         const errorData = await feedbackResponse.json().catch(() => ({}));
-        throw makeAiError(feedbackResponse, errorData, "AI 피드백 요청에 실패했습니다.");
+        throw makeAiError(errorData, "AI 피드백 요청에 실패했습니다.");
       }
       const result = await feedbackResponse.json();
       setFeedback(result.feedback);

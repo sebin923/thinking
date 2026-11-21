@@ -13,7 +13,7 @@
 // 랭킹 기록은 오직 이 도전 모드에서만 저장됨 (category = "spelling")
 // =============================================================
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useEffectEvent, useRef } from "react";
 import {
   Flame,
   Swords,
@@ -24,7 +24,6 @@ import {
   Trophy,
   Heart,
   Zap,
-  ListChecks,
   Clock,
 } from "lucide-react";
 
@@ -177,31 +176,30 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
     saveRecord(finalStreak);
   };
 
-  // ----- ★ [추가] 문제별 초읽기 타이머 실행 함수 -----
+  // 시간 초과 시점의 선택과 점수를 사용한다.
+  const onTimeExpired = useEffectEvent(() => {
+    if (selected !== null) return;
+    setSelected("시간초과");
+    timerRef.current = setTimeout(() => finishGame(streak, false), NEXT_DELAY);
+  });
+
+  // 답을 고르거나 문제를 떠나면 타이머를 정리한다.
   useEffect(() => {
-    if (phase !== "playing") return;
+    if (phase !== "playing" || selected !== null) return;
 
-    // 새 문제가 나올 때마다 남은 시간 초기화
-    setTimeLeft(QUESTION_TIME_LIMIT);
-    clearInterval(questionTimerRef.current);
-
-    questionTimerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // 시간이 다 되면(=0초) 자동으로 오답 처리 후 게임 종료
-          clearInterval(questionTimerRef.current);
-          if (selected === null) {
-            setSelected("시간초과"); // 시간 초과 표시용
-            timerRef.current = setTimeout(() => finishGame(streak, false), NEXT_DELAY);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+    const deadline = Date.now() + QUESTION_TIME_LIMIT * 1000;
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        clearInterval(timer);
+        onTimeExpired();
+      }
     }, 1000);
+    questionTimerRef.current = timer;
 
-    return () => clearInterval(questionTimerRef.current);
-  }, [index, phase]);
+    return () => clearInterval(timer);
+  }, [index, phase, selected]);
 
   // ----- 도전 시작 (처음 시작 + 다시 도전 둘 다) -----
   const handleStart = () => {
@@ -213,6 +211,7 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
     setIndex(0);
     setStreak(0);
     setSelected(null);
+    setTimeLeft(QUESTION_TIME_LIMIT);
     setCleared(false);
     setSaveState("idle");
     
@@ -248,6 +247,7 @@ function ChallengePage({ user, onGoRanking, onGoLogin }) {
     timerRef.current = setTimeout(() => {
       setIndex((i) => i + 1);
       setSelected(null);
+      setTimeLeft(QUESTION_TIME_LIMIT);
     }, NEXT_DELAY);
   };
 

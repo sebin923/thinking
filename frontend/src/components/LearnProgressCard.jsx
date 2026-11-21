@@ -35,10 +35,10 @@ function LearnProgressCard({ user, onGoLearn }) {
 
   useEffect(() => {
     let ignore = false;
-    setError("");
     Promise.all([fetchLearnContent(), fetchLearnProgress(user)])
       .then(([content, progress]) => {
         if (ignore) return;
+        setError("");
         setData({ summary: summarizeProgress(content, progress), openWrong: countOpenWrong(progress) });
       })
       .catch((err) => {
