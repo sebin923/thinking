@@ -32,7 +32,7 @@ def test_three_free_uses_then_paid_uses_then_block(api):
     client, db, post = api
     prepare(db, credits=2)
     doc = document(client)
-    reply(post, "확인한 내용을 바탕으로 작성한 초안입니다.", personalized=False)
+    reply(post, "확인한 내용을 바탕으로 작성한 초안입니다.", personalized=True)
     assert status(client)["remaining"] == 3
     for remaining, credits in [(2, 2), (1, 2), (0, 2), (0, 1), (0, 0)]:
         response = client.post(f"/api/documents/{doc['id']}/draft-ai")
@@ -51,7 +51,7 @@ def test_every_draft_route_accepts_paid_credits_after_free_uses(api, route):
     client, db, post = api
     prepare(db, credits=1, used=3)
     doc = document(client)
-    reply(post, "제공된 자료로 작성한 초안입니다.", personalized=True)
+    reply(post, "제공된 자료로 작성한 초안입니다.", personalized=route != "draft-common-ai")
     response = client.post(f"/api/documents/{doc['id']}/{route}")
     assert response.status_code == 200, response.text
     assert response.json()["usage"]["credits"] == 0
@@ -178,7 +178,7 @@ def test_late_competing_request_cannot_spend_last_credit_twice(api):
             ai_usage.consume(competing, 1)
             competing.commit()
         response = Mock(status_code=200)
-        response.json.return_value = {"content": "초안입니다."}
+        response.json.return_value = {"content": "초안입니다.", "personalized": True}
         return response
 
     post.side_effect = generate_after_other_request_spends_credit

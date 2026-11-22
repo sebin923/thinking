@@ -208,22 +208,3 @@
   .writing-body-heading .writing-body-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
   .writing-body-heading .writing-body-actions .writing-compare-copy { justify-content: center; padding: 7px 4px; white-space: nowrap; }
 }
-.writing-ai-model {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.writing-ai-model select {
-  padding: 8px 12px;
-  border: 1px solid #d8dce3;
-  border-radius: 8px;
-  background: #fff;
-  font: inherit;
-}
-
-.writing-ai-model small {
-  color: #5c6472;
-}
