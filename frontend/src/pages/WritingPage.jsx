@@ -260,7 +260,6 @@ function WritingPage({
   const [apiMessage, setApiMessage] = useState(
     draft?.isComplete ? "최종 저장이 완료된 글이에요. 내용은 볼 수만 있어요." : ""
   );
-  const [savedDrafts, setSavedDrafts] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [undoAiHtml, setUndoAiHtml] = useState(null);
@@ -611,28 +610,6 @@ function WritingPage({
       setFeedbackLoading(false);
     }
   };
-  const handleLoadDrafts = async () => {
-    try {
-      if (!documentId) {
-        showToast("먼저 버전을 저장해 주세요.");
-        return;
-      }
-      const response = await fetch(
-        `${API_BASE_URL}/api/documents/${documentId}/drafts`,
-        { headers: getAuthHeaders() }
-      );
-      if (!response.ok) {
-        throw new Error("저장된 버전 불러오기 실패");
-      }
-      const data = await response.json();
-      setSavedDrafts(data);
-      setApiMessage("저장된 버전을 불러왔습니다.");
-      showToast("저장된 버전 불러오기 완료");
-    } catch (error) {
-      console.error(error);
-      showToast(error.message || "저장된 버전 불러오기 실패");
-    }
-  };
   const getAuthHeaders = () => {
     const headers = {
       "Content-Type": "application/json"
@@ -754,9 +731,6 @@ function WritingPage({
                 </button>
                 <button type="button" className="writing-settings-button writing-version-button" onClick={handleSaveDraft} disabled={draftLoading || feedbackLoading || isComplete}>
                   임시저장
-                </button>
-                <button type="button" className="writing-settings-button writing-version-button" onClick={handleLoadDrafts} disabled={!documentId || draftLoading || feedbackLoading}>
-                  저장 버전 보기
                 </button>
               </div>
               {writingType === "기타" && (
@@ -988,36 +962,6 @@ function WritingPage({
               <p className="writing-api-message">
                 {apiMessage}
               </p>
-            )}
-            {savedDrafts.length > 0 && (
-              <div style={{ marginTop: "20px" }}>
-                <h3>저장된 버전</h3>
-                {savedDrafts.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      border: "1px solid #ddd",
-                      borderRadius: "12px",
-                      padding: "14px",
-                      marginTop: "12px",
-                      backgroundColor: "#fff",
-                    }}
-                  >
-                    <strong>버전 {item.version}</strong>
-                    <p
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        marginTop: "10px",
-                      }}
-                    >
-                      {item.content}
-                    </p>
-                    <small>
-                      저장 시간: {item.created_at}
-                    </small>
-                  </div>
-                ))}
-              </div>
             )}
           </section>
           <aside className="panel tip-card">
