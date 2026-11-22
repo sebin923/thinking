@@ -225,7 +225,6 @@ function WritingPage({
   // feedbackRequestText: AI 피드백을 요청할 때 보낸 본문 (평가 저장 때 같이 남김)
   const [feedbackRequestText, setFeedbackRequestText] = useState("");
   const [draftLoading, setDraftLoading] = useState(false);
-  const [draftMode, setDraftMode] = useState("common");
   const [draft] = useState(() => {
     const saved = loadDraft(auth?.user?.user_id);
     if (!initialDocument) {
@@ -481,7 +480,7 @@ function WritingPage({
       const targetDocumentId = await createDocumentIfNeeded();
       await saveThoughtFromIdea(targetDocumentId);
       const response = await fetch(
-        `${API_BASE_URL}/api/documents/${targetDocumentId}/${draftMode === "personal" ? "draft-personal-ai" : "draft-ai"}`,
+        `${API_BASE_URL}/api/documents/${targetDocumentId}/draft-ai`,
         {
           method: "POST",
           headers: getAuthHeaders()
@@ -496,13 +495,10 @@ function WritingPage({
       if (typeof data.content !== "string" || !data.content.trim()) {
         throw new Error("AI가 빈 초안을 반환했습니다.");
       }
-      if (draftMode === "personal" && data.personalized !== true) {
-        throw new Error("개인화 모델이 적용되지 않았습니다.");
-      }
       setPendingAiDraft(data.content);
       setPendingAiChecks(Array.isArray(data.checks) ? [...new Set(data.checks.filter((item) => typeof item === "string" && item.trim()))] : []);
       setPendingAiReviewOnly(data.local_review_only === true || ["application_service_20261119", "curated_over1000_20261119"].includes(data.loaded_identity?.profile));
-      setPendingAiModel(draftMode);
+      setPendingAiModel(data.personalized === true ? "personal" : "common");
       setAiResultCount((n) => n + 1);
       quota.apply(data.usage);
       setApiMessage("AI 초안이 생성되었습니다. 아래에서 내용을 확인해 주세요.");
@@ -896,14 +892,6 @@ function WritingPage({
                   )}
                 </div>
               )}
-              <label className="writing-ai-model">
-                초안 작성 방식{" "}
-                <select value={draftMode} onChange={(event) => setDraftMode(event.target.value)} disabled={draftLoading || feedbackLoading || isComplete}>
-                  <option value="common">내 설정을 반영한 AI</option>
-                  <option value="personal">내 문체를 학습한 AI</option>
-                </select>
-                {draftMode === "personal" && <small>개인화 학습을 마친 계정에서 이용할 수 있어요.</small>}
-              </label>
               <div className="writing-ai-tool-buttons">
                 <button
                   type="button"

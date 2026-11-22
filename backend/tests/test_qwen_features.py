@@ -59,7 +59,7 @@ def api(monkeypatch):
 
 def reply(post, content, **extra):
     response = Mock(status_code=200)
-    response.json.return_value = {"content": content, **extra}
+    response.json.return_value = {"content": content, "personalized": True, **extra}
     post.return_value = response
 
 
@@ -102,12 +102,13 @@ def test_preferences_saved_and_used_by_default_qwen_draft(api):
     assert client.put("/api/writing/preferences", json=prefs).status_code == 200
     assert client.get("/api/writing/preferences").json()["preferred_tone"] == "confident"
     doc = document(client)
-    reply(post, "담당자는 안내판과 책장 위치의 차이를 확인했습니다.", personalized=False)
+    reply(post, "담당자는 안내판과 책장 위치의 차이를 확인했습니다.", personalized=True)
     response = client.post(f"/api/documents/{doc['id']}/draft-ai")
     assert response.status_code == 200, response.text
     args, kwargs = post.call_args
     assert args == ("http://qwen.test:8001/draft",)
-    assert kwargs["json"]["mode"] == "common"
+    assert kwargs["json"]["mode"] == "personal"
+    assert response.json()["personalization_type"] == "adapter"
     assert kwargs["json"]["user_preferences"] == prefs
     assert kwargs["headers"] == {"X-LLM-Token": "test-qwen-token"}
     assert kwargs["json"]["user_id"] == 1
@@ -130,7 +131,7 @@ def test_sentence_rhythm_does_not_change_total_document_target(api):
     targets=[]
     for length in ('short','normal','long'):
         client.put('/api/writing/preferences',json={'sentence_length':length})
-        reply(post,'확인한 사실만 작성했습니다.',personalized=False)
+        reply(post,'확인한 사실만 작성했습니다.',personalized=True)
         assert client.post(f'/api/documents/{doc["id"]}/draft-ai').status_code==200
         targets.append(post.call_args.kwargs['json']['target_chars'])
     assert targets==[350,350,350]

@@ -125,7 +125,7 @@ def create_ai_draft(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return _qwen_draft(document_id, db, current_user, "common")
+    return _qwen_draft(document_id, db, current_user, "auto")
 
 
 @router.post("/drafts")
@@ -647,8 +647,23 @@ def _qwen_draft(document_id, db, current_user, mode):
     ai_usage.require_available(db, user_id)
     db.commit()
     if known_kind:
-        result = request_qwen('/draft', payload)
+        selected_mode = mode
+        if mode == 'auto':
+            # 로그인한 회원의 개인 어댑터가 준비되어 있는지 GPU 서버에서 확인한다.
+            # 개인 어댑터가 없거나 아직 준비되지 않은 경우에만 기본 AI를 사용한다.
+            # 기존 GPU API를 사용하므로 이전 배포 버전과도 호환된다.
+            try:
+                result = request_qwen('/draft', {**payload, 'mode': 'personal'})
+                selected_mode = 'personal'
+            except HTTPException as exc:
+                if exc.status_code != 404:
+                    raise
+                result = request_qwen('/draft', {**payload, 'mode': 'common'})
+                selected_mode = 'common'
+        else:
+            result = request_qwen('/draft', payload)
     else:
+        selected_mode = 'common'
         # 직접 입력한 글 유형도 같은 Qwen 서버에서 처리한다.
         result = request_qwen('/chat', {
             'messages': [
@@ -661,7 +676,7 @@ def _qwen_draft(document_id, db, current_user, mode):
             'max_new_tokens': 768,
         })
         result.update(personalized=False, quality_approved=False)
-    if mode == 'personal' and result.get('personalized') is not True:
+    if selected_mode == 'personal' and result.get('personalized') is not True:
         raise HTTPException(502, '개인 모델이 적용되지 않았습니다.')
     try:
         usage = ai_usage.consume(db, user_id)
@@ -670,7 +685,7 @@ def _qwen_draft(document_id, db, current_user, mode):
         db.rollback()
         raise
     return {**result, 'tone':tone, 'usage':usage,
-            'personalization_type':'adapter' if mode == 'personal' else 'preference_prompt'}
+            'personalization_type':'adapter' if selected_mode == 'personal' else 'preference_prompt'}
 
 
 @router.post('/documents/{document_id}/draft-common-ai')

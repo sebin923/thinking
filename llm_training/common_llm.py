@@ -124,17 +124,30 @@ def stop_ids():
         raise RuntimeError('대화 종료 토큰을 찾을 수 없습니다.')
     return sorted(set(ids + [chat]))
 
-def ensure_personal(user_id):
-    global _model
-    if user_id is None:
+def personal_adapter_path(user_id):
+    if type(user_id) is not int or user_id < 1:
         raise HTTPException(400, '개인화에는 user_id가 필요합니다.')
     folder = PERSONAL_ROOT / f'user_{user_id}'
     cfg = folder / 'adapter_config.json'
     if not cfg.is_file():
         raise HTTPException(404, '이 계정의 개인 어댑터가 없습니다.')
-    config = json.loads(cfg.read_text(encoding='utf-8'))
-    if config.get('base_model_name_or_path', '').rstrip('/') != MODEL_ID:
+    weights = folder / 'adapter_model.safetensors'
+    if not weights.is_file() or weights.stat().st_size == 0:
+        raise HTTPException(404, '이 계정의 개인 어댑터가 아직 준비되지 않았습니다.')
+    try:
+        config = json.loads(cfg.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(422, '개인 어댑터 설정을 확인해 주세요.') from exc
+    if not isinstance(config, dict):
+        raise HTTPException(422, '개인 어댑터 설정을 확인해 주세요.')
+    if not isinstance(config.get('base_model_name_or_path'), str) or config['base_model_name_or_path'].rstrip('/') != MODEL_ID:
         raise HTTPException(422, '개인 어댑터의 기본 모델이 일치하지 않습니다.')
+    return folder
+
+
+def ensure_personal(user_id):
+    global _model
+    folder = personal_adapter_path(user_id)
     name = f'user_{user_id}'
     from peft import PeftModel
     if not isinstance(_model, PeftModel):
@@ -220,10 +233,7 @@ def draft(req: DraftRequest):
         try:
             # Check missing personal adapter before spending time loading GPU weights.
             if req.mode == 'personal':
-                if req.user_id is None:
-                    raise HTTPException(400, '개인화에는 user_id가 필요합니다.')
-                if not (PERSONAL_ROOT / f'user_{req.user_id}' / 'adapter_config.json').is_file():
-                    raise HTTPException(404, '이 계정의 개인 어댑터가 없습니다.')
+                personal_adapter_path(req.user_id)
             load_model()
             if req.mode == 'personal':
                 ensure_personal(req.user_id)
