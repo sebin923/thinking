@@ -254,7 +254,7 @@ function WritingPage({
     if (!draft) return "";
     if (draft.fromIdea) return "메인에서 적은 생각을 본문에 넣어 두었어요.";
     if (draft.fromServer) return `"${draft.title}" 글을 불러왔어요.`;
-    return "임시저장된 글을 불러왔어요.";
+    return "작성 중인 글을 불러왔어요.";
   });
   const [documentId, setDocumentId] = useState(draft?.documentId ?? null);
   const [apiMessage, setApiMessage] = useState(
@@ -619,9 +619,6 @@ function WritingPage({
     }
     return headers;
   };
-  const handleSaveDraft = () => {
-    showToast(saveBrowserDraft() ? "임시저장했어요." : "임시저장에 실패했어요.");
-  };
   // 최종 저장
   const handleComplete = async () => {
     const bodyText = getBodyText();
@@ -728,9 +725,6 @@ function WritingPage({
                   disabled={feedbackLoading || draftLoading || isComplete}
                 >
                   <FileText size={16} /> 버전 저장
-                </button>
-                <button type="button" className="writing-settings-button writing-version-button" onClick={handleSaveDraft} disabled={draftLoading || feedbackLoading || isComplete}>
-                  임시저장
                 </button>
               </div>
               {writingType === "기타" && (
