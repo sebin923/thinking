@@ -30,7 +30,7 @@
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
   align-items: start;        /* 오른쪽 카드가 왼쪽 높이만큼 늘어나지 않게 */
-  max-width: 980px;
+  max-width: 1040px;         /* 글쓰기 화면(글쓰기 카드 + 작성 팁)처럼 두 칸 화면은 1040px로 통일 (예전 980px) */
   margin: 0 auto;
 }
 

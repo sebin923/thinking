@@ -38,6 +38,8 @@ import QuizPage from "./pages/QuizPage";
 import { DEFAULT_QUIZ_LEVEL } from "./data/quizCategories";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+// 아이디 / 비밀번호 찾기 화면 (로그인 화면의 "아이디 / 비밀번호 찾기" 링크로 들어옴)
+import FindAccountPage from "./pages/FindAccountPage";
 import RankingPage from "./pages/RankingPage";
 import ChallengePage from "./pages/ChallengePage";
 import WritingSettingPage from "./pages/WritingSettingPage";
@@ -190,6 +192,9 @@ function App() {
 
   // loginNotice: 회원가입 직후 로그인 화면에 보여줄 안내 + 미리 채울 아이디
   const [loginNotice, setLoginNotice] = useState({ loginId: "", message: "" });
+
+  // 아이디 / 비밀번호 찾기 화면에서 처음 열 탭 ("id" 아이디 찾기 / "password" 비밀번호 찾기)
+  const findTab = route.data?.findTab || "id";
 
   // toast: 화면 아래에 잠깐 떴다 사라지는 알림 문구 (예: 회원 탈퇴 완료)
   const [toast, setToast] = useState("");
@@ -388,6 +393,14 @@ function App() {
   const handleSignupSuccess = (loginId) => {
     // 로그인 화면에 아이디를 미리 채우고 안내 문구 띄우기
     setLoginNotice({ loginId, message: "회원가입이 완료됐어요. 로그인해 주세요." });
+    setActiveNav("login", { replace: true });
+  };
+
+  // ----- 아이디 / 비밀번호 찾기 화면 → 로그인 화면 -----
+  // loginId: 미리 채울 아이디 (찾은 아이디, 비밀번호를 바꾼 아이디) / message: 위쪽 초록 안내 문구
+  // replace: 뒤로가기를 눌렀을 때 찾기 화면(인증 중이던 화면)으로 다시 돌아가지 않게
+  const handleFindDone = (loginId = "", message = "") => {
+    setLoginNotice({ loginId, message });
     setActiveNav("login", { replace: true });
   };
 
@@ -595,8 +608,17 @@ function App() {
             key={loginNotice.loginId}
             onLogin={handleLogin}
             onGoSignup={() => handleNavigate("signup")}
+            onGoFind={() => setActiveNav("find-account", { data: { findTab: "id" } })}
             initialLoginId={loginNotice.loginId}
             notice={loginNotice.message}
+          />
+        );
+      case "find-account":
+        return (
+          <FindAccountPage
+            initialTab={findTab}
+            onGoLogin={handleFindDone}
+            onGoSignup={() => handleNavigate("signup")}
           />
         );
       case "signup":

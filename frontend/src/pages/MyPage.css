@@ -7,7 +7,7 @@
 /* 카드끼리 위아래 간격 */
 .mypage-profile,
 .mypage-docs {
-  max-width: 900px;
+  max-width: 860px;          /* 퀴즈·랭킹·공지사항 카드와 같은 너비로 통일 (예전 900px) */
   margin: 0 auto 22px;
   padding: 28px 30px;
 }
@@ -15,7 +15,7 @@
 /* ===================== 안내 메시지 (로그인 필요 / 불러오는 중 / 실패) ===================== */
 
 .mypage-message {
-  max-width: 900px;
+  max-width: 860px;          /* 퀴즈·랭킹·공지사항 카드와 같은 너비로 통일 (예전 900px) */
   margin: 0 auto;
   padding: 44px 24px;
   display: flex;
@@ -909,7 +909,7 @@
 
 /* ===================== 1-2. 학습 진도 카드 (LearnProgressCard.jsx) ===================== */
 .mypage-learn {
-  max-width: 900px;          /* 위아래 카드(.mypage-profile, .mypage-docs)와 같은 너비·간격 */
+  max-width: 860px;          /* 위아래 카드(.mypage-profile, .mypage-docs)와 같은 너비·간격 */
   margin: 0 auto 22px;
   padding: 24px 30px;
 }

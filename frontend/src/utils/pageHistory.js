@@ -1,7 +1,7 @@
 // Hash addresses also work on static hosting without server rewrite rules.
 const PAGES = new Set([
   "home", "about", "learn", "write", "writing-settings", "quiz", "ranking",
-  "challenge", "mypage", "mypage-edit", "admin", "login", "signup", "notice",
+  "challenge", "mypage", "mypage-edit", "admin", "login", "signup", "find-account", "notice",
   "terms", "privacy", "payment", "payment-result",
 ]);
 const HISTORY_KEY = "saenggak-hanjul-navigation";

@@ -18,6 +18,8 @@ import re
 # EmailStr: 이메일 형식을 자동으로 검사해주는 타입 (email-validator 패키지 필요 — fastapi[standard]에 포함)
 # field_validator: 칸 하나에 대한 검사 함수를 붙이는 장식자
 # ConfigDict: 모델 설정
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 # ----- 검사 규칙 (정규표현식) -----
@@ -39,6 +41,29 @@ def check_login_id(value: str) -> str:
 def normalize_email(value: str) -> str:
     """이메일을 소문자로 통일 (A@Gmail.com 과 a@gmail.com 을 같은 사람으로 보기 위해)"""
     return value.strip().lower()
+
+
+def check_password(value: str) -> str:
+    """비밀번호 규칙 (회원가입·비밀번호 재설정이 같이 씀)"""
+    if not 8 <= len(value) <= 64:
+        raise ValueError("비밀번호는 8~64자로 입력해 주세요.")
+    # any(): 하나라도 조건에 맞으면 True
+    if not any(c.isascii() and c.isalpha() for c in value) or not any(c.isdigit() for c in value):
+        raise ValueError("비밀번호는 영문과 숫자를 모두 포함해야 해요.")
+    if any(c.isspace() for c in value):
+        raise ValueError("비밀번호에 공백은 넣을 수 없어요.")
+    # bcrypt는 72바이트까지만 처리할 수 있음 (한글은 한 글자에 3바이트라 길면 넘을 수 있음)
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("비밀번호가 너무 길어요. 조금 짧게 입력해 주세요.")
+    return value
+
+
+def check_code(value: str) -> str:
+    """인증번호 6자리 숫자 검사"""
+    value = value.strip()
+    if not CODE_PATTERN.match(value):
+        raise ValueError("인증번호 6자리 숫자를 입력해 주세요.")
+    return value
 
 
 # =============================================================
@@ -94,17 +119,7 @@ class SignupRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        if not 8 <= len(value) <= 64:
-            raise ValueError("비밀번호는 8~64자로 입력해 주세요.")
-        # any(): 하나라도 조건에 맞으면 True
-        if not any(c.isascii() and c.isalpha() for c in value) or not any(c.isdigit() for c in value):
-            raise ValueError("비밀번호는 영문과 숫자를 모두 포함해야 해요.")
-        if any(c.isspace() for c in value):
-            raise ValueError("비밀번호에 공백은 넣을 수 없어요.")
-        # bcrypt는 72바이트까지만 처리할 수 있음 (한글은 한 글자에 3바이트라 길면 넘을 수 있음)
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("비밀번호가 너무 길어요. 조금 짧게 입력해 주세요.")
-        return value
+        return check_password(value)  # 규칙은 위의 check_password (비밀번호 재설정과 같이 씀)
 
     @field_validator("name")
     @classmethod
@@ -140,6 +155,88 @@ class LoginRequest(BaseModel):
     @classmethod
     def lower_login_id(cls, value: str) -> str:
         return value.strip().lower()
+
+
+# =============================================================
+# 아이디 찾기 / 비밀번호 재설정 요청 (routers/auth.py 아래쪽 API)
+# -------------------------------------------------------------
+# 아이디 찾기:  이름 + 이메일 → 인증번호 → 확인하면 아이디를 알려줌
+# 비밀번호 찾기: 아이디 + 이메일 → 인증번호 → 확인 → 새 비밀번호 저장
+# =============================================================
+
+class FindIdSendCodeRequest(BaseModel):
+    """아이디 찾기 인증번호 받기 { "name": "한세빈", "email": "..." }"""
+
+    name: str
+    email: EmailStr
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("이름을 입력해 주세요.")
+        return value
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def lower_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+
+class FindIdVerifyRequest(FindIdSendCodeRequest):
+    """아이디 찾기 인증번호 확인 (받기 요청 + code)"""
+
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        return check_code(value)
+
+
+class ResetSendCodeRequest(BaseModel):
+    """비밀번호 재설정 인증번호 받기 { "login_id": "sebin", "email": "..." }"""
+
+    login_id: str
+    email: EmailStr
+
+    @field_validator("login_id")
+    @classmethod
+    def lower_login_id(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not value:
+            raise ValueError("아이디를 입력해 주세요.")
+        return value
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def lower_email(cls, value: str) -> str:
+        return normalize_email(value)
+
+
+class ResetVerifyRequest(ResetSendCodeRequest):
+    """비밀번호 재설정 인증번호 확인 (받기 요청 + code)"""
+
+    code: str
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        return check_code(value)
+
+
+class ResetPasswordRequest(ResetVerifyRequest):
+    """새 비밀번호 저장 (확인 요청 + new_password)
+    인증번호(code)도 다시 보냄 → 서버가 "그 인증번호로 인증을 마친 사람"인지 한 번 더 확인
+    """
+
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        return check_password(value)
 
 
 # =============================================================
@@ -190,3 +287,11 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+
+
+class FindIdResponse(BaseModel):
+    """아이디 찾기 결과 (이메일 인증을 마친 본인에게만 알려줌)"""
+
+    message: str
+    login_id: str
+    created_at: datetime | None = None  # 가입일 (화면에 "2026.11.03 가입"처럼 보여줌)

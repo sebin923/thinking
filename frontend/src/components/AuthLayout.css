@@ -488,3 +488,74 @@
     font-size: 13px;
   }
 }
+
+/* ===================== 아이디 / 비밀번호 찾기 (FindAccountPage) ===================== */
+
+/* [아이디 찾기 | 비밀번호 찾기] 탭: 폼 너비를 꽉 채우고 두 탭을 반씩 */
+.find-tabs .category-tabs {
+  display: flex;
+  width: 100%;
+  margin-bottom: 22px;
+}
+
+.find-tabs .category-tab {
+  flex: 1;
+  justify-content: center;
+}
+
+/* 찾은 아이디 결과 카드 */
+.find-result {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 28px 22px 22px;
+  border: 1px solid #dfeaf4;
+  border-radius: 18px;
+  background: #f6fafe;
+  text-align: center;
+}
+
+.find-result-icon {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: #e3f0fa;
+  color: #3d8bc7;
+}
+
+.find-result-label {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-sub);
+}
+
+/* 아이디 자체 (크게) */
+.find-result-id {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--navy);
+  word-break: break-all;         /* 긴 아이디도 카드 밖으로 안 나가게 */
+}
+
+.find-result-date {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #8a9aab;
+}
+
+/* 아래 "생각났나요? 로그인 · 회원가입" */
+.find-switch {
+  margin-top: 22px;
+}
+
+.find-switch-sep {
+  margin-left: 8px;
+  color: #b5c2cf;
+}

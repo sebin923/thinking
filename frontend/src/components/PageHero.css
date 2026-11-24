@@ -47,10 +47,18 @@
 .page-hero {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  /* flex-start: 글(왼쪽)을 위에 붙임
+     (center였을 때는 설명이 한 줄인 화면(마이페이지·공지사항)만 제목이 13px 아래로 내려가 있었음) */
+  align-items: flex-start;
   gap: 24px;
   padding: 0 8px;
   margin-bottom: 28px;
+}
+
+/* 왼쪽 글 묶음: 오른쪽 메모지 그림(높이 190px)의 가운데쯤에서 시작하게 위쪽 여백
+   → 설명이 몇 줄이든 모든 화면에서 제목이 같은 높이에 옴 */
+.page-hero-text {
+  padding-top: 24px;
 }
 
 .page-hero-eyebrow {
@@ -255,6 +263,11 @@
 
   .page-hero {
     padding: 0;
+  }
+
+  /* 모바일은 메모지 그림이 없으니 위쪽 여백도 없앰 */
+  .page-hero-text {
+    padding-top: 0;
   }
 
   .page-hero-title {

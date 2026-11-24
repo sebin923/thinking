@@ -843,9 +843,6 @@ function WritingPage({
               {quota.error && (
                 <p role="status">{quota.error}{" "}<button type="button" onClick={() => quota.refresh().catch(() => {})}>다시 확인</button></p>
               )}
-              {quota.usage && !aiUsage.unlimited && aiUsage.remaining === 0 && aiCredits > 0 && (
-                <p role="status">무료 횟수를 모두 사용했어요. 지금부터 보유 이용권이 1회씩 차감돼요.</p>
-              )}
               {/* 무료 횟수를 다 썼을 때 안내 + 이용권 충전 */}
               {aiLimitReached && (
                 <div className="writing-ai-limit" role="status">

@@ -7,6 +7,11 @@
 #   POST /api/auth/signup           회원가입 (비밀번호 bcrypt 암호화 저장)
 #   POST /api/auth/login            로그인 (아이디 + 비밀번호) → 토큰 발급
 #   GET  /api/auth/me               토큰으로 내 정보 조회 (로그인 확인용)
+#   POST /api/auth/find-id/send-code         아이디 찾기: 이름 + 이메일로 인증번호 보내기
+#   POST /api/auth/find-id/verify            아이디 찾기: 인증번호 확인 → 아이디 알려줌
+#   POST /api/auth/reset-password/send-code  비밀번호 찾기: 아이디 + 이메일로 인증번호 보내기
+#   POST /api/auth/reset-password/verify     비밀번호 찾기: 인증번호 확인
+#   POST /api/auth/reset-password            비밀번호 찾기: 새 비밀번호 저장
 #
 # APIRouter: 관련 있는 API들을 한 파일에 묶는 도구 (Spring의 @RestController 클래스와 비슷)
 # main.py에서 app.include_router(auth.router)로 서버에 붙임
@@ -25,6 +30,13 @@ from models import EmailVerification, User
 from auth_schemas import (
     LOGIN_ID_PATTERN,
     CheckLoginIdResponse,
+    FindIdResponse,
+    FindIdSendCodeRequest,
+    FindIdVerifyRequest,
+    MessageResponse,
+    ResetPasswordRequest,
+    ResetSendCodeRequest,
+    ResetVerifyRequest,
     LoginRequest,
     LoginResponse,
     SendCodeRequest,
@@ -310,3 +322,188 @@ def get_current_user(
 def read_me(user: User = Depends(get_current_user)):
     """내 정보 (토큰이 올바르면 사용자 정보를 돌려줌)"""
     return user
+
+
+# =============================================================
+# 아이디 찾기 / 비밀번호 찾기 (2026.11 추가)
+# -------------------------------------------------------------
+# 회원가입 이메일 인증과 같은 표(email_verifications)와 같은 규칙을 씀
+#   - 인증번호 5분 유효, 60초 안에 다시 보내기 금지, 5번 틀리면 다시 받기
+# 다른 점: "이미 가입된" 이메일에만 보냄 (회원가입은 반대로 가입 안 된 이메일에만 보냄)
+#
+# ★ 인증번호를 용도별로 구분하는 방법
+#   해시를 만들 때 이메일 앞에 용도("find-id:" / "reset:")를 붙여서 저장함
+#   → 아이디 찾기로 받은 번호를 비밀번호 재설정이나 회원가입 인증에 넣어도 해시가 달라서 통과하지 못함
+#   → 표에 칸을 새로 만들 필요가 없음 (DB 변경 없음)
+# =============================================================
+
+PURPOSE_FIND_ID = "find-id"
+PURPOSE_RESET = "reset"
+PURPOSE_LABEL = {PURPOSE_FIND_ID: "아이디 찾기", PURPOSE_RESET: "비밀번호 재설정"}
+RESET_VALID_MINUTES = 10  # 인증을 마친 뒤 이 시간 안에 새 비밀번호를 저장해야 함
+
+
+def purpose_code_hash(purpose: str, email: str, code: str) -> str:
+    """용도가 섞인 인증번호 해시 (위 설명 참고)"""
+    return hash_verification_code(f"{purpose}:{email}", code)
+
+
+def issue_code(db: Session, email: str, purpose: str) -> SendCodeResponse:
+    """인증번호를 새로 만들어 저장하고 메일로 보냄 (send_code와 같은 규칙)"""
+    # 1. 너무 자주 보내는 것 막기 (60초)
+    last = latest_verification(db, email)
+    if last:
+        passed = (now_utc() - as_utc(last.created_at)).total_seconds()
+        if passed < RESEND_COOLDOWN_SECONDS:
+            wait_seconds = int(RESEND_COOLDOWN_SECONDS - passed) + 1
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"{wait_seconds}초 후에 다시 요청해 주세요.",
+            )
+
+    # 2. 예전 인증번호는 지우고 새로 만들기 (항상 최신 것 하나만 유효)
+    db.query(EmailVerification).filter(EmailVerification.email == email).delete()
+    code = generate_verification_code()
+    db.add(
+        EmailVerification(
+            email=email,
+            code_hash=purpose_code_hash(purpose, email, code),
+            expires_at=now_utc() + timedelta(minutes=CODE_EXPIRE_MINUTES),
+        )
+    )
+
+    # 3. 메일 보내기 (실패하면 DB 저장도 취소)
+    try:
+        dev_mode = send_verification_email(email, code, CODE_EXPIRE_MINUTES, PURPOSE_LABEL[purpose])
+    except Exception as error:
+        db.rollback()
+        print(f"[메일 발송 실패] {error}")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail="인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
+        ) from error
+
+    db.commit()
+    return SendCodeResponse(
+        message="인증번호를 보냈어요.",
+        expires_in=CODE_EXPIRE_MINUTES * 60,
+        dev_mode=dev_mode,
+    )
+
+
+def check_purpose_code(db: Session, email: str, purpose: str, code: str) -> EmailVerification:
+    """인증번호가 맞는지 확인 (verify_code와 같은 규칙). 맞으면 그 기록을 돌려줌"""
+    record = latest_verification(db, email)
+
+    if record is None or now_utc() > as_utc(record.expires_at):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="인증번호가 만료됐어요. 다시 받아 주세요.")
+
+    if record.attempts >= MAX_ATTEMPTS:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="인증번호를 너무 많이 틀렸어요. 인증번호를 다시 받아 주세요.",
+        )
+
+    if not is_same_hash(record.code_hash, purpose_code_hash(purpose, email, code)):
+        record.attempts += 1
+        db.commit()
+        left = MAX_ATTEMPTS - record.attempts
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"인증번호가 일치하지 않아요. (남은 횟수 {left}회)",
+        )
+    return record
+
+
+# 입력한 정보와 맞는 회원이 없을 때 공통 문구
+NO_MATCH_DETAIL = "입력한 정보와 일치하는 회원이 없어요. 다시 확인해 주세요."
+
+
+# -------------------------------------------------------------
+# 아이디 찾기 ① 인증번호 받기 (이름 + 이메일이 둘 다 맞는 회원만)
+# -------------------------------------------------------------
+@router.post("/find-id/send-code", response_model=SendCodeResponse)
+def find_id_send_code(body: FindIdSendCodeRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email, User.name == body.name).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NO_MATCH_DETAIL)
+    return issue_code(db, body.email, PURPOSE_FIND_ID)
+
+
+# -------------------------------------------------------------
+# 아이디 찾기 ② 인증번호 확인 → 맞으면 아이디를 알려줌
+# (메일을 받을 수 있는 본인이 확인됐으니 아이디를 가리지 않고 그대로 보여줌)
+# -------------------------------------------------------------
+@router.post("/find-id/verify", response_model=FindIdResponse)
+def find_id_verify(body: FindIdVerifyRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email, User.name == body.name).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NO_MATCH_DETAIL)
+
+    check_purpose_code(db, body.email, PURPOSE_FIND_ID, body.code)
+
+    # 다 쓴 인증번호는 바로 지움 (같은 번호로 다시 조회 못 하게)
+    db.query(EmailVerification).filter(EmailVerification.email == body.email).delete()
+    db.commit()
+    return FindIdResponse(message="아이디를 찾았어요.", login_id=user.login_id, created_at=user.created_at)
+
+
+# -------------------------------------------------------------
+# 비밀번호 찾기 ① 인증번호 받기 (아이디 + 이메일이 둘 다 맞는 회원만)
+# -------------------------------------------------------------
+@router.post("/reset-password/send-code", response_model=SendCodeResponse)
+def reset_send_code(body: ResetSendCodeRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.login_id == body.login_id, User.email == body.email).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NO_MATCH_DETAIL)
+    return issue_code(db, body.email, PURPOSE_RESET)
+
+
+# -------------------------------------------------------------
+# 비밀번호 찾기 ② 인증번호 확인 (맞으면 "인증 완료" 표시 → 새 비밀번호 입력 화면으로)
+# -------------------------------------------------------------
+@router.post("/reset-password/verify", response_model=VerifyCodeResponse)
+def reset_verify(body: ResetVerifyRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.login_id == body.login_id, User.email == body.email).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NO_MATCH_DETAIL)
+
+    record = check_purpose_code(db, body.email, PURPOSE_RESET, body.code)
+    if record.verified_at is None:
+        record.verified_at = now_utc()
+        db.commit()
+    return VerifyCodeResponse(message="인증이 완료됐어요. 새 비밀번호를 입력해 주세요.", verified=True)
+
+
+# -------------------------------------------------------------
+# 비밀번호 찾기 ③ 새 비밀번호 저장
+#   - 같은 인증번호로 ②를 마쳤고(verified_at), 그게 10분 안이어야 함
+#   - 저장할 때도 비밀번호는 bcrypt 해시로 바꿔서 저장
+# -------------------------------------------------------------
+@router.post("/reset-password", response_model=MessageResponse)
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.login_id == body.login_id, User.email == body.email).first()
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=NO_MATCH_DETAIL)
+
+    record = check_purpose_code(db, body.email, PURPOSE_RESET, body.code)
+    if record.verified_at is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="인증번호 확인을 먼저 완료해 주세요.")
+    if now_utc() - as_utc(record.verified_at) > timedelta(minutes=RESET_VALID_MINUTES):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="인증 시간이 지났어요. 인증번호를 다시 받아 주세요.",
+        )
+
+    # 예전 비밀번호와 똑같으면 바꾸는 의미가 없어서 알려줌
+    if verify_password(body.new_password, user.password_hash):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="지금 쓰는 비밀번호와 달라야 해요.",
+        )
+
+    user.password_hash = hash_password(body.new_password)
+    # 다 쓴 인증번호는 지움 (같은 번호로 또 바꾸지 못하게)
+    db.query(EmailVerification).filter(EmailVerification.email == body.email).delete()
+    db.commit()
+    return MessageResponse(message="비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요.")

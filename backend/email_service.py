@@ -35,27 +35,28 @@ def is_dev_mode() -> bool:
     return not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD)
 
 
-def send_verification_email(to_email: str, code: str, expire_minutes: int) -> bool:
+def send_verification_email(to_email: str, code: str, expire_minutes: int, purpose: str = "회원가입") -> bool:
     """인증번호 메일 보내기
+    purpose: 메일에 적을 용도 ("회원가입" / "아이디 찾기" / "비밀번호 재설정") — 안 넘기면 회원가입
     반환값: 개발 모드였으면 True, 진짜 메일을 보냈으면 False
     메일 서버 오류가 나면 예외가 그대로 올라감 (routers/auth.py에서 처리)
     """
     if is_dev_mode():
         # 터미널에 눈에 띄게 출력
         print("=" * 50)
-        print(f"[개발 모드] 이메일 인증번호  →  {to_email} : {code}")
+        print(f"[개발 모드] {purpose} 인증번호  →  {to_email} : {code}")
         print("(.env에 SMTP 설정을 넣으면 실제 메일로 발송돼요)")
         print("=" * 50)
         return True
 
     # ----- 메일 내용 만들기 -----
     message = EmailMessage()
-    message["Subject"] = "[생각한줄] 이메일 인증번호 안내"
+    message["Subject"] = f"[생각한줄] {purpose} 인증번호 안내"
     message["From"] = MAIL_FROM
     message["To"] = to_email
     message.set_content(
         "안녕하세요, 생각한줄입니다.\n\n"
-        f"회원가입 인증번호는 [{code}] 입니다.\n"
+        f"{purpose} 인증번호는 [{code}] 입니다.\n"
         f"{expire_minutes}분 안에 입력해 주세요.\n\n"
         "본인이 요청하지 않았다면 이 메일은 무시하셔도 됩니다."
     )

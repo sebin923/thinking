@@ -12,38 +12,46 @@
 }
 
 /* ===================== 위쪽 탭 ===================== */
+/* 글쓰기 연습 [학습 | 오답노트], 퀴즈 [퀴즈 | 랭킹] 큰 탭(CategoryTabs.css의 .category-tabs.section)과
+   똑같은 모양으로 통일: 반투명 흰 알약 + 선택된 탭만 흰 바탕, 가운데 정렬
+   (예전에는 왼쪽 정렬 + 선택된 탭이 파란색으로 채워져서 다른 화면 탭과 모양이 달랐음) */
 .support-tabs {
   display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
+  gap: 4px;
+  margin: 0 auto 14px;       /* 좌우 auto → 가운데 정렬 */
   padding: 5px;
-  border: 1px solid #e3edf6;
+  border: 1px solid #dfeaf4;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 6px 16px rgba(43, 91, 136, 0.06);
   width: fit-content;        /* 글자 길이만큼만 (꽉 채우지 않음) */
 }
 
 .support-tab {
-  padding: 9px 18px;
+  min-width: 130px;
+  padding: 11px 24px;
   border: none;
   border-radius: 999px;
-  background: none;
-  color: var(--text-sub);
-  font-size: 14px;
+  background: transparent;
+  color: #6b7d90;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;       /* "개인정보처리방침"이 두 줄로 쪼개지지 않게 */
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .support-tab:hover:not(.active) {
-  color: var(--navy);
+  color: #2b5b88;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-/* 지금 보고 있는 탭: 하늘색으로 채움 */
+/* 지금 보고 있는 탭: 흰 바탕 + 남색 굵은 글자 (다른 화면 큰 탭과 같음) */
 .support-tab.active {
-  background: var(--sky);
-  color: #fff;
-  box-shadow: 0 6px 14px rgba(61, 139, 199, 0.22);
+  background: #fff;
+  color: #2b5b88;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(43, 91, 136, 0.12);
+  cursor: default;
 }
 
 .support-tab:focus-visible {
@@ -348,10 +356,13 @@
     width: 100%;
   }
 
+  /* flex: 1 1 auto → 남는 폭은 똑같이 나누되, 기본 너비는 글자 길이만큼
+     (셋을 완전히 같은 너비로 하면 좁은 폰에서 "개인정보처리방침" 글자가 탭 밖으로 삐져나왔음) */
   .support-tab {
-    flex: 1;
-    padding: 9px 4px;
-    font-size: 13px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 14px;
   }
 
   /* 날짜를 제목 아래로 (좁은 화면에서 제목이 너무 짧게 잘리지 않게) */

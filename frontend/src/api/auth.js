@@ -10,6 +10,11 @@
 //   POST /api/auth/email/verify                 이메일 인증번호 확인
 //   POST /api/auth/signup                       회원가입
 //   POST /api/auth/login                        로그인 (아이디 + 비밀번호)
+//   POST /api/auth/find-id/send-code            아이디 찾기: 인증번호 받기 (이름 + 이메일)
+//   POST /api/auth/find-id/verify               아이디 찾기: 인증번호 확인 → 아이디
+//   POST /api/auth/reset-password/send-code     비밀번호 찾기: 인증번호 받기 (아이디 + 이메일)
+//   POST /api/auth/reset-password/verify        비밀번호 찾기: 인증번호 확인
+//   POST /api/auth/reset-password               비밀번호 찾기: 새 비밀번호 저장
 //
 // ※ 비밀번호 암호화는 "서버"에서 bcrypt로 함 (backend/security.py)
 //   브라우저 → 서버로 갈 때는 원래 비밀번호 그대로 보내고, 대신 실제 배포할 때
@@ -114,6 +119,52 @@ export function login(loginId, password) {
   const body = { login_id: loginId, password };
   if (USE_MOCK) return mock.login(body);
   return request("/api/auth/login", { method: "POST", body });
+}
+
+// =============================================================
+// 아이디 / 비밀번호 찾기 (FindAccountPage.jsx에서 씀)
+// -------------------------------------------------------------
+// 회원가입 이메일 인증과 같은 방식: 가입한 이메일로 6자리 인증번호를 받아서 확인
+// ※ 가짜 서버(USE_MOCK)에는 없는 기능이라 진짜 백엔드가 켜져 있어야 함
+// =============================================================
+
+// 가짜 서버로 테스트 중이면 알려주는 에러
+function mockNotSupported() {
+  return Promise.reject(new Error("아이디·비밀번호 찾기는 진짜 서버에서만 쓸 수 있어요."));
+}
+
+// 아이디 찾기 ① 인증번호 받기 → { message, expires_in(초), dev_mode }
+export function sendFindIdCode(name, email) {
+  if (USE_MOCK) return mockNotSupported();
+  return request("/api/auth/find-id/send-code", { method: "POST", body: { name, email } });
+}
+
+// 아이디 찾기 ② 인증번호 확인 → { message, login_id, created_at }
+export function verifyFindIdCode(name, email, code) {
+  if (USE_MOCK) return mockNotSupported();
+  return request("/api/auth/find-id/verify", { method: "POST", body: { name, email, code } });
+}
+
+// 비밀번호 찾기 ① 인증번호 받기 → { message, expires_in(초), dev_mode }
+export function sendResetCode(loginId, email) {
+  if (USE_MOCK) return mockNotSupported();
+  return request("/api/auth/reset-password/send-code", { method: "POST", body: { login_id: loginId, email } });
+}
+
+// 비밀번호 찾기 ② 인증번호 확인 → { message, verified: true }
+export function verifyResetCode(loginId, email, code) {
+  if (USE_MOCK) return mockNotSupported();
+  return request("/api/auth/reset-password/verify", { method: "POST", body: { login_id: loginId, email, code } });
+}
+
+// 비밀번호 찾기 ③ 새 비밀번호 저장 → { message }
+//  인증번호(code)도 같이 보냄 → 서버가 "그 번호로 인증을 마친 사람"인지 다시 확인
+export function resetPassword(loginId, email, code, newPassword) {
+  if (USE_MOCK) return mockNotSupported();
+  return request("/api/auth/reset-password", {
+    method: "POST",
+    body: { login_id: loginId, email, code, new_password: newPassword },
+  });
 }
 
 // =============================================================

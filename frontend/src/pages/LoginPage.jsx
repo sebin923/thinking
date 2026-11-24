@@ -18,9 +18,10 @@ import { login } from "../api/auth";
 // props
 //  - onLogin(result, remember): 로그인 성공 시 실행 (result = 서버 응답, remember = 로그인 유지 체크 여부)
 //  - onGoSignup(): "회원가입" 링크를 눌렀을 때 실행
+//  - onGoFind(): "아이디 / 비밀번호 찾기"를 눌렀을 때 실행 (찾기 화면으로 이동)
 //  - initialLoginId: 처음부터 채워둘 아이디 (회원가입 직후 넘어왔을 때)
 //  - notice: 위쪽에 보여줄 초록 안내 문구 (예: "회원가입이 완료됐어요.")
-function LoginPage({ onLogin, onGoSignup, initialLoginId = "", notice = "" }) {
+function LoginPage({ onLogin, onGoSignup, onGoFind, initialLoginId = "", notice = "" }) {
   const [loginId, setLoginId] = useState(initialLoginId);
   const [password, setPassword] = useState("");
 
@@ -33,9 +34,6 @@ function LoginPage({ onLogin, onGoSignup, initialLoginId = "", notice = "" }) {
 
   // loading: 로그인 요청 중인지 (버튼 비활성화 + 빙글빙글 아이콘)
   const [loading, setLoading] = useState(false);
-
-  // findNotice: "아이디/비밀번호 찾기"를 눌렀을 때 보여줄 안내
-  const [findNotice, setFindNotice] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault(); // 페이지 새로고침 막기
@@ -132,16 +130,11 @@ function LoginPage({ onLogin, onGoSignup, initialLoginId = "", notice = "" }) {
             />
             <span>로그인 상태 유지</span>
           </label>
-          <button
-            type="button"
-            className="text-link"
-            onClick={() => setFindNotice("아이디·비밀번호 찾기는 준비 중이에요.")}
-          >
+          {/* 누르면 아이디 / 비밀번호 찾기 화면(FindAccountPage)으로 이동 */}
+          <button type="button" className="text-link" onClick={onGoFind}>
             아이디 / 비밀번호 찾기
           </button>
         </div>
-
-        {findNotice && <p className="form-hint">{findNotice}</p>}
 
         {/* 아이디·비밀번호 불일치 등 서버 에러 */}
         {serverError && (
