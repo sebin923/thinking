@@ -36,6 +36,7 @@ import models
 from admin_schemas import AdminRankingOut, AdminUserOut, NoticeIn, NoticeOut, QuizIn, QuizOut, UserStatusIn
 from auth_schemas import MessageResponse
 from database import get_db
+from ox_explanations import clean_ox_explanation
 
 # 로그인 확인 함수는 회원가입 API(routers/auth.py)에 이미 있으니까 그대로 가져다 씀
 from routers.auth import get_current_user
@@ -510,7 +511,7 @@ def update_learn_unit(
             unit_id=unit_num,
             question=item.get("q"),
             answer=item.get("a"),
-            explanation=item.get("e", "")
+            explanation=clean_ox_explanation(item.get("e", ""))
         )
         db.add(new_quiz)
 

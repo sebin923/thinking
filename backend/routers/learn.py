@@ -40,6 +40,7 @@ from qwen_ai import build_personalization_prompt, call_qwen
 from score_quality import canonicalize_rules, language_issues, build_summary
 from score_evidence import render_evidence_user, grounding_issues
 from routers.writing_preferences import DEFAULT_PREFERENCES
+from ox_explanations import clean_ox_explanation
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -487,7 +488,7 @@ def get_ox_quizzes(
             "quiz_id": row.quiz_id,
             "q": row.question,
             "a": row.answer,
-            "e": row.explanation or "",
+            "e": clean_ox_explanation(row.explanation or ""),
         }
         for row in rows
     ]

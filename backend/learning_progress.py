@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm.attributes import flag_modified
 from database import Base
+from ox_explanations import clean_ox_explanation
 
 class LearningProgress(Base):
     __tablename__ = 'learning_progress'
@@ -26,7 +27,12 @@ def row_for(db, user_id):
     return db.query(LearningProgress).filter_by(user_id=user_id).populate_existing().with_for_update().one()
 
 def snapshot(row):
-    return {'progress': deepcopy(row.payload), 'revision': row.revision, 'legacy_imported': bool(row.legacy_imported)}
+    payload = deepcopy(row.payload)
+    # 예전에 저장한 오답 해설도 깨끗하게 보여주되 DB 기록과 revision은 바꾸지 않는다.
+    for note in payload.get('wrong', {}).values():
+        if isinstance(note, dict) and 'e' in note:
+            note['e'] = clean_ox_explanation(note['e'])
+    return {'progress': payload, 'revision': row.revision, 'legacy_imported': bool(row.legacy_imported)}
 
 def assign(row, payload):
     row.payload = deepcopy(payload)
