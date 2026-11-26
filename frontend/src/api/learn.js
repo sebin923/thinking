@@ -20,7 +20,7 @@
 // =============================================================
 
 import { LEARN_TYPES } from "../data/learn";
-import { loadUnitQuiz, QUIZ_BANK_VERSION } from "../data/learn/quizBank";
+import { DB_QUIZ_BANK_VERSION, DB_QUIZ_UNIT_COUNT } from "../data/learn/quizBank";
 import { questionId, recordAnswer, remainingQuestions } from "../utils/learningQuiz";
 
 // 백엔드 주소 (frontend/.env의 VITE_API_URL이 있으면 그 값, 없으면 기본값)
@@ -38,9 +38,11 @@ const EDITABLE_FIELDS = ["title", "summary", "points", "good", "bad", "tip", "ta
 
 function currentOverride(override) {
   if (!override) return {};
-  const { quiz, quizVersion, ...lesson } = override;
-  // 이전 문제만 교체한다. 팀원이 수정한 설명·예시 등은 유지한다.
-  return quizVersion === QUIZ_BANK_VERSION ? { ...lesson, quiz, quizVersion } : lesson;
+  const lesson = { ...override };
+  // 출제는 DB만 사용한다. 팀원이 수정한 설명·예시 등은 유지한다.
+  delete lesson.quiz;
+  delete lesson.quizVersion;
+  return lesson;
 }
 
 // ----- localStorage 읽기·쓰기 (실패해도 화면이 멈추지 않게 try/catch) -----
@@ -78,9 +80,11 @@ export async function fetchLearnContent() {
   const overrides = readJson(CONTENT_KEY, {});
   return LEARN_TYPES.map((type) => ({
     ...type,
-    units: type.units.map((unit) =>
-      overrides[unit.id] ? { ...unit, ...currentOverride(overrides[unit.id]), id: unit.id, edited: true } : { ...unit }
-    ),
+    units: type.units.map((unit) => ({
+      ...unit,
+      ...(overrides[unit.id] ? { ...currentOverride(overrides[unit.id]), edited: true } : {}),
+      id: unit.id, quizVersion: DB_QUIZ_BANK_VERSION, quizCount: DB_QUIZ_UNIT_COUNT,
+    })),
   }));
 }
 
@@ -100,8 +104,8 @@ export async function saveLearnUnit(unit, token) {
     if (unit[field] !== undefined) saved[field] = unit[field];
   });
   saved.updatedAt = new Date().toISOString();
-  saved.quizVersion = QUIZ_BANK_VERSION;
-  const defaults = await loadUnitQuiz(unit.id);
+  saved.quizVersion = DB_QUIZ_BANK_VERSION;
+  const defaults = await fetchOxQuizzes(unit.id.split("-")[0], unit.id.split("-").at(-1));
   saved.quiz = saved.quiz.map(({ q, a, e }) => {
     const original = defaults.find((item) => item.q === q && item.a === a);
     return { ...(original ? { id: original.id } : {}), q, a, e };
@@ -259,7 +263,7 @@ export async function saveQuizAnswer(user, { typeKey, unit, question, chosen, an
   const canonical = bank.find((item) => questionId(item) === questionId(question));
   if (!canonical) throw new Error("문제가 변경됐어요. 단원을 다시 열어 주세요.");
   const wasPassed = Boolean(progress.units[unit.id]?.passed);
-  const outcome = recordAnswer(progress, { typeKey, unit, question: canonical, chosen, bank, now: new Date().toISOString(), answerId });
+  const outcome = recordAnswer(progress, { typeKey, unit: { ...unit, quizVersion: DB_QUIZ_BANK_VERSION }, question: canonical, chosen, bank, now: new Date().toISOString(), answerId });
   const saved = await saveProgress(user, progress);
   return { ...outcome, progress: saved, firstPass: outcome.mastered && !wasPassed };
 }
@@ -281,7 +285,7 @@ export async function saveQuizAttempt(user, { typeKey, unit, answers, answersRec
   const before = progress.units[unit.id] || {};
   const score = answers.filter(({ index, chosen }) => chosen === canonical.get(questionId(quizList[index])).a).length;
   if (!answersRecorded) answers.forEach(({ index, chosen }) => {
-    recordAnswer(progress, { typeKey, unit, question: canonical.get(questionId(quizList[index])), chosen, bank, now });
+    recordAnswer(progress, { typeKey, unit: { ...unit, quizVersion: DB_QUIZ_BANK_VERSION }, question: canonical.get(questionId(quizList[index])), chosen, bank, now });
   });
   const remaining = remainingQuestions(bank, progress.units[unit.id]).length;
   const passed = remaining === 0;
@@ -292,6 +296,9 @@ export async function saveQuizAttempt(user, { typeKey, unit, answers, answersRec
     lastScore: score,
     bestScore: Math.max(before.bestScore || 0, score),
     total,
+    quizBankVersion: DB_QUIZ_BANK_VERSION,
+    quizBankTotal: bank.length,
+    quizCorrectCount: bank.length - remaining,
     passed: Boolean(before.passed || passed),
     passedAt: before.passedAt || (passed ? now : null),
   };
@@ -455,8 +462,8 @@ export async function answerWrongNote(user, key, chosen) {
     const unit = type?.units.find((item) => item.id === note.unitId);
     if (unit) {
       const bank = await fetchOxQuizzes(type.key, unit.id.split("-").at(-1));
-      const question = bank.find((item) => questionId(item) === note.questionId);
-      if (question) recordAnswer(progress, { typeKey: type.key, unit, question, chosen, bank, now });
+      const question = bank.find((item) => questionId(item) === note.questionId || (item.q === note.q && item.a === note.a));
+      if (question) recordAnswer(progress, { typeKey: type.key, unit: { ...unit, quizVersion: DB_QUIZ_BANK_VERSION }, question, chosen, bank, now });
     }
   }
   progress = await saveProgress(user, progress);
@@ -501,14 +508,25 @@ export function countOpenWrong(progress) {
 }
 
 // =============================================================
-// 4. 단원별 O/X 문항. 이전 DB/브라우저의 구 문제를 섞지 않는다.
+// 4. 단원별 O/X 문항. DB의 전체 단원 문제에서 화면이 회차별로 뽑는다.
 // =============================================================
 export async function fetchOxQuizzes(category, unitId) {
-  const id = `${category}-${String(Number(unitId)).padStart(2, "0")}`;
-  const overrides = readJson(CONTENT_KEY, {});
-  const override = overrides[id] || overrides[`${category}-${Number(unitId)}`];
-  if (override?.quizVersion === QUIZ_BANK_VERSION && Array.isArray(override.quiz) && override.quiz.length) {
-    return override.quiz.map((question) => ({ ...question }));
+  const number = Number(unitId);
+  if (!["report", "cover", "speech"].includes(category) || !Number.isInteger(number) || number < 1 || number > 10) {
+    throw new Error("이 단원의 문제를 찾을 수 없어요.");
   }
-  return loadUnitQuiz(id);
+  let response;
+  try {
+    response = await fetch(`${API_URL}/api/learn/quizzes?${new URLSearchParams({ category, unit_id: number })}`);
+  } catch (error) {
+    throw new Error("문제 서버에 연결할 수 없어요. 연결을 확인한 뒤 단원을 다시 열어 주세요.", { cause: error });
+  }
+  const rows = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(typeof rows?.detail === "string" ? rows.detail : "문제를 불러오지 못했어요. 단원을 다시 열어 주세요.");
+  if (!Array.isArray(rows) || !rows.length || rows.some((row) => !Number.isInteger(row?.quiz_id) || row.quiz_id < 1
+    || typeof row.q !== "string" || !row.q.trim() || typeof row.a !== "boolean" || typeof row.e !== "string")
+    || new Set(rows.map((row) => row.quiz_id)).size !== rows.length) {
+    throw new Error("문제 정보가 올바르지 않아요. 단원을 다시 열어 주세요.");
+  }
+  return rows.map(({ quiz_id, q, a, e }) => ({ id: `db-ox:${quiz_id}`, quiz_id, q, a, e }));
 }

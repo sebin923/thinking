@@ -54,8 +54,8 @@ function UnitList({ type, progress, onOpenUnit }) {
                   <Icon size={15} />
                   {info.label}
                   {/* 푼 적이 있으면 최고 점수도 (O/X는 10문제 중 몇 개, 글쓰기는 100점 중 몇 점) */}
-                  {unitProgress?.correctQuestionIds && status === "open" ? (
-                    <em>정답 {Math.min(unitProgress.correctQuestionIds.length, unitProgress.quizBankTotal || unit.quizCount)}/{unitProgress.quizBankTotal || unit.quizCount}</em>
+                  {unitProgress?.quizBankVersion === unit.quizVersion && unitProgress?.correctQuestionIds && status === "open" ? (
+                    <em>정답 {unitProgress.quizCorrectCount ?? 0}/{unitProgress.quizBankTotal || unit.quizCount}</em>
                   ) : unitProgress?.attempts > 0 && status === "open" && (
                     <em>
                       최고 {unitProgress.bestScore}/{unitProgress.total}

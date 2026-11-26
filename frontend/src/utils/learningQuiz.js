@@ -10,17 +10,20 @@ export function wrongNoteKey(unitId, question) {
 
 export function remainingQuestions(questions, unitProgress) {
   const correct = new Set(unitProgress?.correctQuestionIds || []);
-  return questions.filter((question) => !correct.has(questionId(question)));
+  return questions.filter((question) => !correct.has(questionId(question))
+    // 이전 DB 문항의 본문 기반 기록도 같은 문제·같은 정답일 때만 인정한다.
+    && !correct.has(questionId({ q: question.q, a: question.a })));
 }
 
 export function drawQuestions(questions, unitProgress, count = 10, random = Math.random) {
   const remaining = remainingQuestions(questions, unitProgress);
+  const pool = remaining.length ? remaining : [...questions];
   // Fisher–Yates: sort(() => Math.random() - .5)의 편향을 피한다.
-  for (let index = remaining.length - 1; index > 0; index -= 1) {
+  for (let index = pool.length - 1; index > 0; index -= 1) {
     const target = Math.floor(random() * (index + 1));
-    [remaining[index], remaining[target]] = [remaining[target], remaining[index]];
+    [pool[index], pool[target]] = [pool[target], pool[index]];
   }
-  return remaining.slice(0, count);
+  return pool.slice(0, count);
 }
 
 export function recordAnswer(progress, { typeKey, unit, question, chosen, bank, now, answerId }) {
@@ -42,10 +45,12 @@ export function recordAnswer(progress, { typeKey, unit, question, chosen, bank, 
       lastAnswerId: answerId, lastAt: now, resolved: false, resolvedAt: null,
     };
   }
-  const mastered = bank.length > 0 && bank.every((item) => correctIds.has(questionId(item)));
+  const remaining = remainingQuestions(bank, { correctQuestionIds: [...correctIds] }).length;
+  const mastered = bank.length > 0 && remaining === 0;
   progress.units[unit.id] = {
     ...before, correctQuestionIds: [...correctIds],
     quizBankVersion: unit.quizVersion, quizMastered: mastered, quizBankTotal: bank.length,
+    quizCorrectCount: bank.length - remaining,
     passed: Boolean(before.passed || mastered), passedAt: before.passedAt || (mastered ? now : null),
   };
   return { correct, mastered };

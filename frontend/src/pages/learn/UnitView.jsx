@@ -3,7 +3,7 @@
 // -------------------------------------------------------------
 // 위쪽 단계 탭: [① 개념] → [② O/X 퀴즈] → [③ 글쓰기 연습]
 //   ① 개념   : 요약 + 핵심 내용 + 좋은 예/고칠 예 + 팁 → "O/X 문제 풀기"
-//   ② 퀴즈   : 남은 문제 중 최대 10개 → 20문제를 누적해서 맞히면 글쓰기 열림
+//   ② 퀴즈   : DB의 단원 문제 중 최대 10개 → 모두 맞히면 글쓰기와 반복 복습 가능
 //   ③ 글쓰기 : O/X를 모두 맞힌 단원만 열림 (WritingPractice)
 //              AI 채점 90점 이상 → 단원 완료 → 다음 단원 열림
 // =============================================================
@@ -67,6 +67,7 @@ function UnitView({
   const [quizRound, setQuizRound] = useState(0);
 
   const [currentQuiz, setCurrentQuiz] = useState([]);
+  const [reviewRound, setReviewRound] = useState(false);
   const [questionBank, setQuestionBank] = useState([]);
   const [loadingQuiz, setLoadingQuiz] = useState(true);
   const [savingQuiz, setSavingQuiz] = useState(false);
@@ -106,7 +107,7 @@ function UnitView({
         quiz: currentQuiz,
       };
       const saved = await onSubmitQuiz(answers, quizToSubmit);
-      setResult({ ...saved, wrongCount: saved.total - saved.score });
+      setResult({ ...saved, reviewRound, wrongCount: saved.total - saved.score });
       setStep("result");
     } catch (err) {
       setError(err.message);
@@ -120,6 +121,7 @@ function UnitView({
     const selected = drawQuestions(questionBank, unitProgress, QUIZ_ROUND_SIZE);
     if (!selected.length) { setStep("concept"); return; }
     setCurrentQuiz(selected);
+    setReviewRound(mastered);
     setError("");
     setQuizRound((n) => n + 1);
     setStep("quiz");
@@ -216,16 +218,12 @@ function UnitView({
           )}
 
           <div className="unit-actions">
-            {mastered ? (
-              <p className="learn-locked-note"><Trophy size={18} /> 이 단원 {questionBank.length}문제를 모두 맞혔어요.</p>
-            ) : (
-              <button type="button" className="btn-primary" onClick={startQuiz} disabled={loadingQuiz || !questionBank.length}>
-                {loadingQuiz ? "퀴즈 불러오는 중..." : `O/X 문제 풀기 (${Math.min(remaining, QUIZ_ROUND_SIZE)}문제)`} <ArrowRight size={16} />
-              </button>
-            )}
+            <button type="button" className="btn-primary" onClick={startQuiz} disabled={loadingQuiz || !questionBank.length}>
+              {loadingQuiz ? "퀴즈 불러오는 중..." : mastered ? `O/X 다시 풀기 (${Math.min(questionBank.length, QUIZ_ROUND_SIZE)}문제)` : `O/X 문제 풀기 (${Math.min(remaining, QUIZ_ROUND_SIZE)}문제)`} <ArrowRight size={16} />
+            </button>
             {passed && <button type="button" className="btn-outline" onClick={() => setStep("writing")}><PenLine size={16} /> 글쓰기 연습하기</button>}
           </div>
-          {!loadingQuiz && questionBank.length > 0 && <p className="unit-result-desc">전체 {questionBank.length}문제 중 {questionBank.length - remaining}문제 정답 · 남은 문제 {remaining}개. 맞힌 문제는 다시 출제하지 않아요.</p>}
+          {!loadingQuiz && questionBank.length > 0 && <p className="unit-result-desc">전체 {questionBank.length}문제 중 {questionBank.length - remaining}문제 정답 · 남은 문제 {remaining}개. {mastered ? "모두 맞힌 뒤에도 10문제씩 다시 풀 수 있어요." : "아직 맞히지 않은 문제를 먼저 출제해요."}</p>}
         </div>
       )}
 
@@ -236,15 +234,23 @@ function UnitView({
 
       {/* ===== ② 결과 ===== */}
       {step === "result" && result && (
-        <div className={result.passed ? "unit-result passed" : "unit-result"}>
+        <div className={result.wrongCount === 0 ? "unit-result passed" : "unit-result"}>
           <div className="unit-result-score">
-            {result.passed && <Trophy size={34} />}
+            {result.wrongCount === 0 && <Trophy size={34} />}
             <strong>
               {result.score} / {result.total}
             </strong>
           </div>
 
-          {result.passed ? (
+          {result.reviewRound ? (
+            <>
+              <p className="unit-result-title">{result.wrongCount === 0 ? "복습 문제를 모두 맞혔어요!" : "복습 해설을 확인하고 다시 도전해 보세요"}</p>
+              <p className="unit-result-desc">
+                {result.wrongCount > 0 && <>틀린 {result.wrongCount}문제는 오답노트에 담아 두었어요. </>}
+                기존 통과·완료 기록은 유지돼요. O/X를 계속 풀거나 글쓰기 연습을 할 수 있어요.
+              </p>
+            </>
+          ) : result.passed ? (
             <>
               <p className="unit-result-title">
                 이 단원 O/X 문제를 모두 맞혔어요!
@@ -271,6 +277,10 @@ function UnitView({
                 <button type="button" className="btn-primary" onClick={() => setStep("writing")}>
                   <PenLine size={16} /> 글쓰기 연습하기
                 </button>
+                <button type="button" className="btn-outline" onClick={startQuiz} disabled={loadingQuiz || savingQuiz}>
+                  <RotateCcw size={16} /> O/X 다시 풀기
+                </button>
+                {result.wrongCount > 0 && <button type="button" className="btn-outline" onClick={onOpenWrongNotes}><NotebookPen size={16} /> 오답노트 보기</button>}
                 {onNextUnit && (
                   <button type="button" className="btn-outline" onClick={onNextUnit}>
                     다음 단원 <ArrowRight size={16} />

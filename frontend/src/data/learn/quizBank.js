@@ -1,4 +1,6 @@
-// 단원에 들어갈 때 해당 20문제만 로드한다. 문제 내용은 초기 화면 번들에 넣지 않는다.
+// 현재 출제는 DB API를 사용한다. 아래 JSON 로더는 이전 문제 자료 확인용이다.
+export const DB_QUIZ_BANK_VERSION = "db-ox-v1";
+export const DB_QUIZ_UNIT_COUNT = 30;
 export const QUIZ_BANK_VERSION = "university-20261119-v1";
 export const QUIZ_ROUND_SIZE = 10;
 const banks = import.meta.glob("./quizzes/*.json", { import: "default" });
