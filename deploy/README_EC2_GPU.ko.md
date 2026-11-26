@@ -25,14 +25,20 @@ git pull --ff-only origin master
 ```dotenv
 COMMON_LLM_URL=http://GPU_TAILSCALE_IP:8001
 THINKING_LLM_TOKEN=GPU_PC와_같은_비밀값
+FACTCHECK_LLM_URL=http://GPU_TAILSCALE_IP:8002
+# 검증 서버의 토큰이 다를 때만 별도 설정. 비워두면 THINKING_LLM_TOKEN 사용
+FACTCHECK_LLM_TOKEN=
 ```
 
 이 값은 백엔드에서만 사용하며 프론트 환경변수에 넣지 않습니다.
 GPU PC와 EC2는 같은 Tailscale 네트워크에 연결되어 있어야 합니다.
 GPU 서버 시작과 Tailscale 설정은 이 저장소를 받는 것만으로 자동 실행되지 않습니다.
 
-자료 사실검사를 별도로 사용할 때만 `FACTCHECK_LLM_URL`과 `FACTCHECK_LLM_TOKEN`을 설정합니다.
-이 경로는 기존 단원 채점과 분리되어 있으며, 이번 작업은 사실검사 화면을 추가하지 않습니다.
+최신 단원 채점은 자료·과제 검증 서버 연결이 필수입니다.
+GPU PC의 공통 모델 8001과 검증 모델 8002가 모두 Tailscale 내부에서 접속 가능해야 합니다.
+`FACTCHECK_LLM_URL`은 GPU PC 주소이며 EC2의 `127.0.0.1:8002`와 다릅니다.
+연결·토큰·모델 확인에 실패하면 점수와 글쓰기 진도를 저장하지 않고 채점을 보류합니다.
+별도의 수동 사실검사 API도 유지하며 프론트 화면은 변경하지 않습니다.
 
 ## AI 기능의 연결 조건
 
@@ -55,7 +61,8 @@ GPU 서버가 `base` 또는 모델 표시가 없는 응답을 보내면 503 오�
 .venv/bin/python deploy/check_remote_llm.py
 ```
 
-위 명령은 연결 확인이며 실제 답변 생성 검증은 아닙니다.
+위 명령은 공통 모델 연결 확인이며 실제 답변 생성 검증은 아닙니다.
+검증 모델 8002의 상태·인증·모델 지문과 실제 채점도 별도로 확인해야 합니다.
 현재 모델의 실제 응답까지 확인할 때는 도구의 `--generate` 옵션을 사용합니다.
 이 명령은 GPU 추론 요청을 발생시키므로 학습·추론 실행 계획에 맞춰 수행합니다.
 

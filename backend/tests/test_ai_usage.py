@@ -8,7 +8,7 @@ import requests
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 
-from test_qwen_features import api, document, feedback_payload, reply
+from test_qwen_features import api, document, indexed_feedback_item, reply, reply_feedback
 import ai_usage
 import database
 import models
@@ -74,7 +74,7 @@ def test_feedback_and_drafts_share_free_and_paid_counts(api):
     prepare(db, credits=1, used=2)
     doc = document(client)
     draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
-    reply(post, json.dumps(feedback_payload(), ensure_ascii=False))
+    reply_feedback(post)
     response = client.post(f"/api/drafts/{draft['id']}/feedback-ai")
     assert response.status_code == 200, response.text
     assert response.json()["usage"]["remaining"] == 0
@@ -110,10 +110,38 @@ def test_invalid_feedback_never_charges_or_saves(api):
     prepare(db, credits=1, used=3)
     doc = document(client)
     draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
-    reply(post, json.dumps(feedback_payload("원문에 없는 구절"), ensure_ascii=False))
+    reply_feedback(post, [indexed_feedback_item(target_id='S99')])
     assert client.post(f"/api/drafts/{draft['id']}/feedback-ai").status_code == 502
     assert status(client)["credits"] == 1
     assert db.query(models.AIFeedback).count() == 0
+
+
+def test_feedback_second_review_failure_never_charges_or_saves(api):
+    client, db, post = api
+    prepare(db, credits=1, used=3)
+    doc = document(client)
+    draft = client.post('/api/drafts', json={'document_id': doc['id'], 'content': '안내판을 확인했다.'}).json()
+    first = Mock(status_code=200)
+    first.json.return_value = {'content': json.dumps({'issues': [indexed_feedback_item()]}, ensure_ascii=False), 'adapter': 'common'}
+    post.side_effect = [first, Mock(status_code=503)]
+    assert client.post(f'/api/drafts/{draft["id"]}/feedback-ai').status_code == 503
+    assert post.call_count == 2
+    assert status(client)['credits'] == 1
+    assert db.query(models.AIFeedback).count() == 0
+
+
+def test_feedback_two_internal_calls_spend_only_one_paid_credit(api):
+    client, db, post = api
+    prepare(db, credits=2, used=3)
+    doc = document(client)
+    draft = client.post('/api/drafts', json={'document_id': doc['id'], 'content': '안내판을 확인했다.'}).json()
+    reply_feedback(post, [indexed_feedback_item()])
+    response = client.post(f'/api/drafts/{draft["id"]}/feedback-ai')
+    assert response.status_code == 200, response.text
+    assert post.call_count == 2
+    assert response.json()['usage']['credits'] == 1
+    assert status(client)['used'] == 3
+    assert db.query(models.AIFeedback).count() == 1
 
 
 @pytest.mark.parametrize("feedback", [False, True])
@@ -125,7 +153,7 @@ def test_failed_commit_rolls_back_result_and_charge(api, monkeypatch, feedback):
     if feedback:
         draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
         route = f"/api/drafts/{draft['id']}/feedback-ai"
-        reply(post, json.dumps(feedback_payload(), ensure_ascii=False))
+        reply_feedback(post)
     else:
         reply(post, "안내판을 확인했다.")
     session_class = type(db)

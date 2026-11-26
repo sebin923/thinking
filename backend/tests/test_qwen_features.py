@@ -30,6 +30,7 @@ database.SessionLocal = sessionmaker(bind=database.engine)
 import models
 from main import app
 from routers.auth import get_current_user
+from routers import learn as learn_router
 from learning_progress import LearningProgress
 import qwen_ai
 
@@ -50,6 +51,12 @@ def api(monkeypatch):
     monkeypatch.setenv("COMMON_LLM_URL", "http://qwen.test:8001/")
     post = Mock()
     monkeypatch.setattr(qwen_ai.requests, "post", post)
+    # 기존 단위 테스트는 채점 모델 응답만 가짜로 사용한다. 별도 검증 서버의
+    # 실제 HTTP 계약은 test_grading_validation.py에서 함께 검사한다.
+    monkeypatch.setattr(learn_router, 'audit_for_grading', lambda data: {
+        'on_task': True, 'findings': [],
+        'scope': 'question' if (data.practice and data.practice.kind == 'question') else 'data',
+    })
     with TestClient(app) as client:
         yield client, db, post
     app.dependency_overrides.clear()
@@ -59,6 +66,7 @@ def api(monkeypatch):
 def reply(post, content, **extra):
     response = Mock(status_code=200)
     response.json.return_value = {"content": content, "personalized": True, "adapter": "common", **extra}
+    post.side_effect = None
     post.return_value = response
 
 
@@ -74,6 +82,28 @@ def feedback_payload(quote="안내판을 확인했다."):
         "original_text": quote, "type": "표현", "reason": "행동을 더 명확히 표현할 수 있어요.",
         "suggestion": "문장을 간결하게 다듬어 보세요.", "revised_text": "안내판의 위치를 점검했다.",
     }]}
+
+
+def reply_feedback(post, issues=None, verdict='confirmed'):
+    """실제 두 단계 프로토콜을 흉내 내되 외부 API는 호출하지 않는다."""
+    if issues is None:
+        issues = []
+
+    def respond(url, **kwargs):
+        if 'reviews' in kwargs['json']['schema_spec']['properties']:
+            value = {'reviews': [{'issue_id': f'C{i + 1}', 'verdict': verdict} for i in range(len(issues))]}
+        else:
+            value = {'issues': issues}
+        response = Mock(status_code=200)
+        response.json.return_value = {'content': json.dumps(value, ensure_ascii=False), 'adapter': 'common'}
+        return response
+    post.side_effect = respond
+
+
+def indexed_feedback_item(**updates):
+    return {'target_id': 'S1', 'evidence_ids': ['S1'], 'type': '표현',
+            'reason': '문장의 표현이 어색해요.', 'suggestion': '표현을 간결하게 고쳐 보세요.',
+            'revised_text': '안내판의 위치를 점검했다.', **updates}
 
 
 def score_payload(on_task=True, score=9):
@@ -141,6 +171,7 @@ def test_feedback_handles_exact_repetition_without_inventing_other_problems(api)
     text='저는 신청서 12장을 확인했습니다. 저는 신청서 12장을 확인했습니다. 원본은 아직 수정하지 않았습니다.'
     doc=document(client)
     draft=client.post('/api/drafts',json={'document_id':doc['id'],'content':text}).json()
+    reply_feedback(post)
     client.put('/api/writing/preferences',json={'ai_assistance':'guided','feedback_style':'brief'})
     guided=client.post(f'/api/drafts/{draft["id"]}/feedback-ai').json()['feedback']
     assert len(guided['highlights'])==1
@@ -149,7 +180,7 @@ def test_feedback_handles_exact_repetition_without_inventing_other_problems(api)
     client.put('/api/writing/preferences',json={'ai_assistance':'draft','feedback_style':'detailed'})
     detailed=client.post(f'/api/drafts/{draft["id"]}/feedback-ai').json()['feedback']
     assert detailed['highlights'][0]['revised_text']=='저는 신청서 12장을 확인했습니다.'
-    post.assert_not_called()
+    assert post.call_count == 2  # 다른 오류가 반복 검사에 가려지지 않도록 원문도 검토한다.
 
 
 @pytest.mark.parametrize('quote,revised',[
@@ -185,7 +216,7 @@ def test_feedback_retains_real_korean_word_spacing_correction():
 
 @pytest.mark.parametrize('assistance', ['guided','draft'])
 def test_clear_spacing_feedback_keeps_negation_and_mode(monkeypatch, assistance):
-    monkeypatch.setattr(qwen_ai,'call_qwen',lambda *a,**k:pytest.fail('A verified spacing correction needs no speculative rewrite'))
+    monkeypatch.setattr(qwen_ai,'call_qwen',lambda *a,**k:'{"issues": []}')
     text='저는 명단을 확인할수 없었습니다. 원본은 아직 수정하지 않았습니다.'
     value=qwen_ai.create_feedback_with_ai(text,'자기소개서',{'ai_assistance':assistance})
     item=value['highlights'][0]
@@ -243,24 +274,44 @@ def test_feedback_uses_chat_schema_and_guided_preference(api):
     client.put("/api/writing/preferences", json={"ai_assistance": "guided"})
     doc = document(client)
     draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
-    reply(post, json.dumps(feedback_payload(), ensure_ascii=False))
+    reply_feedback(post, [indexed_feedback_item()])
     response = client.post(f"/api/drafts/{draft['id']}/feedback-ai")
     assert response.status_code == 200, response.text
     assert response.json()["feedback"]["highlights"][0]["revised_text"] == ""
     assert post.call_args.args == ("http://qwen.test:8001/chat",)
-    assert post.call_args.kwargs["json"]["schema_spec"]["required"] == ["overall_feedback", "highlights"]
-    assert post.call_args.kwargs["json"]["adapter"] == "common"
-    assert "힌트 중심 설정" in post.call_args.kwargs["json"]["messages"][0]["content"]
+    assert post.call_args_list[0].kwargs["json"]["schema_spec"]["required"] == ["issues"]
+    assert post.call_args_list[1].kwargs["json"]["schema_spec"]["required"] == ["reviews"]
+    assert all(call.kwargs["json"]["adapter"] == "common" for call in post.call_args_list)
+    assert "힌트 중심 설정" in post.call_args_list[0].kwargs["json"]["messages"][0]["content"]
+    assert response.json()['usage']['used'] == 1
     assert db.query(models.AIFeedback).count() == 1
 
 
-def test_feedback_rejects_invented_quote_without_saving(api):
+def test_feedback_rejects_invented_sentence_id_without_saving(api):
     client, db, post = api
     doc = document(client)
     draft = client.post("/api/drafts", json={"document_id": doc["id"], "content": "안내판을 확인했다."}).json()
-    reply(post, json.dumps(feedback_payload("없는 경험을 지어냈다."), ensure_ascii=False))
+    reply_feedback(post, [indexed_feedback_item(target_id='S99')])
     assert client.post(f"/api/drafts/{draft['id']}/feedback-ai").status_code == 502
     assert db.query(models.AIFeedback).count() == 0
+
+
+def test_brief_feedback_saves_and_returns_every_verified_item(api):
+    client, db, post = api
+    text = ('제 역활은 기록 정리입니다. 몇일 뒤에 발표할께요. 필요하면 정리해도 되요. '
+            '내일 다시 뵈요. 웬지 마음이 편했습니다. 오랫만에 자료를 확인했습니다. '
+            '아직 명단은 확인할수 없습니다. 저는 학회를 가입했습니다. 저는 원본을 열지 않았습니다를.')
+    doc = document(client)
+    draft = client.post('/api/drafts', json={'document_id': doc['id'], 'content': text}).json()
+    client.put('/api/writing/preferences', json={'feedback_style': 'brief', 'ai_assistance': 'guided'})
+    reply_feedback(post)
+    response = client.post(f'/api/drafts/{draft["id"]}/feedback-ai')
+    assert response.status_code == 200, response.text
+    feedback = response.json()['feedback']
+    assert len(feedback['highlights']) == 10
+    assert all(not item['revised_text'] for item in feedback['highlights'])
+    assert db.query(models.AIFeedback).one().feedback_data == feedback
+    assert response.json()['usage']['used'] == 1
 
 
 def test_other_users_document_is_never_sent_to_qwen(api):
@@ -290,9 +341,10 @@ def test_score_saves_exact_recommended_material_and_90_point_completion(api):
     assert "비교할 원문입니다." not in prompt
 
 
-def test_off_task_score_is_capped_at_50(api):
+def test_off_task_score_is_capped_at_50(api, monkeypatch):
     client, db, post = api
     unlock(db)
+    monkeypatch.setattr(learn_router, 'audit_for_grading', lambda data: {'on_task': False, 'findings': [], 'scope': 'data'})
     off_task = score_payload(on_task=False, score=10)
     off_task['criteria']['criterion_2'] = {'score':0,'comment':'자료 정리와 관계없는 내용으로 과제를 수행하지 않았습니다.'}
     reply(post, json.dumps(off_task, ensure_ascii=False))
@@ -475,14 +527,16 @@ def test_score_does_not_save_a_persistent_explanation_conflict(api):
     assert 'writing' not in db.query(LearningProgress).filter_by(user_id=1).one().payload['units']['report-1']
 
 
-def test_score_rejects_high_task_score_for_an_off_topic_response(api):
+def test_score_limits_high_task_score_for_a_verified_off_topic_response(api, monkeypatch):
     client, db, post = api
     unlock(db)
+    monkeypatch.setattr(learn_router, 'audit_for_grading', lambda data: {'on_task': False, 'findings': [], 'scope': 'data'})
     reply(post, json.dumps(score_payload(on_task=False,score=10),ensure_ascii=False))
     response = client.post('/api/learn/writing-score',json=score_request())
-    assert response.status_code == 502, response.text
-    assert post.call_count == 2
-    assert 'writing' not in db.query(LearningProgress).filter_by(user_id=1).one().payload['units']['report-1']
+    assert response.status_code == 200, response.text
+    assert response.json()['score'] <= 50 and not response.json()['passed']
+    assert post.call_count == 1
+    assert not db.query(LearningProgress).filter_by(user_id=1).one().payload['units']['report-1']['completed']
 
 
 def test_a_partial_strength_is_not_treated_as_complete_criterion_satisfaction():

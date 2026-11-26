@@ -12,6 +12,7 @@
 #   - AI는 기준마다 0~10점만 매김
 #   - 최종 점수 = (받은 점수 합 ÷ 만점 합) × 100 을 반올림 → 계산은 AI가 아니라 서버가 함
 #   - 엉뚱한 주제로 썼으면(on_task = false) 최대 50점까지만
+#   - 검증된 핵심 사실·필수 형식 오류는 90점 미만, 검증 실패는 점수 저장 보류
 #
 # ★ 지금은 단원 내용(규칙·과제·자료)을 프론트가 같이 보내 줌
 #   (학습 내용이 아직 프론트(브라우저)에 저장돼 있어서) → 학습 내용을 DB로 옮기면
@@ -41,6 +42,8 @@ from score_quality import canonicalize_rules, language_issues, build_summary
 from score_evidence import render_evidence_user, grounding_issues
 from routers.writing_preferences import DEFAULT_PREFERENCES
 from ox_explanations import clean_ox_explanation
+from grading_validation import (audit_for_grading, constrain_schema, constraint_instruction,
+                                evidence_user, apply_verified_rules, constraint_issues, final_score_limit)
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -298,9 +301,10 @@ def _score_explanation_conflicts(raw, count):
 
 def score_learning_writing(data: LearnScoreIn) -> dict:
     """Qwen에게 기준별 점수를 받아서 최종 점수(100점 만점)를 계산해 돌려줌"""
-    fact_based = not ((data.practice is not None and data.practice.kind == 'question')
+    fact_based = bool(data.material.strip()) and not ((data.practice is not None and data.practice.kind == 'question')
                       or (data.type_label == '자기소개서' and data.practice is None))
     criteria = _build_criteria(data.rules, data.task, fact_based=fact_based)
+    audit = audit_for_grading(data)
 
     # 기준 목록을 "1. ...", "2. ..." 글자로 (AI가 번호로 점수를 매기게)
     criteria_text = "\n".join(f"{i}. {item['desc']}" for i, item in enumerate(criteria, start=1))
@@ -325,7 +329,7 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         " 글에 없는 맞춤법 오류나 바뀐 표현을 만들어 감점하지 마세요. 직접 인용할 때는 학습자 글의 연속된 짧은 구절을 그대로 사용하세요."
     )
     if not fact_based:
-        system += (' 자기소개서 문항만 주어진 경우 학습자가 쓴 구체적인 경험과 수치는 스스로 고른 자료입니다. '
+        system += (' 대조할 사실 자료가 없고 문항이나 과제만 주어진 경우 학습자가 쓴 구체적인 경험과 수치는 스스로 고른 자료입니다. '
                    '참고 자료에 없다는 이유로 지어냈다고 표현하거나 감점하지 마세요. '
                    '문항 적합성, 행동 주체, 설명의 일관성과 구체성을 평가하세요. 경험의 실제 진위는 이 글만으로 확인할 수 없습니다.')
     system += (
@@ -341,29 +345,47 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         "맞춤법 관찰은 제한된 규칙입니다. 인용·코드 안의 틀린 표기를 설명하는 문장에는 자동으로 감점하지 마세요. "
         "명백한 비인용 맞춤법 오류가 있는데 문장이 완벽하다고 평가하지 마세요."
     )
-    user = render_evidence_user(data.material, data.text, criteria_text, data.task)
+    system += constraint_instruction(audit, len(criteria))
+    user = render_evidence_user(data.material, data.text, criteria_text, data.task) + evidence_user(audit)
+    schema = constrain_schema(_score_schema(criteria), audit, len(criteria))
 
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
     for attempt in range(2):
-        raw = call_qwen(messages, max_tokens=2000, schema=_score_schema(criteria), adapter="common")
+        try:
+            raw = call_qwen(messages, max_tokens=2000, schema=schema, adapter="common")
+        except HTTPException as exc:
+            if exc.status_code != 502 or attempt:
+                raise
+            # 설계도 자체를 답으로 복사하는 경우도 있어 실제 결과 키를 다시 명시한다.
+            # 문자열에서 점수를 추출하거나 기본 점수로 대체하지 않는다.
+            messages[0] = {"role": "system", "content": system +
+                " 응답 형식 검증에 실패했습니다. 설계도 자체를 출력하지 마세요. "
+                "최상위 키는 criteria, on_task, overall_feedback, next_step 네 개뿐입니다. "
+                "type, properties, required는 출력 키가 아닙니다. "
+                "criteria 안에는 지정한 criterion 번호별 실제 점수와 근거를 넣고 모든 중괄호를 닫으세요."}
+            continue
+        raw = apply_verified_rules(raw, audit, len(criteria))
         conflicts = _score_explanation_conflicts(raw, len(criteria))
         normalized = _normalize_score_result(raw, len(criteria))
+        constraints = constraint_issues(normalized, audit, len(criteria))
         source_text = "\n".join([data.text, data.material, data.task, data.unit_title, *data.rules])
         foreign = language_issues(normalized, source_text)
         grounding = grounding_issues(normalized, data.text, data.material)
-        if not conflicts and not foreign and not grounding:
+        if not conflicts and not foreign and not grounding and not constraints:
             break
         if attempt:
+            if constraints:
+                raise ValueError('AI 채점이 자료·과제 검증 조건을 지키지 못해 결과를 저장하지 않았어요. 다시 시도해 주세요.')
             if grounding:
                 raise ValueError("AI가 원문에 없는 문구를 인용했거나 맞춤법 근거와 평가가 맞지 않습니다. 결과를 저장하지 않았어요.")
             if foreign:
                 raise ValueError("AI 채점 설명에 원문에 없는 한자·중국어가 섞였습니다. 결과를 저장하지 않았어요. 다시 시도해 주세요.")
             raise ValueError("AI 점수와 평가 설명이 서로 맞지 않습니다. 결과를 저장하지 않았어요. 다시 시도해 주세요.")
         # Generated explanations are untrusted data. Do not promote them to system instructions.
-        details = (["점수·설명 모순" for _ in conflicts] + [item["field"] + ": 출력 언어 오류" for item in foreign]
+        details = (constraints + ["점수·설명 모순" for _ in conflicts] + [item["field"] + ": 출력 언어 오류" for item in foreign]
                    + [item["field"] + ": 원문 근거 또는 맞춤법 관찰 재확인" for item in grounding])
         messages[0] = {"role": "system", "content": system +
             " 이전 응답은 모순으로 검증에 실패했거나 출력 언어 검사를 통과하지 못했습니다. " + " / ".join(details) +
@@ -411,6 +433,12 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
     on_task = result["on_task"]
     if not on_task:
         score = min(score, OFF_TASK_MAX_SCORE)
+    limit = final_score_limit(audit, PASS_SCORE)
+    limited = score > limit
+    score = min(score, limit)
+    summary = build_summary(scored, on_task)
+    if limited and on_task:
+        summary = '핵심 사실이나 과제의 필수 조건을 충족하지 않아 합산 점수와 관계없이 단원 완료 점수 미만으로 처리했어요. ' + summary
 
     return {
         "score": score,
@@ -418,7 +446,7 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         "passed": score >= PASS_SCORE,
         "on_task": on_task,
         "criteria": scored,
-        "overall_feedback": build_summary(scored, on_task),
+        "overall_feedback": summary,
         "next_step": str(result.get("next_step") or "").strip(),
     }
 
