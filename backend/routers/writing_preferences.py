@@ -107,3 +107,8 @@ def save_preferences(
         "feedback_style": saved.feedback_style,
         "ai_assistance": saved.ai_assistance
     }
+
+
+# Register the separate topic profile without changing writing-style contracts.
+from recommendation_settings import register_profile_routes
+register_profile_routes(router)

@@ -20,6 +20,7 @@
 
 import json
 import random
+import re
 from copy import deepcopy
 from typing import Annotated, Literal
 
@@ -36,6 +37,8 @@ import models
 from routers.auth import get_current_user
 # 공통 Qwen 서버에서 구조화된 채점 결과를 받아온다.
 from qwen_ai import build_personalization_prompt, call_qwen
+from score_quality import canonicalize_rules, language_issues, build_summary
+from score_evidence import render_evidence_user, grounding_issues
 from routers.writing_preferences import DEFAULT_PREFERENCES
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
@@ -96,6 +99,7 @@ class LearnScoreIn(BaseModel):
             self.material = self.practice.material_text()
             if len(self.material) > 4000:
                 raise ValueError("연습 자료는 4000자 이하여야 합니다.")
+        self.rules = canonicalize_rules(self.rules)
         return self
 
 
@@ -124,6 +128,11 @@ def recommend_practice(data: PracticeRecommendationIn,
     ids = [item.id for item in data.candidates]
     if len(ids) != len(set(ids)):
         raise HTTPException(422, "연습 자료 ID가 중복되었습니다.")
+    # 기존 화면도 새 개인화를 사용한다. 자료·출처는 그대로 두고 후보만 고른다.
+    from practice_recommendations import recommend_compatible
+    personalized = recommend_compatible(data, current_user.user_id, db)
+    if personalized is not None:
+        return personalized
     saved = db.query(models.UserWritingPreference).filter_by(user_id=current_user.user_id).first()
     preferences = {key: getattr(saved, key) for key in DEFAULT_PREFERENCES.model_dump()} if saved else DEFAULT_PREFERENCES.model_dump()
     progress = db.query(progress_svc.LearningProgress).filter_by(user_id=current_user.user_id).first()
@@ -167,6 +176,14 @@ def recommend_practice(data: PracticeRecommendationIn,
     except (ValueError, TypeError) as exc:
         raise HTTPException(502, str(exc)) from exc
     return {key: result[key].strip(), "reason": result["reason"].strip()}
+
+
+@router.post("/practice-recommendation-v2")
+def recommend_personal_practice(data: PracticeRecommendationIn,
+                               current_user: models.User = Depends(get_current_user),
+                               db: Session = Depends(get_db)):
+    from practice_recommendations import recommend
+    return recommend(data, current_user.user_id, db)
 
 
 # AI가 꼭 이 모양(JSON)으로 답하게 만드는 설계도 (Qwen의 schema_spec 검증)
@@ -242,7 +259,7 @@ def _normalize_score_result(raw, count):
 
 def _build_criteria(rules: list[str], task: str, *, fact_based=True) -> list[dict]:
     """채점 기준 목록 만들기 → [{ "label": 화면에 보일 이름, "desc": AI에게 줄 설명 }, ...]"""
-    criteria = [{"label": rule.strip(), "desc": rule.strip()} for rule in rules if rule.strip()]
+    criteria = [{"label": rule, "desc": rule} for rule in canonicalize_rules(rules) if rule]
     criteria.append(
         {
             "label": "과제 수행",
@@ -253,10 +270,29 @@ def _build_criteria(rules: list[str], task: str, *, fact_based=True) -> list[dic
     criteria.append(
         {
             "label": "맞춤법·문장",
-            "desc": "맞춤법·띄어쓰기가 바르고, 주어와 서술어가 호응하며, 문장이 읽기 쉽다.",
+            "desc": "과제 주제와 관계없이 문장 자체의 맞춤법·띄어쓰기, 주어와 서술어의 호응, 읽기 쉬움을 독립적으로 평가한다. 주제가 다르다는 이유로 감점하지 않는다.",
         }
     )
     return criteria
+
+
+def _score_explanation_conflicts(raw, count):
+    """Reject explicit contradictions; do not replace model scores with defaults."""
+    result = _normalize_score_result(raw, count)
+    conflicts = []
+    positive = re.compile(
+        r"(?:할\s*일을|과제를|기준을)\s*(?:모두|빠짐없이|완벽히|완전히)\s*"
+        r"(?:썼|작성했|수행했|담았|포함했|충족했|지켰)"
+    )
+    for item in result['criteria']:
+        score, comment = item['score'], item['comment']
+        if type(score) is not int or not isinstance(comment, str):
+            continue  # Existing strict validation handles malformed values.
+        if result.get('on_task') is False and item['index'] == count - 1 and score > 3:
+            conflicts.append(f"criterion_{item['index']}: 과제와 무관하다고 판단했는데 과제 수행에 {score}점을 주었습니다.")
+        if 0 <= score <= 3 and positive.search(comment):
+            conflicts.append(f"criterion_{item['index']}: {score}점인데 기준을 충족했다고 설명했습니다: {comment[:160]}")
+    return conflicts
 
 
 def score_learning_writing(data: LearnScoreIn) -> dict:
@@ -291,21 +327,48 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         system += (' 자기소개서 문항만 주어진 경우 학습자가 쓴 구체적인 경험과 수치는 스스로 고른 자료입니다. '
                    '참고 자료에 없다는 이유로 지어냈다고 표현하거나 감점하지 마세요. '
                    '문항 적합성, 행동 주체, 설명의 일관성과 구체성을 평가하세요. 경험의 실제 진위는 이 글만으로 확인할 수 없습니다.')
-    user = (
-        f"[할 일]\n{data.task}\n\n"
-        f"[연습 자료]\n{data.material or '(없음)'}\n\n"
-        f"[채점 기준]\n{criteria_text}\n\n"
-        f"[학습자가 쓴 글]\n{data.text}"
+    system += (
+        " 독립 채점 예시: 자료 정리 보고서 과제에 '주말에 도서관에서 책을 읽었습니다.'라는 글을 제출했다면 "
+        "과제 수행 점수는 0점이고 on_task는 false이지만, 이 문장은 맞춤법과 호응이 정확하므로 맞춤법·문장 점수는 9~10점입니다. "
+        "실제 제출 글에서도 같은 원칙을 적용하세요. 각 comment에는 해당 기준의 구체적인 근거만 쓰고, "
+        "문법이 맞는다고 설명하면서 문법 점수를 0점으로 주는 모순을 피하세요."
     )
+    system += (
+        " 채점 전에 S 문장과 T 문장을 대조해 누가 무엇을 했는지, 수치와 완료 상태가 같은지 확인하세요. "
+        "대조 후보는 문자열 검색 결과일 뿐 정답이나 오류 판정이 아닙니다. 원문 전체로 판단하세요. "
+        "인용할 때는 번호를 붙이지 말고 실제 문구를 정확히 복사하세요. 없는 문구를 인용하지 마세요. "
+        "맞춤법 관찰은 제한된 규칙입니다. 인용·코드 안의 틀린 표기를 설명하는 문장에는 자동으로 감점하지 마세요. "
+        "명백한 비인용 맞춤법 오류가 있는데 문장이 완벽하다고 평가하지 마세요."
+    )
+    user = render_evidence_user(data.material, data.text, criteria_text, data.task)
 
-    raw = call_qwen(
-        [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        max_tokens=2000,
-        schema=_score_schema(criteria),
-    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    for attempt in range(2):
+        raw = call_qwen(messages, max_tokens=2000, schema=_score_schema(criteria), adapter="common")
+        conflicts = _score_explanation_conflicts(raw, len(criteria))
+        normalized = _normalize_score_result(raw, len(criteria))
+        source_text = "\n".join([data.text, data.material, data.task, data.unit_title, *data.rules])
+        foreign = language_issues(normalized, source_text)
+        grounding = grounding_issues(normalized, data.text, data.material)
+        if not conflicts and not foreign and not grounding:
+            break
+        if attempt:
+            if grounding:
+                raise ValueError("AI가 원문에 없는 문구를 인용했거나 맞춤법 근거와 평가가 맞지 않습니다. 결과를 저장하지 않았어요.")
+            if foreign:
+                raise ValueError("AI 채점 설명에 원문에 없는 한자·중국어가 섞였습니다. 결과를 저장하지 않았어요. 다시 시도해 주세요.")
+            raise ValueError("AI 점수와 평가 설명이 서로 맞지 않습니다. 결과를 저장하지 않았어요. 다시 시도해 주세요.")
+        # Generated explanations are untrusted data. Do not promote them to system instructions.
+        details = (["점수·설명 모순" for _ in conflicts] + [item["field"] + ": 출력 언어 오류" for item in foreign]
+                   + [item["field"] + ": 원문 근거 또는 맞춤법 관찰 재확인" for item in grounding])
+        messages[0] = {"role": "system", "content": system +
+            " 이전 응답은 모순으로 검증에 실패했거나 출력 언어 검사를 통과하지 못했습니다. " + " / ".join(details) +
+            " 원문을 다시 읽고 각 기준의 점수와 이유가 일치하도록 전체 결과를 다시 작성하세요. "
+            "설명과 다음 수정 안내는 한국어로 쓰고, 원문에 없는 한자·중국어를 넣지 마세요. "
+            "잘못된 설명을 유지하려고 점수만 올리지 마세요. 원문을 근거로 재평가하세요."}
 
     # 항목별 응답을 기존 화면/저장 형식으로 변환한 후 점수와 근거를 검사한다.
     result = _normalize_score_result(raw, len(criteria))
@@ -354,7 +417,7 @@ def score_learning_writing(data: LearnScoreIn) -> dict:
         "passed": score >= PASS_SCORE,
         "on_task": on_task,
         "criteria": scored,
-        "overall_feedback": str(result.get("overall_feedback") or "").strip(),
+        "overall_feedback": build_summary(scored, on_task),
         "next_step": str(result.get("next_step") or "").strip(),
     }
 

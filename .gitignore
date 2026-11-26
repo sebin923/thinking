@@ -1,79 +1,65 @@
-# Python
+# Python 가상환경과 재생성 가능한 캐시
 venv/
-.venv/
-__pycache__/
-*.pyc
-
-# Node.js
-node_modules/
-dist/
-
-# Environment
-.env
-.env.*
-!.env.example
-
-# Local database
-*.db
-*.sqlite
-*.sqlite3
-
-# Local integration checkouts and machine-specific model selection
-/.worktrees/
-/llm_training/model_selection.json
-
-# Editor
-.vscode/
-.idea/
-# Local secrets and EC2 private keys
-.thinking_llm_token
-*.pem
-*.key
-
-# Local backup files
-*.backup_*
-
-# Python environments and generated files
 .venv/
 .venv-*/
 __pycache__/
 *.pyc
+.pytest_cache/
 
-# LLM model artifacts
-llm_training/outputs/
-llm_training/checkpoints/
-llm_training/data/
+# 설치 패키지와 빌드 결과물
+node_modules/
+dist/
+/backend/frontend/
+
+# 실제 환경설정은 제외하고 빈 견본만 공유
+.env
+.env.*
+!.env.example
+
+# 로컬 데이터베이스
+*.db
+*.sqlite
+*.sqlite3
+
+# GPU 컴퓨터 전용 LLM 서버·학습 코드·모델·자료
+/llm_training/
+/backend/crawling/
 *.safetensors
 *.pt
 *.pth
 *.gguf
 
-# LLM secrets
-.thinking_llm_token
-/thinking_llm_token
-# Local terminal transcripts and connection notes
-/(.venv) *.txt
-/COMMON_LLM_URL=*.txt
-/desktop-*.txt
-*.pem
+# 로컬 GPU 실행·점검 도구
+/install.py
+/deploy/check_gpu_server.py
+/deploy/gpu_server.py
+/deploy/local_web.py
+/deploy/local_factcheck_api.py
+/deploy/run_factcheck.py
+/deploy/verify_final_web.py
+/deploy/tests/test_gpu_preflight.py
 
-# LLM environments and model outputs
-llm_training/.venv/
-llm_training/.venv-qwen35/
-llm_training/data/
-llm_training/outputs/
-llm_training/__pycache__/
-llm_training/*.jsonl
-llm_training/*.backup_*
+# 발표·시연 원본과 임시 Git 작업 폴더는 PC에 보관
+/presentation_demo/
+/output/
+/tmp/
+/.worktrees/
 
-# Personalization generated data
+# 개인화 자료와 자동 생성 결과
 backend/personalization_setup/data/
 backend/personalization_setup/export_*/
 backend/personalization_setup/setup_result.json
 
-# Local backup files
-*.backup_*
-
+# 인증 값과 개인키
 .thinking_llm_token
+/thinking_llm_token
+*.pem
+*.key
 
+# 편집기 설정과 개인 백업·연결 메모
+.vscode/
+.idea/
 *.backup_*
+/(.venv) *.txt
+/COMMON_LLM_URL=*.txt
+/desktop-*.txt

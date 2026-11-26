@@ -1,100 +1,85 @@
-# EC2 웹과 별도 GPU 서버 배포
+# EC2 웹과 Tailscale GPU 연결
 
-브라우저 → EC2 nginx → EC2 FastAPI → Tailscale → GPU PC의 Qwen API 구성입니다.
-EC2에는 웹·백엔드만 실행합니다. 모델 가중치·학습 데이터·PC 가상환경은 Git에 포함하지 않습니다.
-초안은 Curated1459 어댑터를 사용하고 피드백·채점·추천의 구조화 출력은 같은 Qwen3.5-2B의 기본 가중치를 사용합니다.
+브라우저 → EC2 웹·FastAPI → Tailscale → GPU PC의 Qwen API 구성입니다.
+EC2에는 GPU 모델이나 학습 환경을 설치하지 않습니다.
+GPU PC의 서버·가중치·학습 자료는 로컬에서 별도로 관리합니다.
 
-## 1. GPU PC
+## 코드 적용
 
-현재 PC의 프로젝트 루트에서 기존 GPU 가상환경을 사용합니다. 가중치는 이 PC의 기존 경로에 그대로 둡니다.
-Git 코드를 받을 때 기존 `thinking_llm_token`, `llm_training/outputs/`와 가상환경은 유지합니다.
-
-```powershell
-llm_training\.venv\Scripts\python.exe deploy/gpu_server.py --start --adapter llm_training/outputs/qwen35_fresh_20261119_182005_790166/adapter --profile curated_over1000_20261119
-```
-
-이미 8001번 포트에서 API가 실행 중이면 중복 실행하지 않고 현재 실행을 사용합니다.
-코드를 갱신했다면 기존 GPU API 프로세스를 확인한 후 종료하고 위 명령으로 다시 실행합니다.
-실제 로드한 가중치 지문은 `b3446a724b1190bbac4eaf80afc20be300b08ec25f734b7a0fd0ba377db11f1e`입니다.
-
-GPU API는 `127.0.0.1:8001`에 바인딩합니다. PC와 EC2가 같은 tailnet에 로그인되어 있을 때 GPU PC에서 아래 전달 설정을 사용합니다.
-기존 Serve 설정이 있으면 `tailscale serve status`로 먼저 확인합니다.
-
-```powershell
-tailscale serve --bg --tcp=8001 tcp://127.0.0.1:8001
-```
-
-이 명령은 Git 업로드 과정에서 자동 실행하지 않습니다. PC가 켜져 있고 GPU API와 Tailscale이 실행 중이어야 합니다.
-
-## 2. EC2 코드와 환경 설정
-
-EC2의 기존 체크아웃에서 실행합니다. 로컬 수정이 있다면 먼저 `git status`로 확인합니다.
-Python 3.11과 Node.js 24에서 검사했습니다. 웹 빌드에는 Node.js 20.19 이상(20.x) 또는 22.12 이상이 필요합니다.
+이번 작업은 Git 업로드까지 수행합니다. 아래 명령과 서비스 재시작은 EC2 적용 시 실행합니다.
+기존 환경설정과 운영 데이터를 유지하고, 먼저 현재 작업 내용이 있는지 확인합니다.
 
 ```bash
+git status --short
 git fetch origin
 git pull --ff-only origin master
-python3 -m venv .venv                 # 가상환경이 없을 때만
 .venv/bin/python -m pip install -r backend/requirements.txt
 ```
 
-기존 `backend/.env`의 DB·JWT·메일·결제 설정을 유지하고 아래 두 값을 GPU PC에 맞춥니다.
+로컬 변경 때문에 pull이 거절되면 강제로 초기화하지 말고 변경을 보관한 뒤 통합합니다.
+
+## 환경설정
+
+기존 `backend/.env`의 RDS·JWT·메일·결제 설정을 유지하고 아래 연결 값을 확인합니다.
 
 ```dotenv
 COMMON_LLM_URL=http://GPU_TAILSCALE_IP:8001
-THINKING_LLM_TOKEN=GPU_PC와_동일한_비밀값
+THINKING_LLM_TOKEN=GPU_PC와_같은_비밀값
 ```
 
-GPU PC의 `thinking_llm_token` 내용과 EC2의 토큰을 같은 값으로 설정합니다. 이 값은 Git이나 프런트엔드 환경변수에 넣지 않습니다.
-EC2에는 torch·transformers나 모델 가중치를 설치할 필요가 없습니다.
+이 값은 백엔드에서만 사용하며 프론트 환경변수에 넣지 않습니다.
+GPU PC와 EC2는 같은 Tailscale 네트워크에 연결되어 있어야 합니다.
+GPU 서버 시작과 Tailscale 설정은 이 저장소를 받는 것만으로 자동 실행되지 않습니다.
+
+자료 사실검사를 별도로 사용할 때만 `FACTCHECK_LLM_URL`과 `FACTCHECK_LLM_TOKEN`을 설정합니다.
+이 경로는 기존 단원 채점과 분리되어 있으며, 이번 작업은 사실검사 화면을 추가하지 않습니다.
+
+## AI 기능의 연결 조건
+
+초안은 계정의 개인 모델이 있으면 자동으로 사용하고, 개인 모델이 없다는 404 응답일 때 공통 모델로 전환합니다.
+시간 초과나 서버 오류는 숨기지 않으며 정상 생성에 실패하면 사용 횟수를 차감하지 않습니다.
+
+피드백·단원 채점은 `common` 모델을 요청하고 응답의 적용 모델을 확인합니다.
+GPU 서버가 `base` 또는 모델 표시가 없는 응답을 보내면 503 오류로 중단합니다.
+따라서 백엔드를 적용하기 전에 현재 GPU 서버가 이 요청·응답 형식과 맞는지 확인해야 합니다.
+특정 학습 결과가 배포되었거나 품질 검증을 통과했다고 가정하지 않습니다.
+
+글쓰기 연습의 기존 추천 버튼은 저장된 관심사와 활용에 동의하고 승인된 본인 글을 자동으로 참고합니다.
+보고서·발표문은 기존 화면이 보유한 자료 중에서 골라 사실과 출처를 유지합니다.
+관련 기록이나 후보가 없으면 기존 AI 추천을 사용합니다. 처음 표시되는 기본 주제를 자동 교체하지는 않습니다.
+자기소개서는 실제 본인 경험을 쓰도록 요청하는 문항을 추천합니다.
+
+## 연결과 실행 확인
 
 ```bash
-.venv/bin/python deploy/check_remote_llm.py --generate --expected-adapter-sha256 b3446a724b1190bbac4eaf80afc20be300b08ec25f734b7a0fd0ba377db11f1e
+.venv/bin/python deploy/check_remote_llm.py
 ```
 
-`reachable: true`, `generation_checked: true`와 선택한 어댑터 지문을 확인합니다.
-이 명령은 실제 tailnet 주소와 토큰으로 EC2에서 실행해야 연결 검증이 됩니다.
+위 명령은 연결 확인이며 실제 답변 생성 검증은 아닙니다.
+현재 모델의 실제 응답까지 확인할 때는 도구의 `--generate` 옵션을 사용합니다.
+이 명령은 GPU 추론 요청을 발생시키므로 학습·추론 실행 계획에 맞춰 수행합니다.
 
-## 3. 웹 빌드와 백엔드 실행
-
-```bash
-cd frontend
-npm ci
-VITE_API_URL= npm run build
-cd ..
-```
-
-운영 빌드의 API 주소를 비워 두면 모든 화면이 nginx의 같은 도메인 `/api/`로 요청합니다.
-GPU 주소나 토큰은 브라우저에 전달하지 않습니다. 개발 모드의 기본 API는 `http://127.0.0.1:8000`입니다.
-
-기존 EC2 백엔드 서비스가 있으면 새 코드로 재시작합니다. 새 서비스를 구성할 경우
-`thinking-backend.service.example`의 계정·절대 경로를 실제 EC2 경로로 바꿔 사용합니다.
-백엔드 실행 명령은 다음과 같습니다.
+EC2 백엔드는 기존 서비스 관리 방식으로 재시작합니다. 직접 실행하는 경우의 기본 명령은 다음과 같습니다.
 
 ```bash
 cd backend
 ../.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-`nginx-thinking.conf.example`은 정적 웹과 `/api/` 프록시 예시입니다. 기존 HTTPS 설정을 유지하고
-체크아웃 경로와 `/api/` 프록시를 반영합니다. AI의 제한적 재생성을 기다릴 수 있도록 프록시 읽기 제한은 240초로 잡습니다.
-nginx 설정을 바꾼 뒤 `sudo nginx -t`로 검사하고 해당 서비스를 재로드합니다.
+프론트는 Git에 있는 팀원 버전을 유지합니다. 웹 빌드가 필요할 때는 기존 배포 절차를 사용합니다.
+새 추천 설정·이력 테이블은 백엔드 시작 시 생성됩니다. RDS 계정에 필요한 테이블 생성 권한이 있어야 합니다.
+문법 퀴즈의 기존 난이도 값과 단원 O/X 데이터는 유지합니다.
 
-EC2에서 `deploy/local_web.py`는 실행하지 않습니다. 이 파일은 PC 시연용 별도 SQLite 웹입니다.
-운영 EC2는 기존 DB 설정으로 `backend/main.py`를 실행합니다.
+적용 후 로그인, 문법 난이도별 문제, 단원 O/X, 초안, 피드백, 추천, 채점·진도 저장을 확인합니다.
 
-## 4. 확인 순서
+## 코드 검사
 
-1. EC2 → GPU 연결 검사 통과
-2. 로그인과 퀴즈·진도 조회
-3. 초안의 새 어댑터·검토 안내, 개인 설정 반영
-4. 피드백의 원문 인용과 힌트·수정문 모드
-5. 추천 주제·자기소개서 문항 생성과 연습 채점·저장
+```bash
+python -m pytest backend/tests deploy/tests -q
+```
 
-GPU API가 준비되지 않았거나 생성이 실패하면 사용 횟수를 차감하지 않습니다.
-문장 길이·주체 보존 보완과 구조화 응답 검증이 포함되어 있지만, 일반 피드백과 채점 설명은 사용자 검토가 필요합니다.
-사용자별 문체 학습 어댑터가 없는 계정에는 개인 모델이 없다는 안내가 표시됩니다.
-
-코드 검사는 `python -m pytest backend/tests deploy/tests llm_training/tests -q`로 실행할 수 있습니다
-(`pytest`는 개발 검사 환경에 설치). Git에서 제외한 학습·비교 자료가 필요한 검사 3개는 해당 자료가 없는 체크아웃에서만 건너뜁니다.
-프런트엔드 검사는 `npm run test:qwen`, `npm run test:navigation`, `npm run test:ai-usage`, `npm run test:api-base`입니다.
+검사 환경에는 백엔드 패키지 외에 pytest와 httpx가 필요합니다.
+API 검사는 별도 SQLite와 모의 Qwen 응답을 사용합니다.
+GPU PC 전용 코드가 필요한 검사는 웹 전용 체크아웃에서만 건너뛰며, 실제 RDS나 GPU에 요청하지 않습니다.
+프론트의 `test:qwen`에는 이미 제거된 수동 모델 선택 문구를 기대하는 검사가 남아 있습니다.
+이 기대값은 프론트 담당자가 자동 선택 화면에 맞춰 별도로 정리해야 합니다.

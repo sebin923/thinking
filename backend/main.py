@@ -26,6 +26,7 @@ from routers import admin
 from routers import notice
 # 학습 글쓰기 연습 AI 채점 API (로그인 필요, 주소는 /api/learn/...)
 from routers import learn
+from routers import fact_check
 
 from routers import payment
 
@@ -77,6 +78,7 @@ app.include_router(payment.router)
 
 # 학습 글쓰기 연습 AI 채점 API를 서버에 붙이기
 app.include_router(learn.router)
+app.include_router(fact_check.router)
 from routers import learn_progress
 app.include_router(learn_progress.router)
 app.include_router(training.router)

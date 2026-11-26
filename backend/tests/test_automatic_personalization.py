@@ -10,7 +10,7 @@ import pytest
 import requests
 
 from test_qwen_features import api, document, reply
-import common_llm as server
+server = pytest.importorskip("common_llm", reason="GPU PC 전용 코드가 없는 웹 체크아웃입니다.")
 from main import app
 import models
 from routers.auth import get_current_user

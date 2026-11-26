@@ -32,7 +32,6 @@ from main import app
 from routers.auth import get_current_user
 from learning_progress import LearningProgress
 import qwen_ai
-import common_llm
 
 
 @pytest.fixture
@@ -59,7 +58,7 @@ def api(monkeypatch):
 
 def reply(post, content, **extra):
     response = Mock(status_code=200)
-    response.json.return_value = {"content": content, "personalized": True, **extra}
+    response.json.return_value = {"content": content, "personalized": True, "adapter": "common", **extra}
     post.return_value = response
 
 
@@ -250,6 +249,7 @@ def test_feedback_uses_chat_schema_and_guided_preference(api):
     assert response.json()["feedback"]["highlights"][0]["revised_text"] == ""
     assert post.call_args.args == ("http://qwen.test:8001/chat",)
     assert post.call_args.kwargs["json"]["schema_spec"]["required"] == ["overall_feedback", "highlights"]
+    assert post.call_args.kwargs["json"]["adapter"] == "common"
     assert "힌트 중심 설정" in post.call_args.kwargs["json"]["messages"][0]["content"]
     assert db.query(models.AIFeedback).count() == 1
 
@@ -281,6 +281,7 @@ def test_score_saves_exact_recommended_material_and_90_point_completion(api):
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["score"] == 90 and data["passed"] is True and data["progress_saved"] is True
+    assert post.call_args.kwargs["json"]["adapter"] == "common"
     saved = data["saved_progress"]["progress"]["units"]["report-1"]
     assert saved["completed"] is True
     assert saved["writing"]["practice"]["topic"] == "새 추천 주제"
@@ -292,7 +293,9 @@ def test_score_saves_exact_recommended_material_and_90_point_completion(api):
 def test_off_task_score_is_capped_at_50(api):
     client, db, post = api
     unlock(db)
-    reply(post, json.dumps(score_payload(on_task=False, score=10), ensure_ascii=False))
+    off_task = score_payload(on_task=False, score=10)
+    off_task['criteria']['criterion_2'] = {'score':0,'comment':'자료 정리와 관계없는 내용으로 과제를 수행하지 않았습니다.'}
+    reply(post, json.dumps(off_task, ensure_ascii=False))
     data = client.post("/api/learn/writing-score", json=score_request()).json()
     assert data["score"] == 50 and data["passed"] is False
 
@@ -320,26 +323,26 @@ def recommendation_request(type_label="보고서"):
             "candidates": [{"id": "report-2", "title": "새 주제", "summary": "기존 자료의 사실 요약"}]}
 
 
-def test_recommendation_selects_only_provided_topic(api):
+def test_recommendation_uses_curated_server_material_instead_of_untrusted_candidates(api):
     client, db, post = api
-    reply(post, json.dumps({"candidate_id": "report-2", "reason": "결과부터 쓰는 연습에 적합해요."}, ensure_ascii=False))
-    response = client.post("/api/learn/practice-recommendation", json=recommendation_request())
+    response = client.post("/api/learn/practice-recommendation-v2", json=recommendation_request())
     assert response.status_code == 200, response.text
-    assert response.json()["candidate_id"] == "report-2"
-    schema = post.call_args.kwargs["json"]["schema_spec"]
-    assert schema["properties"]["candidate_id"]["enum"] == ["report-2"]
-    reply(post, json.dumps({"candidate_id": "invented-id", "reason": "없는 자료"}, ensure_ascii=False))
-    assert client.post("/api/learn/practice-recommendation", json=recommendation_request()).status_code == 502
+    data = response.json()
+    assert data["practice"]["topic"] != "새 주제"
+    assert data["recommendation_source"] == "common_bank"
+    assert "가상" in data["practice"]["source"]
+    post.assert_not_called()
 
 
-def test_cover_letter_recommendation_is_a_question(api):
+def test_cover_letter_recommendation_is_a_real_experience_question(api):
     client, db, post = api
-    question = "실제로 겪은 문제를 해결한 경험에서 본인이 한 행동과 확인한 결과를 써 보세요."
-    reply(post, json.dumps({"question": question, "reason": "행동과 결과를 연결하는 연습에 좋아요."}, ensure_ascii=False))
     request = recommendation_request("자기소개서")
     request["candidates"] = []
-    response = client.post("/api/learn/practice-recommendation", json=request)
-    assert response.status_code == 200 and response.json()["question"] == question
+    response = client.post("/api/learn/practice-recommendation-v2", json=request)
+    assert response.status_code == 200
+    assert response.json()["question"].startswith("본인이 실제로")
+    assert response.json()["practice"]["question"] == response.json()["question"]
+    post.assert_not_called()
 
 
 def test_cover_letter_question_does_not_treat_missing_reference_facts_as_fabrication(api):
@@ -355,18 +358,18 @@ def test_cover_letter_question_does_not_treat_missing_reference_facts_as_fabrica
     assert '연습 자료에 없는 사실·수치·경험을 지어내지 않았다' not in messages[1]['content']
 
 
-def test_recommendation_preferences_do_not_ask_for_rewrites_or_fictional_examples(api):
-    client,db,post=api
-    client.put('/api/writing/preferences',json={'ai_assistance':'draft','feedback_style':'detailed'})
-    reply(post,json.dumps({'question':'본인이 실제로 맡은 역할과 행동을 설명해 보세요.','reason':'행동 주체를 구분하는 연습입니다.'},ensure_ascii=False))
-    response=client.post('/api/learn/practice-recommendation',json=recommendation_request('자기소개서'))
-    assert response.status_code==200,response.text
-    system=post.call_args.kwargs['json']['messages'][0]['content']
-    assert "'본인이 실제로'로 시작" in system
-    assert '구체적인 수정 문장 예시 제공' not in system
+def test_recommendation_style_settings_do_not_create_fictional_experiences(api):
+    client, db, post = api
+    client.put('/api/writing/preferences', json={'ai_assistance':'draft','feedback_style':'detailed'})
+    response = client.post('/api/learn/practice-recommendation-v2', json=recommendation_request('자기소개서'))
+    assert response.status_code == 200, response.text
+    assert response.json()['question'].startswith('본인이 실제로')
+    assert 'sample' not in response.json()['practice']
+    post.assert_not_called()
 
 
 def test_common_server_receives_distinct_confident_tone_and_sentence_preference():
+    common_llm = pytest.importorskip("common_llm", reason="GPU PC 전용 코드가 없는 웹 체크아웃입니다.")
     request = common_llm.DraftRequest(document_type="보고서", topic="안내판 점검", facts=["위치가 다르다."],
                                      user_preferences={"preferred_tone": "confident", "sentence_length": "short"})
     kind, messages = common_llm.messages_for(request)
@@ -411,3 +414,79 @@ def test_learning_rejects_malformed_correct_question_ids(api, ids):
     payload = {'units': {'report-01': {'correctQuestionIds': ids}}, 'wrong': {}}
     response = client.put('/api/learn/progress', json={'expected_revision': state['revision'], 'progress': payload})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("actual_adapter", [None, "base"])
+def test_feedback_rejects_an_unconfirmed_common_adapter(api, actual_adapter):
+    client, db, post = api
+    doc = document(client)
+    draft = client.post("/api/drafts", json={"document_id":doc["id"], "content":"안내판을 확인했다."}).json()
+    reply(post, json.dumps(feedback_payload(), ensure_ascii=False), adapter=actual_adapter)
+    response = client.post(f"/api/drafts/{draft['id']}/feedback-ai")
+    assert response.status_code == 503
+    assert db.query(models.AIFeedback).count() == 0
+
+
+def test_score_rejects_base_adapter_without_saving_results(api):
+    client, db, post = api
+    unlock(db)
+    reply(post, json.dumps(score_payload(), ensure_ascii=False), adapter="base")
+    response = client.post("/api/learn/writing-score", json=score_request())
+    assert response.status_code == 503
+    assert "writing" not in db.query(LearningProgress).filter_by(user_id=1).one().payload["units"]["report-1"]
+
+
+
+def test_logical_feedback_does_not_offer_only_a_sentence_ending_change():
+    original = "관련 자료 12개를 수집하여 정리했다."
+    raw = {"overall_feedback":"결론의 근거를 확인하세요.", "highlights":[{
+        "original_text":original, "type":"논리", "reason":"결론의 근거가 필요합니다.",
+        "suggestion":"근거의 범위를 확인하세요.", "revised_text":"관련 자료 12개를 수집하여 정리했습니다."}]}
+    result = qwen_ai._feedback_from_content(json.dumps(raw, ensure_ascii=False), original)
+    assert result['highlights'][0]['revised_text'] == ''
+
+
+def test_score_regenerates_a_contradictory_explanation_before_saving(api):
+    client, db, post = api
+    unlock(db)
+    bad = score_payload(score=0)
+    bad['criteria']['criterion_2']['comment'] = '할 일을 빠짐없이 썼지만, 연습 자료에 없는 사실이나 수치, 경험은 없습니다.'
+    good = score_payload(score=8)
+    first, second = Mock(status_code=200), Mock(status_code=200)
+    first.json.return_value = {'content':json.dumps(bad,ensure_ascii=False), 'adapter':'common'}
+    second.json.return_value = {'content':json.dumps(good,ensure_ascii=False), 'adapter':'common'}
+    post.side_effect = [first, second]
+    response = client.post('/api/learn/writing-score', json=score_request())
+    assert response.status_code == 200, response.text
+    assert response.json()['score'] == 80
+    assert post.call_count == 2
+    assert '모순으로 검증에 실패' in post.call_args.kwargs['json']['messages'][0]['content']
+
+
+def test_score_does_not_save_a_persistent_explanation_conflict(api):
+    client, db, post = api
+    unlock(db)
+    bad = score_payload(score=0)
+    bad['criteria']['criterion_2']['comment'] = '할 일을 빠짐없이 썼습니다.'
+    reply(post, json.dumps(bad,ensure_ascii=False))
+    response = client.post('/api/learn/writing-score', json=score_request())
+    assert response.status_code == 502, response.text
+    assert post.call_count == 2
+    assert 'writing' not in db.query(LearningProgress).filter_by(user_id=1).one().payload['units']['report-1']
+
+
+def test_score_rejects_high_task_score_for_an_off_topic_response(api):
+    client, db, post = api
+    unlock(db)
+    reply(post, json.dumps(score_payload(on_task=False,score=10),ensure_ascii=False))
+    response = client.post('/api/learn/writing-score',json=score_request())
+    assert response.status_code == 502, response.text
+    assert post.call_count == 2
+    assert 'writing' not in db.query(LearningProgress).filter_by(user_id=1).one().payload['units']['report-1']
+
+
+def test_a_partial_strength_is_not_treated_as_complete_criterion_satisfaction():
+    from routers.learn import _score_explanation_conflicts
+    raw = score_payload(score=2)
+    raw['criteria']['criterion_1']['comment'] = '수치는 빠짐없이 썼지만 동료의 행동을 본인의 행동으로 바꿨습니다.'
+    assert _score_explanation_conflicts(json.dumps(raw,ensure_ascii=False),3) == []

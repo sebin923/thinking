@@ -47,10 +47,14 @@ def request_qwen(endpoint, payload):
     return result
 
 
-def call_qwen(messages, *, max_tokens=1200, schema=None):
-    return request_qwen("/chat", {
-        "messages": messages, "max_new_tokens": max_tokens, "schema_spec": schema,
-    })["content"].strip()
+def call_qwen(messages, *, max_tokens=1200, schema=None, adapter=None):
+    payload = {"messages": messages, "max_new_tokens": max_tokens, "schema_spec": schema}
+    if adapter is not None:
+        payload["adapter"] = adapter
+    result = request_qwen("/chat", payload)
+    if adapter is not None and result.get("adapter") != adapter:
+        raise HTTPException(503, "요청한 미세조정 모델의 적용을 확인하지 못했습니다. LLM 서버 설정을 확인해 주세요.")
+    return result["content"].strip()
 
 
 def build_personalization_prompt(user_preferences=None):
@@ -177,6 +181,11 @@ def _feedback_from_content(raw, original):
             continue
         if any(char in revised for char in "[]<>") or revised == quote or len(revised) > 2000:
             cleaned["revised_text"] = ""
+        if cleaned["type"] in ("논리", "구성") and revised:
+            # A different sentence ending does not repair a logical argument.
+            ending = r"(?:하였습니다|했습니다|하였다|했다|합니다|한다|입니다|이다)[.!?。]?$"
+            if re.sub(ending, "", quote) == re.sub(ending, "", revised):
+                cleaned["revised_text"] = ""
         valid.append(cleaned)
     if unsafe_filtered and not valid:
         summary = '원문의 행동 주체와 사실을 유지하는 수정안을 제시하기 어렵습니다. 원문과 대조하며 필요한 수정만 확인해 주세요.'
@@ -243,7 +252,7 @@ def create_feedback_with_ai(content, document_type="", user_preferences=None):
     raw = call_qwen([
         {"role": "system", "content": system},
         {"role": "user", "content": content},
-    ], max_tokens=2000, schema=_FEEDBACK_SCHEMA)
+    ], max_tokens=2000, schema=_FEEDBACK_SCHEMA, adapter="common")
     feedback = _feedback_from_content(raw, content)
     if (user_preferences or {}).get("feedback_style") == "brief":
         feedback['highlights'] = feedback['highlights'][:2]
