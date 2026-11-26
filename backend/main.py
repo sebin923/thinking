@@ -27,6 +27,7 @@ from routers import notice
 # 학습 글쓰기 연습 AI 채점 API (로그인 필요, 주소는 /api/learn/...)
 from routers import learn
 from routers import fact_check
+from routers import ai_rating
 
 from routers import payment
 
@@ -59,6 +60,7 @@ app.add_middleware(
 
 app.include_router(quiz_router)
 app.include_router(writing_router)
+app.include_router(ai_rating.router)
 
 # 개인화 API 등록
 app.include_router(writing_preferences_router)

@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import List, Optional, Any
-from pydantic import BaseModel
+from typing import List, Optional, Any, Literal
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 # --- 사용자 관련 스키마 ---
 class UserBase(BaseModel):
@@ -89,13 +89,31 @@ class RankingResponse(BaseModel):
 
 # --- AI 결과 별점 평가 스키마 ---
 class AiRatingCreate(BaseModel):
-    kind: str           # "draft" 또는 "feedback"
-    model: str          # "common", "personal"
-    rating: int         # 별점 (1~5)
-    comment: Optional[str] = ""
-    documentId: Optional[Any] = None
-    resultText: Optional[str] = ""
-    requestText: Optional[str] = ""
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["draft", "feedback"]
+    model: Literal["common", "personal"]
+    rating: StrictInt = Field(ge=1, le=5)
+    comment: Optional[str] = Field("", max_length=100)
+    documentId: str | int | None = None
+    resultText: Optional[str] = Field("", max_length=2000)
+    requestText: Optional[str] = Field("", max_length=2000)
+
+    @field_validator("documentId", mode="before")
+    @classmethod
+    def validate_document_id(cls, value):
+        if value is None:
+            return None
+        if type(value) is int:
+            if value <= 0 or len(str(value)) > 50:
+                raise ValueError("문서 번호를 확인해 주세요.")
+            return value
+        if isinstance(value, str):
+            value = value.strip()
+            if len(value) > 50:
+                raise ValueError("문서 번호는 50자 이하여야 합니다.")
+            return value or None
+        raise ValueError("문서 번호는 문자열이나 양의 정수여야 합니다.")
 
 class AiRatingResponse(BaseModel):
     id: str

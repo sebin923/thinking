@@ -1,67 +1,60 @@
-import time
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+"""기존 화면의 별점 요청을 서버에 저장한다. 토큰이 없는 요청은 익명이다."""
+from datetime import datetime, timezone
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import models
 import schemas
 from database import get_db
+from routers.auth import bearer_scheme, get_current_user
 
 router = APIRouter(prefix="/api/ai-ratings", tags=["AI Ratings"])
 
+def optional_rating_user(request: Request, credentials=Depends(bearer_scheme), db: Session = Depends(get_db)):
+    # 기존 프론트는 인증 헤더를 보내지 않는다. 문서 번호로 작성자를 추정하지 않는다.
+    if credentials is None and not request.headers.get("Authorization"):
+        return None
+    return get_current_user(credentials, db)
+
+
 @router.post("", response_model=dict)
-def save_ai_rating(
-    data: schemas.AiRatingCreate, 
-    db: Session = Depends(get_db)
-):
-    # 1. 별점 1~5 정수 유효성 검증
-    if not (1 <= data.rating <= 5):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="별점을 1~5개 중에서 골라 주세요."
-        )
-
-    # 2. 고유 ID 생성 (타임스탬프 + 랜덤 문자열)
-    rating_id = f"{int(time.time() * 1000)}-{int(time.time() % 1000)}"
-
-    # 3. DB 모델 객체 생성 (데이터 길이 제한 적용)
-    new_rating = models.AiRating(
-        id=rating_id,
-        user_id="guest",  # 로그인 사용자 정보 연동 시 해당 유저 ID로 변경 가능
+def save_ai_rating(data: schemas.AiRatingCreate, db: Session = Depends(get_db),
+                   user=Depends(optional_rating_user)):
+    rating = models.AiRating(
+        id=uuid4().hex,
+        user_id=str(user.user_id) if user is not None else "guest",
         kind=data.kind,
         model=data.model,
         rating=data.rating,
-        comment=(data.comment or "").strip()[:100],
+        comment=(data.comment or "").strip(),
+        # 클라이언트가 보낸 참고 값이며 문서 조회·소유권 판단에는 사용하지 않는다.
         document_id=str(data.documentId) if data.documentId is not None else None,
-        result_text=(data.resultText or "")[:2000],
-        request_text=(data.requestText or "")[:2000],
-        created_at=datetime.utcnow().isoformat()
+        result_text=data.resultText or "",
+        request_text=data.requestText or "",
+        created_at=datetime.now(timezone.utc).isoformat(),
     )
 
-    # 4. 데이터베이스 저장
     try:
-        db.add(new_rating)
+        db.add(rating)
         db.commit()
-        db.refresh(new_rating)
-    except Exception as e:
+        db.refresh(rating)
+    except SQLAlchemyError as exc:
         db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="평가를 저장하지 못했어요. 잠시 후 다시 시도해 주세요."
-        )
-
-    # 5. 프론트엔드가 기대하는 성공 응답 포맷 반환
+        raise HTTPException(503, "평가를 서버에 저장하지 못했어요. 잠시 후 다시 시도해 주세요.") from exc
     return {
         "success": True,
         "data": {
-            "id": new_rating.id,
-            "kind": new_rating.kind,
-            "model": new_rating.model,
-            "rating": new_rating.rating,
-            "comment": new_rating.comment,
-            "documentId": new_rating.document_id,
-            "resultText": new_rating.result_text,
-            "requestText": new_rating.request_text,
-            "createdAt": new_rating.created_at
+            "id": rating.id,
+            "kind": rating.kind,
+            "model": rating.model,
+            "rating": rating.rating,
+            "comment": rating.comment,
+            "documentId": rating.document_id,
+            "resultText": rating.result_text,
+            "requestText": rating.request_text,
+            "createdAt": rating.created_at,
         }
     }
