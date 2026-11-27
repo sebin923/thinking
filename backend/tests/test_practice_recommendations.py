@@ -160,7 +160,7 @@ def test_automatic_cover_letter_question_uses_real_experience_and_changes_topic(
     second = client.post('/api/learn/practice-recommendation', json=request)
     assert second.status_code == 200, second.text
     assert second.json()['question'] != request['current_topic']
-    assert '공통 주제' in second.json()['reason']
+    assert '전공·관심사' in second.json()['reason']
     post.assert_not_called()
 
 
@@ -250,3 +250,65 @@ def test_all_curated_materials_are_usable_for_each_genre():
                 assert practice.facts[0].startswith('보고 목적:' if genre == '보고서' else '발표 대상:')
                 if genre == '발표문':
                     assert practice.facts[-1].startswith('청중에게 전할 요청:')
+
+
+@pytest.mark.parametrize('genre', ['보고서', '자기소개서', '발표문'])
+@pytest.mark.parametrize('profile', [
+    {'major': '컴퓨터공학과'},
+    {'interests': ['웹 개발', '데이터베이스']},
+    {'interests': ['인공지능']},
+    {'interests': ['환경', '재활용']},
+    {'interests': ['경영', '마케팅', '예산']},
+])
+def test_curated_recommendations_remain_in_field_after_repeated_requests(api, genre, profile):
+    client, _, post = api
+    assert client.put('/api/writing/recommendation-profile', json=profile).status_code == 200
+    expected = domains_in(profile.get('major', '') + ' ' + ' '.join(profile.get('interests', [])))
+    bank = materials(genre)
+    request = recommendation_request(genre)
+    request['candidates'] = []
+    topics = []
+    for _ in range(7):
+        response = client.post('/api/learn/practice-recommendation-v2', json=request)
+        assert response.status_code == 200, response.text
+        value = response.json()
+        assert value['personalized'] is True
+        practice = PracticeMaterial(**value['practice'])
+        topic = practice.question if genre == '자기소개서' else practice.topic
+        entry = next(item for item in bank if item['practice'].get('question', item['practice'].get('topic')) == topic)
+        assert expected.intersection(entry['domains'])
+        assert topic != request['current_topic']
+        topics.append(topic)
+        request['current_topic'] = topic
+    assert len(set(topics[:3])) == 3
+    post.assert_not_called()
+
+
+def test_business_recommendation_uses_explicit_fields_instead_of_incidental_words(api):
+    client, _, post = api
+    client.put('/api/writing/recommendation-profile', json={'interests': ['경영', '마케팅', '예산']})
+    request = recommendation_request()
+    request['candidates'] = [{'id': 'old-ecology', 'title': '생태발자국', 'summary': '경제학자가 만든 환경 지표'}]
+    value = client.post('/api/learn/practice-recommendation-v2', json=request).json()
+    assert value['personalized'] is True
+    assert value['practice']['topic'] != '생태발자국'
+    post.assert_not_called()
+
+
+def test_recommendation_preserves_writing_progress_and_credits(api):
+    from copy import deepcopy
+    from learning_progress import LearningProgress
+
+    client, db, post = api
+    original = {'units': {'report-1': {'passed': True, 'completed': True, 'writingBest': 95,
+                                     'writing': {'text': '기존 글'}, 'correctQuestionIds': ['db-ox:1']}}, 'wrong': {}}
+    db.add(LearningProgress(user_id=1, payload=deepcopy(original), revision=4))
+    db.get(models.User, 1).ai_credits = 7
+    db.commit()
+    client.put('/api/writing/recommendation-profile', json={'major': '컴퓨터공학과'})
+    assert client.post('/api/learn/practice-recommendation-v2', json=recommendation_request()).status_code == 200
+    saved = db.query(LearningProgress).filter_by(user_id=1).populate_existing().one()
+    assert saved.payload == original
+    assert saved.revision == 4
+    assert db.query(models.User).filter_by(user_id=1).populate_existing().one().ai_credits == 7
+    post.assert_not_called()

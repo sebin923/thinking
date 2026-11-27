@@ -151,9 +151,13 @@ function WritingPractice({ unit, practice: defaultPractice, saved, completed, be
             ))}
           </ul>
           {/* 출처 표기 (위키백과·정책브리핑 자료는 출처를 꼭 보여줘야 함) */}
-          <a className="wp-source" href={practice.url} target="_blank" rel="noreferrer">
-            출처: {practice.source} 「{practice.topic}」 · {practice.license} <ExternalLink size={12} />
-          </a>
+          {practice.url ? (
+            <a className="wp-source" href={practice.url} target="_blank" rel="noreferrer">
+              출처: {practice.source} 「{practice.topic}」 · {practice.license} <ExternalLink size={12} />
+            </a>
+          ) : (
+            <span className="wp-source">출처: {practice.source} 「{practice.topic}」 · {practice.license}</span>
+          )}
         </div>
       )}
       {practice?.kind === "question" && (

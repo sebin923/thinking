@@ -14,18 +14,40 @@ try {
   const unit = report.units[0];
   const initial = getPracticeFor(report, unit, 0);
   const candidates = getPracticeCandidates(report);
-  const selected = candidates.find((item) => item.practice.topic !== initial.topic);
+  const selected = { practice: { kind: "data", topic: "스터디룸 예약 중복 방지 기능 점검",
+    facts: ["보고 목적: 점검 결과를 정리한다.", "예약 시험은 20회였다.", "수정 전 중복 예약은 6회였다.", "수정 후 같은 시험에서 중복 예약은 없었다.", "실제 다중 접속 상황은 아직 확인하지 않았다.", "다음 주 추가 시험을 할 계획이다."],
+    source: "생각한줄 자체 제작 가상 연습 자료", url: "", license: "글쓰기 연습을 위한 가상 설정입니다." } };
   let sent;
   globalThis.fetch = async (url, options) => {
-    assert.ok(url.endsWith("/api/learn/practice-recommendation"));
+    assert.ok(url.endsWith("/api/learn/practice-recommendation-v2"));
+    assert.equal(options.headers.Authorization, "Bearer test-token");
     sent = JSON.parse(options.body);
-    return { ok: true, json: async () => ({ candidate_id: selected.id, reason: "이 단원 규칙을 연습하기 좋아요." }) };
+    return { ok: true, json: async () => ({ practice: selected.practice, personalized: true, reason: "저장한 전공·관심사를 바탕으로 골랐어요." }) };
   };
   const recommended = await recommendWritingPractice("test-token", { typeLabel: report.label, unit, candidates, currentPractice: initial });
-  assert.ok(!sent.candidates.some((item) => item.title === initial.topic));
+  assert.equal(sent.candidates, undefined, "고정된 10개 후보로 분야별 자료를 제한하지 않는다");
+  assert.equal(sent.current_topic, initial.topic);
+  assert.ok(!candidates.some((item) => item.practice.topic === selected.practice.topic));
   assert.equal(recommended.practice, selected.practice);
   assert.equal(recommended.practice.url, selected.practice.url);
   console.log("PASS topic recommendation preserves original facts and source");
+
+  const reason = "저장한 관심사를 바탕으로 골랐어요.";
+  for (const practice of [null, { ...selected.practice, facts: [] }, { ...selected.practice, topic: initial.topic },
+    { ...selected.practice, url: "javascript:alert(1)" }, { ...selected.practice, facts: ["a".repeat(1201)] },
+    { ...selected.practice, facts: Array(31).fill("사실") }, { ...selected.practice, facts: Array(5).fill("가".repeat(900)) },
+    { kind: "question", question: "자료형 응답 대신 질문을 반환" }]) {
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ practice, reason }) });
+    await assert.rejects(() => recommendWritingPractice("token", { typeLabel: report.label, unit, candidates, currentPractice: initial }), /추천 결과/);
+  }
+  globalThis.fetch = async () => ({ ok: true, json: async () => null });
+  await assert.rejects(() => recommendWritingPractice("token", { typeLabel: report.label, unit, candidates, currentPractice: initial }), /추천 결과/);
+  const question = { kind: "question", question: "본인이 실제로 웹이나 프로그램의 오류를 해결한 경험과 본인의 행동을 써 보세요.", source: "생각한줄 자체 제작 경험 중심 연습 문항" };
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ practice: question, reason }) });
+  const cover = await recommendWritingPractice("token", { typeLabel: "자기소개서", unit, candidates: [], currentPractice: { kind: "question", question: "이전 문항" } });
+  assert.deepEqual(cover.practice, question);
+  await assert.rejects(() => recommendWritingPractice("token", { typeLabel: "자기소개서", unit, candidates: [], currentPractice: question }), /추천 결과/);
+  console.log("PASS curated materials outside old candidates, metadata retention, question mode, malformed and repeated results rejected");
 
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ candidate_id: "unknown", reason: "알 수 없는 자료" }) });
   await assert.rejects(() => recommendWritingPractice("token", { typeLabel: report.label, unit, candidates, currentPractice: initial }));
@@ -50,7 +72,8 @@ try {
   await scoreWriting({ user_id: 1 }, "test-token", { typeLabel: report.label, unit, practice: recommended.practice, text: "새로 추천받은 자료를 활용하여 확인한 사실만 바탕으로 본문을 작성했습니다." });
   assert.deepEqual(sent.practice, recommended.practice);
   assert.ok(sent.material.includes(recommended.practice.topic));
-  assert.ok(!sent.material.includes(recommended.practice.example));
+  assert.deepEqual(sent.practice.facts, recommended.practice.facts);
+  assert.ok(!sent.material.includes("예시 답안"));
   console.log("PASS grading submits the selected topic without the example answer");
 
   const saved = { text: "저장된 연습 글", score: 90, practice: recommended.practice };
@@ -58,6 +81,7 @@ try {
   assert.ok(markup.includes(recommended.practice.topic));
   assert.ok(markup.includes("다른 연습 주제 추천받기"));
   assert.ok(markup.includes(recommended.practice.source));
+  assert.ok(!markup.includes('href=""'), "자체 제작 자료의 빈 출처 URL을 링크로 표시하지 않는다");
   assert.ok(markup.includes("저장된 연습 글"));
   console.log("PASS reopening practice restores its saved topic, source and text");
 
@@ -70,8 +94,8 @@ try {
     const { default: WritingPage } = await server.ssrLoadModule("/src/pages/WritingPage.jsx");
     for (const authState of [null, { token: "test-token", user: { user_id: 1 } }]) {
       const writing = renderToStaticMarkup(React.createElement(WritingPage, { auth: authState, idea: "" }));
-      assert.ok(writing.includes("초안 작성 방식"));
-      assert.ok(writing.includes("내 문체를 학습한 AI"));
+      assert.ok(writing.includes("AI 초안 작성"));
+      assert.ok(writing.includes("AI 피드백"));
       assert.ok(!writing.includes("CLOVA"));
     }
     console.log("PASS integrated writing page renders with Qwen controls for guests and members");

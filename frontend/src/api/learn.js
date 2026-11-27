@@ -314,26 +314,35 @@ function practiceToText(practice) {
   return [`주제: ${practice.topic}`, ...(practice.facts || []).map((fact) => `- ${fact}`)].join("\n");
 }
 
-export async function recommendWritingPractice(token, { typeLabel, unit, candidates, currentPractice }) {
-  const available = candidates.filter(({ practice }) => practice.topic !== currentPractice?.topic).slice(0, 20);
-  const response = await fetch(`${API_URL}/api/learn/practice-recommendation`, {
+export async function recommendWritingPractice(token, { typeLabel, unit, currentPractice }) {
+  const response = await fetch(`${API_URL}/api/learn/practice-recommendation-v2`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       unit_id: String(unit.id), type_label: typeLabel, unit_title: unit.title,
       task: unit.task, rules: unit.points,
       current_topic: currentPractice?.question || currentPractice?.topic || "",
-      candidates: available.map(({ id, practice }) => ({
-        id, title: practice.topic, summary: (practice.facts || []).join(" · ").slice(0, 160),
-      })),
     }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "주제를 추천하지 못했어요.");
-  const practice = typeLabel === "자기소개서"
-    ? (typeof data.question === "string" && data.question.trim() ? { kind: "question", question: data.question.trim() } : null)
-    : available.find(({ id }) => id === data.candidate_id)?.practice;
-  if (!practice || typeof data.reason !== "string") throw new Error("추천 결과를 확인하지 못했어요.");
+  // 분야별 자료의 사실·출처까지 받아 기존 연습 화면과 채점·저장에 함께 전달한다.
+  const practice = data?.practice;
+  const validText = (value, max) => typeof value === "string" && value.trim().length > 0 && value.length <= max;
+  const current = currentPractice?.question || currentPractice?.topic || "";
+  const validPractice = practice && (typeLabel === "자기소개서"
+    ? practice.kind === "question" && validText(practice.question, 600) && practice.question.trim() !== current.trim()
+    : practice.kind === "data" && validText(practice.topic, 200) && practice.topic.trim() !== current.trim()
+      && Array.isArray(practice.facts) && practice.facts.length > 0 && practice.facts.length <= 30
+      && practice.facts.every((fact) => validText(fact, 1200)));
+  if (!validPractice || !validText(data.reason, 500)
+    || (practice.source !== undefined && typeof practice.source !== "string")
+    || (practice.license !== undefined && typeof practice.license !== "string")
+    || (practice.url !== undefined && (typeof practice.url !== "string" || !/^(https?:\/\/|$)/.test(practice.url)))
+    || (practice.example !== undefined && (typeof practice.example !== "string" || practice.example.length > 10000))
+    || practiceToText(practice).length > 4000) {
+    throw new Error("추천 결과를 확인하지 못했어요. 다시 추천받아 주세요.");
+  }
   return { practice, reason: data.reason };
 }
 
