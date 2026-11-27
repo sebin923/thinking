@@ -28,6 +28,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
+from recommendation_profile import RecommendationProfile
 from database import get_db
 from mypage_schemas import (
     MyDocumentOut,
@@ -146,6 +147,10 @@ def build_profile(db: Session, user: models.User) -> ProfileOut:
 
     # model_validate(user): User 객체에서 칸 이름이 같은 값(이름, 이메일 등)을 꺼내서 채움
     profile = ProfileOut.model_validate(user)
+    recommendation = db.get(RecommendationProfile, user.user_id)
+    if recommendation is not None:
+        profile.major = recommendation.major
+        profile.interests = recommendation.interests
     profile.document_count = document_count or 0  # or 0: 결과가 None이면 0으로
     profile.completed_count = completed_count or 0
     profile.best_challenge_score = best_score or 0
@@ -385,6 +390,17 @@ def update_profile(
         user.email_verified = True
         # 다 쓴 인증 기록은 지움 (같은 인증으로 또 바꾸지 못하게)
         db.query(models.EmailVerification).filter(models.EmailVerification.email == body.email).delete()
+
+    # 회원정보와 추천 설정을 같은 트랜잭션으로 저장한다.
+    if body.major is not None or body.interests is not None:
+        recommendation = db.get(RecommendationProfile, user.user_id)
+        if recommendation is None:
+            recommendation = RecommendationProfile(user_id=user.user_id, major="", interests=[])
+            db.add(recommendation)
+        if body.major is not None:
+            recommendation.major = body.major
+        if body.interests is not None:
+            recommendation.interests = body.interests
 
     try:
         db.commit()

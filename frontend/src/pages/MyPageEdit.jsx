@@ -74,6 +74,8 @@ function ProfileSection({ token, profile, onSaved, onSessionExpired }) {
     name: profile.name,
     phone: formatPhone(profile.phone), // "01012345678" → "010-1234-5678"
     email: profile.email,
+    major: profile.major || "",
+    interests: (profile.interests || []).join(", "),
     code: "",
   });
   const [errors, setErrors] = useState({}); // 입력칸별 에러 문구
@@ -98,9 +100,12 @@ function ProfileSection({ token, profile, onSaved, onSessionExpired }) {
   const emailChanged = email !== profile.email; // 이메일을 바꾸려는 중인지
   const isEmailVerified = emailChanged && emailAuth.verifiedEmail === email; // 바꾼 이메일 인증까지 끝났는지
   const isCodeSent = emailChanged && emailAuth.sentTo === email && !isEmailVerified; // 인증번호 입력칸을 보여줄지
+  const major = form.major.trim().replace(/\s+/g, " ");
+  const interests = [...new Set(form.interests.split(",").map((value) => value.trim().replace(/\s+/g, " ")).filter(Boolean))];
   // 바뀐 게 하나라도 있는지 (아무것도 안 바꿨으면 저장 버튼을 꺼 둠)
   const hasChanges =
-    form.name.trim() !== profile.name || onlyDigits(form.phone) !== profile.phone || emailChanged;
+    form.name.trim() !== profile.name || onlyDigits(form.phone) !== profile.phone || emailChanged
+    || major !== (profile.major || "") || JSON.stringify(interests) !== JSON.stringify(profile.interests || []);
 
   // ----- 인증번호 남은 시간 타이머 (1초마다 다시 계산) -----
   useEffect(() => {
@@ -182,6 +187,9 @@ function ProfileSection({ token, profile, onSaved, onSessionExpired }) {
       name: validateName(form.name),
       phone: validatePhone(form.phone),
       email: validateEmail(form.email) || (emailChanged && !isEmailVerified ? "새 이메일 인증을 완료해 주세요." : ""),
+      major: major.length > 80 ? "전공은 80자 이내로 입력해 주세요." : "",
+      interests: interests.length > 8 ? "관심 분야는 최대 8개까지 입력해 주세요."
+        : interests.some((value) => value.length > 40) ? "관심 분야는 각각 40자 이내로 입력해 주세요." : "",
     };
     setErrors(nextErrors);
     // Object.values: 객체의 값만 배열로 / some: 하나라도 조건에 맞으면 true → 에러가 하나라도 있으면 멈춤
@@ -195,9 +203,12 @@ function ProfileSection({ token, profile, onSaved, onSessionExpired }) {
         name: form.name.trim(),
         phone: onlyDigits(form.phone), // 하이픈 빼고 숫자만 보냄
         email,
+        major,
+        interests,
       });
       setSaving(false);
       setDoneMessage(result.message);
+      setForm((prev) => ({ ...prev, major: result.profile.major || "", interests: (result.profile.interests || []).join(", ") }));
       // 인증 상태는 초기화 (이제 새 이메일이 "지금 이메일"이 됨)
       setEmailAuth((prev) => ({ ...prev, sentTo: "", verifiedEmail: "", expiresAt: 0 }));
       onSaved(result.profile);
@@ -310,6 +321,27 @@ function ProfileSection({ token, profile, onSaved, onSessionExpired }) {
           }
         />
       )}
+
+      <FormField
+        id="edit-major"
+        label="전공 (선택)"
+        value={form.major}
+        onChange={(value) => updateField("major", value)}
+        placeholder="예: 컴퓨터공학과"
+        maxLength={80}
+        error={errors.major}
+        hint="글쓰기 연습 주제를 추천할 때 참고해요."
+      />
+      <FormField
+        id="edit-interests"
+        label="관심 분야 (선택)"
+        value={form.interests}
+        onChange={(value) => updateField("interests", value)}
+        placeholder="예: 웹 개발, 데이터베이스, 인공지능"
+        maxLength={400}
+        error={errors.interests}
+        hint="쉼표(,)로 구분해 최대 8개까지, 각각 40자 이내로 입력해 주세요."
+      />
 
       {/* 서버 에러 / 저장 성공 문구 (role: 화면 읽기 프로그램이 바로 읽어 줌) */}
       {serverError && (

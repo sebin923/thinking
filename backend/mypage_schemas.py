@@ -12,7 +12,7 @@
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # 휴대전화 번호 규칙은 회원가입과 똑같이 쓰려고 auth_schemas.py에서 가져옴
 from auth_schemas import PHONE_PATTERN, normalize_email
@@ -65,6 +65,28 @@ class ProfileUpdateRequest(BaseModel):
     name: str
     phone: str
     email: EmailStr  # EmailStr: 이메일 형식이 아니면 자동으로 거절
+    # 이전 화면에서 이 두 칸을 보내지 않으면 기존 추천 설정을 유지한다.
+    major: str | None = Field(None, max_length=80)
+    interests: list[str] | None = Field(None, max_length=8)
+
+    @field_validator("major")
+    @classmethod
+    def clean_major(cls, value):
+        return " ".join(value.split()) if value is not None else None
+
+    @field_validator("interests")
+    @classmethod
+    def clean_interests(cls, values):
+        if values is None:
+            return None
+        result = []
+        for value in values:
+            value = " ".join(value.split())
+            if not value or len(value) > 40:
+                raise ValueError("관심 분야는 각각 1~40자로 입력해 주세요.")
+            if value not in result:
+                result.append(value)
+        return result
 
     @field_validator("name")
     @classmethod
@@ -118,6 +140,8 @@ class ProfileOut(BaseModel):
     email: str
     phone: str
     created_at: datetime | None = None  # 가입일 (예전 데이터는 비어 있을 수도 있어서 None 허용)
+    major: str = ""
+    interests: list[str] = Field(default_factory=list)
 
     # ----- 활동 요약 (User 테이블에는 없고, 라우터에서 세어서 채워 넣음) -----
     document_count: int = 0  # 내가 쓴 글 수

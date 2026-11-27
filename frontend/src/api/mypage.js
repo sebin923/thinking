@@ -114,8 +114,8 @@ export async function deleteDocument(token, documentId) {
 
 // 회원정보 수정 (이름, 전화번호, 이메일)
 // 이메일을 바꿀 때는 api/auth.js의 sendEmailCode → verifyEmailCode로 새 이메일 인증을 먼저 마쳐야 함
-export function updateMyProfile(token, { name, phone, email }) {
-  return request("/api/mypage/profile", token, { method: "PUT", body: { name, phone, email } });
+export function updateMyProfile(token, { name, phone, email, major, interests }) {
+  return request("/api/mypage/profile", token, { method: "PUT", body: { name, phone, email, major, interests } });
 }
 
 // 비밀번호 변경

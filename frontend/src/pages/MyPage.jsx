@@ -28,6 +28,8 @@ import {
   Settings,
   Sparkles,
   Mail,
+  GraduationCap,
+  Tags,
   Phone,
   CalendarDays,
   FileText,
@@ -475,6 +477,14 @@ function MyPage({ auth, onEdit, onCharge, onGoWrite, onGoLearn, onGoLogin, onSes
                     <Mail size={15} /> 이메일
                   </dt>
                   <dd>{profile.email}</dd>
+                </div>
+                <div>
+                  <dt><GraduationCap size={15} /> 전공</dt>
+                  <dd>{profile.major || "미설정"}</dd>
+                </div>
+                <div>
+                  <dt><Tags size={15} /> 관심 분야</dt>
+                  <dd>{profile.interests?.length ? profile.interests.join(", ") : "미설정"}</dd>
                 </div>
                 <div>
                   <dt>
